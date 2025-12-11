@@ -1,3 +1,4 @@
+// ====== formatters ======
 const numberFormatter = new Intl.NumberFormat('en-US');
 const currencyFormatter = new Intl.NumberFormat('en-US', {
   style: 'currency',
@@ -12,24 +13,41 @@ const jpyFormatter = new Intl.NumberFormat('ja-JP', {
 
 const STORAGE_KEY = 'wcwd_previous_stats';
 
-// 自前 Worker のベースURL
-const WORKER_BASE = 'https://dawn-river-686e.badjoke-lab.workers.dev';
+// 🔗 ここが唯一の API ベースURL
+const API_BASE = 'https://dawn-river-686e.badjoke-lab.workers.dev/api/wcwd';
 
-// 共通 JSON フェッチ（GET/POST 両対応）
-async function fetchJSON(url, options) {
-  const res = await fetch(url, options);
-  if (!res.ok) throw new Error(`Request failed: ${res.status}`);
+// ---- 共通 fetch ----
+async function fetchJSON(path, options = {}) {
+  const res = await fetch(`${API_BASE}${path}`, options);
+  if (!res.ok) {
+    throw new Error(`Request failed: ${res.status}`);
+  }
   return res.json();
 }
 
+// ---- JSON-RPC 呼び出し ----
+async function rpcCall(method, params = []) {
+  return fetchJSON('/rpc', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      id: 1,
+      method,
+      params,
+    }),
+  });
+}
+
+// ====== WLD Market（CoinGecko経由 / Workerプロキシ） ======
 async function fetchWLDMarket() {
-  // CoinGecko は必ず Worker 経由で叩く
-  const data = await fetchJSON(`${WORKER_BASE}/api/wcwd/market`);
+  const data = await fetchJSON('/market');
   const market = data.market_data || {};
   const priceUSD = market.current_price?.usd ?? 0;
   const priceJPY =
     market.current_price?.jpy ??
-    priceUSD * (market.current_price?.jpy / market.current_price?.usd || 0);
+    priceUSD *
+      (market.current_price?.jpy / market.current_price?.usd || 0);
 
   return {
     priceUSD,
@@ -41,41 +59,23 @@ async function fetchWLDMarket() {
   };
 }
 
+// ====== Worldchain Stats（public RPC → Worker経由） ======
 async function fetchWorldchainStats(sampleBlocks = 20) {
-  const rpcUrl = `${WORKER_BASE}/api/wcwd/rpc`;
-
   // 1) 最新ブロック番号
-  const latestRes = await fetchJSON(rpcUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      jsonrpc: '2.0',
-      method: 'eth_blockNumber',
-      params: [],
-      id: 1,
-    }),
-  });
-
+  const latestRes = await rpcCall('eth_blockNumber', []);
   const latestBlockHex = latestRes.result;
   const latestBlockNum = parseInt(latestBlockHex, 16);
 
   const blocks = [];
   let gasSamples = [];
 
-  // 2) 直近 sampleBlocks 個のブロックを取得
+  // 2) 直近 N ブロック取得
   for (let i = 0; i < sampleBlocks; i++) {
     const blockNumber = '0x' + (latestBlockNum - i).toString(16);
-    const blockRes = await fetchJSON(rpcUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        jsonrpc: '2.0',
-        method: 'eth_getBlockByNumber',
-        params: [blockNumber, true],
-        id: 10 + i,
-      }),
-    });
-
+    const blockRes = await rpcCall('eth_getBlockByNumber', [
+      blockNumber,
+      true,
+    ]);
     const b = blockRes.result;
     if (!b) continue;
 
@@ -86,46 +86,38 @@ async function fetchWorldchainStats(sampleBlocks = 20) {
     }
   }
 
-  // ブロック番号でソート
-  blocks.sort((a, b) => parseInt(a.number, 16) - parseInt(b.number, 16));
+  // 昇順にソート
+  blocks.sort(
+    (a, b) => parseInt(a.number, 16) - parseInt(b.number, 16),
+  );
 
   const txs = blocks.flatMap((b) => b.transactions || []);
 
   const timestamps = blocks.map((b) => parseInt(b.timestamp, 16));
-  const txCounts = blocks.map((b) => (b.transactions ? b.transactions.length : 0));
+  const txCounts = blocks.map((b) =>
+    b.transactions ? b.transactions.length : 0,
+  );
   const totalTx = txCounts.reduce((a, b) => a + b, 0);
-  const timeDelta = Math.max(1, timestamps[timestamps.length - 1] - timestamps[0]);
+  const timeDelta = Math.max(
+    1,
+    timestamps[timestamps.length - 1] - timestamps[0],
+  );
   const tps = totalTx / timeDelta;
   const txCount24h = Math.round(tps * 86400);
 
-  // 一意アドレス数（簡易）
-  const uniqueAddresses = new Set();
-  txs.forEach((tx) => {
-    if (tx.from) uniqueAddresses.add(tx.from.toLowerCase());
-    if (tx.to) uniqueAddresses.add(tx.to.toLowerCase());
-  });
-  const newAddresses = uniqueAddresses.size;
-
-  // 累積アドレス数（ローカル保存から推定）
-  const previous = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
-  const totalAddresses = (previous.totalAddresses || 0) + newAddresses;
-
   // ガス価格
-  const gasPriceRes = await fetchJSON(rpcUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      jsonrpc: '2.0',
-      method: 'eth_gasPrice',
-      params: [],
-      id: 999,
-    }),
-  });
-
+  const gasPriceRes = await rpcCall('eth_gasPrice', []);
   const gasPriceGwei = parseInt(gasPriceRes.result, 16) / 1e9;
   const gasBaseline = gasSamples.length
-    ? gasSamples.reduce((a, b) => a + b, 0) / gasSamples.length / 1e9
+    ? gasSamples.reduce((a, b) => a + b, 0) /
+      gasSamples.length /
+      1e9
     : gasPriceGwei;
+
+  // アドレス数（簡易）
+  const newAddresses = new Set(
+    txs.map((x) => x.from).filter(Boolean),
+  ).size;
 
   return {
     blocks,
@@ -133,13 +125,14 @@ async function fetchWorldchainStats(sampleBlocks = 20) {
     tps,
     txCount24h,
     newAddresses,
-    totalAddresses,
+    totalAddresses: 0, // 推定ロジックは一旦オフ
     gasPriceGwei,
     gasBaseline,
-    medianTps: tps, // 簡易的に現TPSをベースライン扱い
+    medianTps: 0,
   };
 }
 
+// ====== Activity Breakdown ======
 function computeActivityBreakdown(txs) {
   const counts = {
     native: 0,
@@ -161,7 +154,8 @@ function computeActivityBreakdown(txs) {
     }
   });
 
-  const total = Object.values(counts).reduce((a, b) => a + b, 0) || 1;
+  const total =
+    Object.values(counts).reduce((a, b) => a + b, 0) || 1;
   return {
     native: (counts.native / total) * 100,
     token: (counts.token / total) * 100,
@@ -170,6 +164,7 @@ function computeActivityBreakdown(txs) {
   };
 }
 
+// ====== utils ======
 function average(arr) {
   if (!arr.length) return 0;
   return arr.reduce((a, b) => a + b, 0) / arr.length;
@@ -196,13 +191,17 @@ function createSparklineSvg(data = [], width = 120, height = 40) {
   const points = data
     .map((v, i) => {
       const x = (i * step).toFixed(2);
-      const y = (height - ((v - min) / range) * height).toFixed(2);
+      const y = (
+        height -
+        ((v - min) / range) * height
+      ).toFixed(2);
       return `${x},${y}`;
     })
     .join(' ');
   return `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" fill="none" xmlns="http://www.w3.org/2000/svg"><polyline points="${points}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>`;
 }
 
+// ====== renderers ======
 function renderNetworkStats(stats, diff = {}) {
   const container = document.getElementById('network-stats');
   container.innerHTML = '';
@@ -241,7 +240,9 @@ function renderNetworkStats(stats, diff = {}) {
     article.innerHTML = `
       <div class="card-title">${card.title}</div>
       <div class="card-value">${card.value}</div>
-      <div class="card-diff muted">Diff: ${formatDiff(card.diff)}</div>
+      <div class="card-diff muted">Diff: ${formatDiff(
+        card.diff,
+      )}</div>
     `;
     container.appendChild(article);
   });
@@ -251,11 +252,26 @@ function renderMarketStats(market) {
   const container = document.getElementById('market-stats');
   container.innerHTML = '';
   const cards = [
-    { title: 'Price (USD)', value: currencyFormatter.format(market.priceUSD) },
-    { title: 'Price (JPY)', value: jpyFormatter.format(market.priceJPY) },
-    { title: '24h Change', value: `${market.change24h?.toFixed(2) ?? '0.00'}%` },
-    { title: 'Market Cap', value: currencyFormatter.format(market.marketCap) },
-    { title: 'Volume', value: currencyFormatter.format(market.volume) },
+    {
+      title: 'Price (USD)',
+      value: currencyFormatter.format(market.priceUSD),
+    },
+    {
+      title: 'Price (JPY)',
+      value: jpyFormatter.format(market.priceJPY),
+    },
+    {
+      title: '24h Change',
+      value: `${market.change24h?.toFixed(2) ?? '0.00'}%`,
+    },
+    {
+      title: 'Market Cap',
+      value: currencyFormatter.format(market.marketCap),
+    },
+    {
+      title: 'Volume',
+      value: currencyFormatter.format(market.volume),
+    },
   ];
 
   cards.forEach((card) => {
@@ -273,7 +289,11 @@ function renderMarketStats(market) {
     sparkCard.className = 'card';
     sparkCard.innerHTML = `
       <div class="card-title">7d Sparkline</div>
-      <div class="sparkline">${createSparklineSvg(market.sparkline, 260, 60)}</div>
+      <div class="sparkline">${createSparklineSvg(
+        market.sparkline,
+        260,
+        60,
+      )}</div>
     `;
     container.appendChild(sparkCard);
   }
@@ -295,7 +315,9 @@ function renderActivityBreakdown(breakdown) {
     article.innerHTML = `
       <div class="card-title">${entry.label}</div>
       <div class="card-value">${entry.value.toFixed(1)}%</div>
-      <div class="progress"><span style="width:${entry.value}%"></span></div>
+      <div class="progress"><span style="width:${
+        entry.value
+      }%"></span></div>
     `;
     container.appendChild(article);
   });
@@ -335,13 +357,22 @@ function renderAlerts(stats) {
   const alerts = [];
   const medianTps = stats.medianTps || stats.tps;
   if (stats.tps > medianTps * 1.4) {
-    alerts.push({ title: 'Spike Detected', detail: 'TPS significantly above baseline.' });
+    alerts.push({
+      title: 'Spike Detected',
+      detail: 'TPS significantly above baseline.',
+    });
   }
   if (stats.tps < medianTps * 0.7) {
-    alerts.push({ title: 'Drop Detected', detail: 'TPS significantly below baseline.' });
+    alerts.push({
+      title: 'Drop Detected',
+      detail: 'TPS significantly below baseline.',
+    });
   }
   if (stats.gasPriceGwei > stats.gasBaseline * 1.5) {
-    alerts.push({ title: 'High Gas', detail: 'Gas price above baseline.' });
+    alerts.push({
+      title: 'High Gas',
+      detail: 'Gas price above baseline.',
+    });
   }
 
   container.innerHTML = '<h2>Alerts</h2>';
@@ -366,7 +397,9 @@ function renderAlerts(stats) {
 }
 
 function saveDiff(stats) {
-  const previous = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+  const previous = JSON.parse(
+    localStorage.getItem(STORAGE_KEY) || '{}',
+  );
   localStorage.setItem(
     STORAGE_KEY,
     JSON.stringify({
@@ -380,9 +413,12 @@ function saveDiff(stats) {
   return {
     tps: stats.tps - (previous.tps || 0),
     txCount24h: stats.txCount24h - (previous.txCount24h || 0),
-    newAddresses: stats.newAddresses - (previous.newAddresses || 0),
-    totalAddresses: stats.totalAddresses - (previous.totalAddresses || 0),
-    gasPriceGwei: stats.gasPriceGwei - (previous.gasPriceGwei || 0),
+    newAddresses:
+      stats.newAddresses - (previous.newAddresses || 0),
+    totalAddresses:
+      stats.totalAddresses - (previous.totalAddresses || 0),
+    gasPriceGwei:
+      stats.gasPriceGwei - (previous.gasPriceGwei || 0),
   };
 }
 
@@ -391,8 +427,12 @@ function buildTxTrend(blocks) {
   blocks.forEach((b) => {
     const ts = parseInt(b.timestamp, 16) * 1000;
     const day = new Date(ts);
-    const key = `${day.getUTCFullYear()}-${day.getUTCMonth() + 1}-${day.getUTCDate()}`;
-    buckets[key] = (buckets[key] || 0) + (b.transactions ? b.transactions.length : 0);
+    const key = `${day.getUTCFullYear()}-${
+      day.getUTCMonth() + 1
+    }-${day.getUTCDate()}`;
+    buckets[key] =
+      (buckets[key] || 0) +
+      (b.transactions ? b.transactions.length : 0);
   });
   const entries = Object.entries(buckets)
     .sort((a, b) => new Date(a[0]) - new Date(b[0]))
@@ -400,19 +440,26 @@ function buildTxTrend(blocks) {
   return entries.map(([, count]) => count);
 }
 
+// ====== main ======
 async function loadDashboard() {
   const refreshBtn = document.getElementById('refresh-btn');
   refreshBtn.disabled = true;
   refreshBtn.textContent = 'Loading...';
   try {
-    const [market, stats] = await Promise.all([fetchWLDMarket(), fetchWorldchainStats()]);
+    const [market, stats] = await Promise.all([
+      fetchWLDMarket(),
+      fetchWorldchainStats(),
+    ]);
 
     const activity = computeActivityBreakdown(stats.txs || []);
     const diff = saveDiff(stats);
     renderNetworkStats(stats, diff);
     renderMarketStats(market);
     renderActivityBreakdown(activity);
-    renderCharts(market.sparkline || [], buildTxTrend(stats.blocks || []));
+    renderCharts(
+      market.sparkline || [],
+      buildTxTrend(stats.blocks || []),
+    );
     renderAlerts(stats);
   } catch (err) {
     console.error(err);
@@ -423,8 +470,15 @@ async function loadDashboard() {
 }
 
 window.addEventListener('load', () => {
+  // 初期プレースホルダ
   renderNetworkStats(
-    { tps: 0, txCount24h: 0, newAddresses: 0, totalAddresses: 0, gasPriceGwei: 0 },
+    {
+      tps: 0,
+      txCount24h: 0,
+      newAddresses: 0,
+      totalAddresses: 0,
+      gasPriceGwei: 0,
+    },
     {},
   );
   renderMarketStats({
@@ -435,9 +489,20 @@ window.addEventListener('load', () => {
     volume: 0,
     sparkline: [],
   });
-  renderActivityBreakdown({ native: 0, token: 0, contract: 0, other: 0 });
+  renderActivityBreakdown({
+    native: 0,
+    token: 0,
+    contract: 0,
+    other: 0,
+  });
   renderCharts([], []);
-  renderAlerts({ tps: 0, medianTps: 0, gasPriceGwei: 0, gasBaseline: 0 });
+  renderAlerts({
+    tps: 0,
+    medianTps: 0,
+    gasPriceGwei: 0,
+    gasBaseline: 0,
+  });
+
   loadDashboard();
   const btn = document.getElementById('refresh-btn');
   btn.addEventListener('click', loadDashboard);
