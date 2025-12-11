@@ -12,31 +12,25 @@ const jpyFormatter = new Intl.NumberFormat('ja-JP', {
 
 const STORAGE_KEY = 'wcwd_previous_stats';
 
-const RPC_PROXY = "https://cors.sh/";
+// 自前 Worker のベースURL
+const WORKER_BASE = 'https://dawn-river-686e.badjoke-lab.workers.dev';
 
-// Direct GET (for CoinGecko)
-async function fetchGET(url) {
-  const res = await fetch(url);
-  if (!res.ok) throw new Error(`GET failed: ${res.status}`);
-  return res.json();
-}
-
-// POST JSON-RPC via CORS.SH
-async function fetchRPC(url, body) {
-  const res = await fetch(RPC_PROXY + url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) throw new Error(`RPC failed: ${res.status}`);
+// 共通 JSON フェッチ（GET/POST 両対応）
+async function fetchJSON(url, options) {
+  const res = await fetch(url, options);
+  if (!res.ok) throw new Error(`Request failed: ${res.status}`);
   return res.json();
 }
 
 async function fetchWLDMarket() {
-  const data = await fetchGET('https://api.coingecko.com/api/v3/coins/worldcoin');
+  // CoinGecko は必ず Worker 経由で叩く
+  const data = await fetchJSON(`${WORKER_BASE}/api/wcwd/market`);
   const market = data.market_data || {};
   const priceUSD = market.current_price?.usd ?? 0;
-  const priceJPY = market.current_price?.jpy ?? priceUSD * (market.current_price?.jpy / market.current_price?.usd || 0);
+  const priceJPY =
+    market.current_price?.jpy ??
+    priceUSD * (market.current_price?.jpy / market.current_price?.usd || 0);
+
   return {
     priceUSD,
     priceJPY,
@@ -48,29 +42,38 @@ async function fetchWLDMarket() {
 }
 
 async function fetchWorldchainStats(sampleBlocks = 20) {
-  const rpc = "https://worldchain-mainnet.g.alchemy.com/v2/demo";
+  const rpcUrl = `${WORKER_BASE}/api/wcwd/rpc`;
 
-  // 1) Latest block number
-  const latestRes = await fetchRPC(rpc, {
-    jsonrpc: "2.0",
-    method: "eth_blockNumber",
-    params: [],
-    id: 1
+  // 1) 最新ブロック番号
+  const latestRes = await fetchJSON(rpcUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      method: 'eth_blockNumber',
+      params: [],
+      id: 1,
+    }),
   });
+
   const latestBlockHex = latestRes.result;
   const latestBlockNum = parseInt(latestBlockHex, 16);
 
   const blocks = [];
   let gasSamples = [];
 
-  // 2) Fetch last N blocks
+  // 2) 直近 sampleBlocks 個のブロックを取得
   for (let i = 0; i < sampleBlocks; i++) {
-    const blockNumber = "0x" + (latestBlockNum - i).toString(16);
-    const blockRes = await fetchRPC(rpc, {
-      jsonrpc: "2.0",
-      method: "eth_getBlockByNumber",
-      params: [blockNumber, true],
-      id: i + 10
+    const blockNumber = '0x' + (latestBlockNum - i).toString(16);
+    const blockRes = await fetchJSON(rpcUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        method: 'eth_getBlockByNumber',
+        params: [blockNumber, true],
+        id: 10 + i,
+      }),
     });
 
     const b = blockRes.result;
@@ -83,38 +86,57 @@ async function fetchWorldchainStats(sampleBlocks = 20) {
     }
   }
 
-  // Sort by block number
+  // ブロック番号でソート
   blocks.sort((a, b) => parseInt(a.number, 16) - parseInt(b.number, 16));
 
-  const txs = blocks.flatMap(b => b.transactions || []);
+  const txs = blocks.flatMap((b) => b.transactions || []);
 
-  const timestamps = blocks.map(b => parseInt(b.timestamp, 16));
-  const txCounts = blocks.map(b => (b.transactions ? b.transactions.length : 0));
+  const timestamps = blocks.map((b) => parseInt(b.timestamp, 16));
+  const txCounts = blocks.map((b) => (b.transactions ? b.transactions.length : 0));
   const totalTx = txCounts.reduce((a, b) => a + b, 0);
   const timeDelta = Math.max(1, timestamps[timestamps.length - 1] - timestamps[0]);
   const tps = totalTx / timeDelta;
   const txCount24h = Math.round(tps * 86400);
 
-  const gasPriceRes = await fetchRPC(rpc, {
-    jsonrpc: "2.0",
-    method: "eth_gasPrice",
-    params: [],
-    id: 999
+  // 一意アドレス数（簡易）
+  const uniqueAddresses = new Set();
+  txs.forEach((tx) => {
+    if (tx.from) uniqueAddresses.add(tx.from.toLowerCase());
+    if (tx.to) uniqueAddresses.add(tx.to.toLowerCase());
+  });
+  const newAddresses = uniqueAddresses.size;
+
+  // 累積アドレス数（ローカル保存から推定）
+  const previous = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+  const totalAddresses = (previous.totalAddresses || 0) + newAddresses;
+
+  // ガス価格
+  const gasPriceRes = await fetchJSON(rpcUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      method: 'eth_gasPrice',
+      params: [],
+      id: 999,
+    }),
   });
 
   const gasPriceGwei = parseInt(gasPriceRes.result, 16) / 1e9;
-  const gasBaseline = gasSamples.length ? (gasSamples.reduce((a,b)=>a+b)/gasSamples.length)/1e9 : gasPriceGwei;
+  const gasBaseline = gasSamples.length
+    ? gasSamples.reduce((a, b) => a + b, 0) / gasSamples.length / 1e9
+    : gasPriceGwei;
 
   return {
     blocks,
     txs,
     tps,
     txCount24h,
-    newAddresses: new Set(txs.map(x => x.from).filter(Boolean)).size,
-    totalAddresses: 0, // (optional estimation removed)
+    newAddresses,
+    totalAddresses,
     gasPriceGwei,
     gasBaseline,
-    medianTps: 0
+    medianTps: tps, // 簡易的に現TPSをベースライン扱い
   };
 }
 
@@ -288,8 +310,8 @@ function drawLineCanvas(id, data, color) {
   const canvas = document.getElementById(id);
   if (!canvas || !canvas.getContext) return;
   const ctx = canvas.getContext('2d');
-  const width = canvas.width = canvas.clientWidth || 300;
-  const height = canvas.height = canvas.clientHeight || 200;
+  const width = (canvas.width = canvas.clientWidth || 300);
+  const height = (canvas.height = canvas.clientHeight || 200);
   ctx.clearRect(0, 0, width, height);
   ctx.strokeStyle = color;
   ctx.lineWidth = 2;
@@ -345,13 +367,16 @@ function renderAlerts(stats) {
 
 function saveDiff(stats) {
   const previous = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
-  localStorage.setItem(STORAGE_KEY, JSON.stringify({
-    tps: stats.tps,
-    txCount24h: stats.txCount24h,
-    newAddresses: stats.newAddresses,
-    totalAddresses: stats.totalAddresses,
-    gasPriceGwei: stats.gasPriceGwei,
-  }));
+  localStorage.setItem(
+    STORAGE_KEY,
+    JSON.stringify({
+      tps: stats.tps,
+      txCount24h: stats.txCount24h,
+      newAddresses: stats.newAddresses,
+      totalAddresses: stats.totalAddresses,
+      gasPriceGwei: stats.gasPriceGwei,
+    }),
+  );
   return {
     tps: stats.tps - (previous.tps || 0),
     txCount24h: stats.txCount24h - (previous.txCount24h || 0),
@@ -380,10 +405,7 @@ async function loadDashboard() {
   refreshBtn.disabled = true;
   refreshBtn.textContent = 'Loading...';
   try {
-    const [market, stats] = await Promise.all([
-      fetchWLDMarket(),
-      fetchWorldchainStats(),
-    ]);
+    const [market, stats] = await Promise.all([fetchWLDMarket(), fetchWorldchainStats()]);
 
     const activity = computeActivityBreakdown(stats.txs || []);
     const diff = saveDiff(stats);
@@ -401,8 +423,18 @@ async function loadDashboard() {
 }
 
 window.addEventListener('load', () => {
-  renderNetworkStats({ tps: 0, txCount24h: 0, newAddresses: 0, totalAddresses: 0, gasPriceGwei: 0 }, {});
-  renderMarketStats({ priceUSD: 0, priceJPY: 0, change24h: 0, marketCap: 0, volume: 0, sparkline: [] });
+  renderNetworkStats(
+    { tps: 0, txCount24h: 0, newAddresses: 0, totalAddresses: 0, gasPriceGwei: 0 },
+    {},
+  );
+  renderMarketStats({
+    priceUSD: 0,
+    priceJPY: 0,
+    change24h: 0,
+    marketCap: 0,
+    volume: 0,
+    sparkline: [],
+  });
   renderActivityBreakdown({ native: 0, token: 0, contract: 0, other: 0 });
   renderCharts([], []);
   renderAlerts({ tps: 0, medianTps: 0, gasPriceGwei: 0, gasBaseline: 0 });
