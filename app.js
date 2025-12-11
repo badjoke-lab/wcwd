@@ -12,21 +12,13 @@ const jpyFormatter = new Intl.NumberFormat('ja-JP', {
 
 const STORAGE_KEY = 'wcwd_previous_stats';
 
-const CORS_PROXY = "https://api.allorigins.win/get?url=";
+const CORS_PROXY = "https://api.allorigins.win/raw?url=";
 
 async function fetchJSON(url) {
-  // IMPORTANT: AllOrigins /get?url= does NOT allow encoded URLs.
+  // AllOrigins RAW returns real JSON (no wrapper).
   const res = await fetch(CORS_PROXY + url);
   if (!res.ok) throw new Error(`Request failed: ${res.status}`);
-
-  const data = await res.json();
-
-  // AllOrigins wraps JSON inside "contents"
-  if (data && data.contents) {
-    return JSON.parse(data.contents);
-  }
-
-  return data;
+  return res.json();
 }
 
 async function fetchWLDMarket() {
@@ -45,7 +37,7 @@ async function fetchWLDMarket() {
 }
 
 async function fetchWorldchainStats(sampleBlocks = 20) {
-  const base = 'https://api.worldscan.io/api';
+  const base = 'https://explorer.worldchain.io/api';
   const latest = await fetchJSON(`${base}?module=proxy&action=eth_blockNumber`);
   const latestBlockHex = latest.result;
   const latestBlockNum = parseInt(latestBlockHex, 16);
