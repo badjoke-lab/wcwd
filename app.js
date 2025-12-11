@@ -12,8 +12,10 @@ const jpyFormatter = new Intl.NumberFormat('ja-JP', {
 
 const STORAGE_KEY = 'wcwd_previous_stats';
 
+const CORS_PROXY = "https://corsproxy.io/?";
+
 async function fetchJSON(url) {
-  const res = await fetch(url);
+  const res = await fetch(CORS_PROXY + url);
   if (!res.ok) throw new Error(`Request failed: ${res.status}`);
   return res.json();
 }
