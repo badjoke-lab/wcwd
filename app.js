@@ -13,7 +13,7 @@ const jpyFormatter = new Intl.NumberFormat('ja-JP', {
 
 const STORAGE_KEY = 'wcwd_previous_stats';
 
-// 🔗 ここが唯一の API ベースURL
+// 🔗 Worker のベース URL
 const API_BASE = 'https://dawn-river-686e.badjoke-lab.workers.dev/api/wcwd';
 
 // ---- 共通 fetch ----
@@ -39,7 +39,9 @@ async function rpcCall(method, params = []) {
   });
 }
 
-// ====== WLD Market（CoinGecko経由 / Workerプロキシ） ======
+// ====== （今は未使用）WLD Market ======
+// 価格は後回しにするので、この関数は定義だけ残しておく。
+// 必要になったら Worker 側を整えてから loadDashboard 内で呼び出す。
 async function fetchWLDMarket() {
   const data = await fetchJSON('/market');
   const market = data.market_data || {};
@@ -63,6 +65,10 @@ async function fetchWLDMarket() {
 async function fetchWorldchainStats(sampleBlocks = 20) {
   // 1) 最新ブロック番号
   const latestRes = await rpcCall('eth_blockNumber', []);
+  if (!latestRes || !latestRes.result) {
+    throw new Error('eth_blockNumber failed');
+  }
+
   const latestBlockHex = latestRes.result;
   const latestBlockNum = parseInt(latestBlockHex, 16);
 
@@ -86,6 +92,10 @@ async function fetchWorldchainStats(sampleBlocks = 20) {
     }
   }
 
+  if (!blocks.length) {
+    throw new Error('No blocks fetched');
+  }
+
   // 昇順にソート
   blocks.sort(
     (a, b) => parseInt(a.number, 16) - parseInt(b.number, 16),
@@ -107,6 +117,9 @@ async function fetchWorldchainStats(sampleBlocks = 20) {
 
   // ガス価格
   const gasPriceRes = await rpcCall('eth_gasPrice', []);
+  if (!gasPriceRes || !gasPriceRes.result) {
+    throw new Error('eth_gasPrice failed');
+  }
   const gasPriceGwei = parseInt(gasPriceRes.result, 16) / 1e9;
   const gasBaseline = gasSamples.length
     ? gasSamples.reduce((a, b) => a + b, 0) /
@@ -251,26 +264,40 @@ function renderNetworkStats(stats, diff = {}) {
 function renderMarketStats(market) {
   const container = document.getElementById('market-stats');
   container.innerHTML = '';
+
   const cards = [
     {
       title: 'Price (USD)',
-      value: currencyFormatter.format(market.priceUSD),
+      value: market.priceUSD
+        ? currencyFormatter.format(market.priceUSD)
+        : 'N/A',
     },
     {
       title: 'Price (JPY)',
-      value: jpyFormatter.format(market.priceJPY),
+      value: market.priceJPY
+        ? jpyFormatter.format(market.priceJPY)
+        : 'N/A',
     },
     {
       title: '24h Change',
-      value: `${market.change24h?.toFixed(2) ?? '0.00'}%`,
+      value:
+        market.change24h !== undefined
+          ? `${market.change24h.toFixed(2)}%`
+          : 'N/A',
     },
     {
       title: 'Market Cap',
-      value: currencyFormatter.format(market.marketCap),
+      value:
+        market.marketCap !== undefined
+          ? currencyFormatter.format(market.marketCap)
+          : 'N/A',
     },
     {
       title: 'Volume',
-      value: currencyFormatter.format(market.volume),
+      value:
+        market.volume !== undefined
+          ? currencyFormatter.format(market.volume)
+          : 'N/A',
     },
   ];
 
@@ -284,19 +311,7 @@ function renderMarketStats(market) {
     container.appendChild(article);
   });
 
-  if (market.sparkline?.length) {
-    const sparkCard = document.createElement('article');
-    sparkCard.className = 'card';
-    sparkCard.innerHTML = `
-      <div class="card-title">7d Sparkline</div>
-      <div class="sparkline">${createSparklineSvg(
-        market.sparkline,
-        260,
-        60,
-      )}</div>
-    `;
-    container.appendChild(sparkCard);
-  }
+  // priceChart 用に sparkline は今は空のまま
 }
 
 function renderActivityBreakdown(breakdown) {
@@ -324,8 +339,9 @@ function renderActivityBreakdown(breakdown) {
 }
 
 function renderCharts(priceSeries, txSeries) {
-  drawLineCanvas('priceChart', priceSeries, '#0057ff');
-  drawLineCanvas('txChart', txSeries, '#00aa6c');
+  // priceChart は今はデータなし（あとで価格を復活させる）
+  drawLineCanvas('priceChart', priceSeries || [], '#0057ff');
+  drawLineCanvas('txChart', txSeries || [], '#00aa6c');
 }
 
 function drawLineCanvas(id, data, color) {
@@ -446,21 +462,26 @@ async function loadDashboard() {
   refreshBtn.disabled = true;
   refreshBtn.textContent = 'Loading...';
   try {
-    const [market, stats] = await Promise.all([
-      fetchWLDMarket(),
-      fetchWorldchainStats(),
-    ]);
+    // ★ 価格は呼ばず、Worldchain stats だけを取得する
+    const stats = await fetchWorldchainStats();
 
     const activity = computeActivityBreakdown(stats.txs || []);
     const diff = saveDiff(stats);
+
     renderNetworkStats(stats, diff);
-    renderMarketStats(market);
     renderActivityBreakdown(activity);
-    renderCharts(
-      market.sparkline || [],
-      buildTxTrend(stats.blocks || []),
-    );
+    renderCharts([], buildTxTrend(stats.blocks || []));
     renderAlerts(stats);
+
+    // Market stats は今は N/A 表示にしておく
+    renderMarketStats({
+      priceUSD: null,
+      priceJPY: null,
+      change24h: undefined,
+      marketCap: undefined,
+      volume: undefined,
+      sparkline: [],
+    });
   } catch (err) {
     console.error(err);
   } finally {
@@ -482,11 +503,11 @@ window.addEventListener('load', () => {
     {},
   );
   renderMarketStats({
-    priceUSD: 0,
-    priceJPY: 0,
-    change24h: 0,
-    marketCap: 0,
-    volume: 0,
+    priceUSD: null,
+    priceJPY: null,
+    change24h: undefined,
+    marketCap: undefined,
+    volume: undefined,
     sparkline: [],
   });
   renderActivityBreakdown({
