@@ -12,7 +12,7 @@ const jpyFormatter = new Intl.NumberFormat('ja-JP', {
 
 const STORAGE_KEY = 'wcwd_previous_stats';
 
-const CORS_PROXY = "https://corsproxy.io/?";
+const CORS_PROXY = "https://api.allorigins.win/raw?url=";
 
 async function fetchJSON(url) {
   const res = await fetch(CORS_PROXY + url);
