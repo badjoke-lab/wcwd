@@ -15,12 +15,13 @@ const STORAGE_KEY = 'wcwd_previous_stats';
 const CORS_PROXY = "https://api.allorigins.win/get?url=";
 
 async function fetchJSON(url) {
-  const res = await fetch(CORS_PROXY + encodeURIComponent(url));
+  // IMPORTANT: AllOrigins /get?url= does NOT allow encoded URLs.
+  const res = await fetch(CORS_PROXY + url);
   if (!res.ok) throw new Error(`Request failed: ${res.status}`);
 
   const data = await res.json();
 
-  // AllOrigins wraps JSON in "contents"
+  // AllOrigins wraps JSON inside "contents"
   if (data && data.contents) {
     return JSON.parse(data.contents);
   }
