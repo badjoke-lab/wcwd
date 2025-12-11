@@ -12,17 +12,28 @@ const jpyFormatter = new Intl.NumberFormat('ja-JP', {
 
 const STORAGE_KEY = 'wcwd_previous_stats';
 
-const CORS_PROXY = "https://api.allorigins.win/raw?url=";
+const RPC_PROXY = "https://cors.sh/";
 
-async function fetchJSON(url) {
-  // AllOrigins RAW returns real JSON (no wrapper).
-  const res = await fetch(CORS_PROXY + url);
-  if (!res.ok) throw new Error(`Request failed: ${res.status}`);
+// Direct GET (for CoinGecko)
+async function fetchGET(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`GET failed: ${res.status}`);
+  return res.json();
+}
+
+// POST JSON-RPC via CORS.SH
+async function fetchRPC(url, body) {
+  const res = await fetch(RPC_PROXY + url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`RPC failed: ${res.status}`);
   return res.json();
 }
 
 async function fetchWLDMarket() {
-  const data = await fetchJSON('https://api.coingecko.com/api/v3/coins/worldcoin');
+  const data = await fetchGET('https://api.coingecko.com/api/v3/coins/worldcoin');
   const market = data.market_data || {};
   const priceUSD = market.current_price?.usd ?? 0;
   const priceJPY = market.current_price?.jpy ?? priceUSD * (market.current_price?.jpy / market.current_price?.usd || 0);
@@ -37,60 +48,73 @@ async function fetchWLDMarket() {
 }
 
 async function fetchWorldchainStats(sampleBlocks = 20) {
-  const base = 'https://explorer.worldchain.io/api';
-  const latest = await fetchJSON(`${base}?module=proxy&action=eth_blockNumber`);
-  const latestBlockHex = latest.result;
+  const rpc = "https://worldchain-mainnet.g.alchemy.com/v2/demo";
+
+  // 1) Latest block number
+  const latestRes = await fetchRPC(rpc, {
+    jsonrpc: "2.0",
+    method: "eth_blockNumber",
+    params: [],
+    id: 1
+  });
+  const latestBlockHex = latestRes.result;
   const latestBlockNum = parseInt(latestBlockHex, 16);
 
   const blocks = [];
   let gasSamples = [];
+
+  // 2) Fetch last N blocks
   for (let i = 0; i < sampleBlocks; i++) {
-    const targetNum = latestBlockNum - i;
-    const hex = '0x' + targetNum.toString(16);
-    const block = await fetchJSON(`${base}?module=proxy&action=eth_getBlockByNumber&tag=${hex}&boolean=true`);
-    if (block?.result) {
-      const b = block.result;
-      blocks.push(b);
-      if (b.baseFeePerGas) gasSamples.push(parseInt(b.baseFeePerGas, 16));
+    const blockNumber = "0x" + (latestBlockNum - i).toString(16);
+    const blockRes = await fetchRPC(rpc, {
+      jsonrpc: "2.0",
+      method: "eth_getBlockByNumber",
+      params: [blockNumber, true],
+      id: i + 10
+    });
+
+    const b = blockRes.result;
+    if (!b) continue;
+
+    blocks.push(b);
+
+    if (b.baseFeePerGas) {
+      gasSamples.push(parseInt(b.baseFeePerGas, 16));
     }
   }
 
+  // Sort by block number
   blocks.sort((a, b) => parseInt(a.number, 16) - parseInt(b.number, 16));
-  const txs = blocks.flatMap((b) => b.transactions || []);
 
-  const timestamps = blocks.map((b) => parseInt(b.timestamp, 16));
-  const txCounts = blocks.map((b) => (b.transactions ? b.transactions.length : 0));
+  const txs = blocks.flatMap(b => b.transactions || []);
+
+  const timestamps = blocks.map(b => parseInt(b.timestamp, 16));
+  const txCounts = blocks.map(b => (b.transactions ? b.transactions.length : 0));
   const totalTx = txCounts.reduce((a, b) => a + b, 0);
   const timeDelta = Math.max(1, timestamps[timestamps.length - 1] - timestamps[0]);
   const tps = totalTx / timeDelta;
   const txCount24h = Math.round(tps * 86400);
 
-  const uniqueAddresses = new Set();
-  txs.forEach((tx) => {
-    if (tx.from) uniqueAddresses.add(tx.from.toLowerCase());
-    if (tx.to) uniqueAddresses.add(tx.to.toLowerCase());
+  const gasPriceRes = await fetchRPC(rpc, {
+    jsonrpc: "2.0",
+    method: "eth_gasPrice",
+    params: [],
+    id: 999
   });
-  const newAddresses = uniqueAddresses.size;
-  const previous = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
-  const totalAddresses = (previous.totalAddresses || 0) + newAddresses;
 
-  const gasPriceRes = await fetchJSON(`${base}?module=proxy&action=eth_gasPrice`);
   const gasPriceGwei = parseInt(gasPriceRes.result, 16) / 1e9;
-  const medianTps = median(txCounts.map((c, idx) => {
-    const dt = idx === 0 ? 12 : timestamps[idx] - timestamps[idx - 1] || 12;
-    return c / dt;
-  }));
+  const gasBaseline = gasSamples.length ? (gasSamples.reduce((a,b)=>a+b)/gasSamples.length)/1e9 : gasPriceGwei;
 
   return {
     blocks,
     txs,
     tps,
     txCount24h,
-    newAddresses,
-    totalAddresses,
+    newAddresses: new Set(txs.map(x => x.from).filter(Boolean)).size,
+    totalAddresses: 0, // (optional estimation removed)
     gasPriceGwei,
-    gasBaseline: gasSamples.length ? average(gasSamples) / 1e9 : gasPriceGwei,
-    medianTps,
+    gasBaseline,
+    medianTps: 0
   };
 }
 
