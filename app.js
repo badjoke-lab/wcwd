@@ -39,18 +39,41 @@ async function rpcCall(method, params = []) {
   });
 }
 
-// ====== WLD Market (Worker 経由) ======
+// ====== WLD Market (Worker 経由 / CoinGecko 生 JSON を整形) ======
 async function fetchWLDMarket() {
-  // Worker 側はすでに整形済みの JSON を返す想定
-  // { priceUSD, priceJPY, change24h, marketCap, volume, sparkline }
+  // Worker は CoinGecko のレスポンスをそのまま返すので、
+  // ここで market_data から必要な値を抜き出す
   const data = await fetchJSON("/market");
+
+  const market = data.market_data || {};
+  const priceUSD =
+    market.current_price && typeof market.current_price.usd === "number"
+      ? market.current_price.usd
+      : null;
+  const priceJPY =
+    market.current_price && typeof market.current_price.jpy === "number"
+      ? market.current_price.jpy
+      : null;
+
   return {
-    priceUSD: data.priceUSD ?? null,
-    priceJPY: data.priceJPY ?? null,
-    change24h: data.change24h ?? null,
-    marketCap: data.marketCap ?? null,
-    volume: data.volume ?? null,
-    sparkline: data.sparkline || [],
+    priceUSD,
+    priceJPY,
+    change24h:
+      typeof market.price_change_percentage_24h === "number"
+        ? market.price_change_percentage_24h
+        : null,
+    marketCap:
+      market.market_cap && typeof market.market_cap.usd === "number"
+        ? market.market_cap.usd
+        : null,
+    volume:
+      market.total_volume && typeof market.total_volume.usd === "number"
+        ? market.total_volume.usd
+        : null,
+    sparkline:
+      data.sparkline_7d && Array.isArray(data.sparkline_7d.price)
+        ? data.sparkline_7d.price
+        : [],
   };
 }
 
@@ -389,9 +412,9 @@ function renderAlerts(stats) {
 
   if (!alerts.length) {
     const empty = document.createElement("div");
-      empty.className = "alert";
-      empty.textContent = "No alerts. All metrics look normal.";
-      grid.appendChild(empty);
+    empty.className = "alert";
+    empty.textContent = "No alerts. All metrics look normal.";
+    grid.appendChild(empty);
   } else {
     alerts.forEach((a) => {
       const div = document.createElement("div");
