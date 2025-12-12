@@ -41,8 +41,8 @@ async function rpcCall(method, params = []) {
 
 // ====== WLD Market (Worker 経由 / すでに整形済み JSON) ======
 async function fetchWLDMarket() {
-  // Worker はすでに { priceUSD, priceJPY, change24h, marketCap, volume, sparkline }
-  // の形で返すので、そのままバリデーションして使う
+  // Worker は { priceUSD, priceJPY, change24h, marketCap, volume, sparkline }
+  // を返す前提
   const data = await fetchJSON("/market");
   console.log("WLD market data from worker:", data);
 
@@ -337,7 +337,7 @@ function renderActivityBreakdown(breakdown) {
 }
 
 function renderCharts(priceSeries, txSeries) {
-  // priceChart: CoinGecko sparkline
+  // priceChart: WLD price sparkline
   drawLineCanvas("priceChart", priceSeries || [], "#0057ff");
   // txChart: ブロックごとの TX 数
   drawLineCanvas("txChart", txSeries || [], "#00aa6c");
@@ -460,36 +460,65 @@ async function loadDashboard() {
   const refreshBtn = document.getElementById("refresh-btn");
   refreshBtn.disabled = true;
   refreshBtn.textContent = "Loading...";
-  try {
-    // まずネットワーク統計を確実に取る
-    const stats = await fetchWorldchainStats();
 
-    // 価格系は失敗してもダッシュボード全体は落とさない
-    let market = {
-      priceUSD: null,
-      priceJPY: null,
-      change24h: null,
-      marketCap: null,
-      volume: null,
-      sparkline: [],
-    };
-    try {
-      market = await fetchWLDMarket();
-    } catch (e) {
-      console.error("market fetch error", e);
+  // デフォルト値
+  let stats = null;
+  let market = {
+    priceUSD: null,
+    priceJPY: null,
+    change24h: null,
+    marketCap: null,
+    volume: null,
+    sparkline: [],
+  };
+
+  try {
+    // ネットワーク統計と価格を並列で取りに行く
+    const [statsResult, marketResult] = await Promise.allSettled([
+      fetchWorldchainStats(),
+      fetchWLDMarket(),
+    ]);
+
+    if (statsResult.status === "fulfilled") {
+      stats = statsResult.value;
+    } else {
+      console.error("network stats error", statsResult.reason);
     }
 
-    const activity = computeActivityBreakdown(stats.txs || []);
-    const diff = saveDiff(stats);
-    const txTrend = buildTxTrend(stats.blocks || []);
+    if (marketResult.status === "fulfilled") {
+      market = marketResult.value;
+    } else {
+      console.error("market fetch error", marketResult.reason);
+    }
 
-    renderNetworkStats(stats, diff);
+    // --- レンダリング ---
+
+    // Market は stats と無関係に必ず描画
     renderMarketStats(market);
-    renderActivityBreakdown(activity);
-    renderCharts(market.sparkline || [], txTrend);
-    renderAlerts(stats);
+
+    // stats が取れていればネットワーク系も更新
+    if (stats) {
+      const activity = computeActivityBreakdown(stats.txs || []);
+      const diff = saveDiff(stats);
+      const txTrend = buildTxTrend(stats.blocks || []);
+
+      renderNetworkStats(stats, diff);
+      renderActivityBreakdown(activity);
+      renderCharts(market.sparkline || [], txTrend);
+      renderAlerts(stats);
+    } else {
+      // stats 取れなかったとき：ネットワークカードは前回 / 初期値のまま
+      // とりあえず priceChart だけでも動かす
+      renderCharts(market.sparkline || [], []);
+      renderAlerts({
+        tps: 0,
+        medianTps: 0,
+        gasPriceGwei: 0,
+        gasBaseline: 0,
+      });
+    }
   } catch (err) {
-    console.error(err);
+    console.error("loadDashboard fatal error", err);
   } finally {
     refreshBtn.disabled = false;
     refreshBtn.textContent = "Refresh";
