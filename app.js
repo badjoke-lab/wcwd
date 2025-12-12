@@ -1,20 +1,20 @@
 // ====== formatters ======
-const numberFormatter = new Intl.NumberFormat('en-US');
-const currencyFormatter = new Intl.NumberFormat('en-US', {
-  style: 'currency',
-  currency: 'USD',
+const numberFormatter = new Intl.NumberFormat("en-US");
+const currencyFormatter = new Intl.NumberFormat("en-US", {
+  style: "currency",
+  currency: "USD",
   maximumFractionDigits: 2,
 });
-const jpyFormatter = new Intl.NumberFormat('ja-JP', {
-  style: 'currency',
-  currency: 'JPY',
+const jpyFormatter = new Intl.NumberFormat("ja-JP", {
+  style: "currency",
+  currency: "JPY",
   maximumFractionDigits: 0,
 });
 
-const STORAGE_KEY = 'wcwd_previous_stats';
+const STORAGE_KEY = "wcwd_previous_stats";
 
 // 🔗 Worker のベース URL
-const API_BASE = 'https://dawn-river-686e.badjoke-lab.workers.dev/api/wcwd';
+const API_BASE = "https://dawn-river-686e.badjoke-lab.workers.dev/api/wcwd";
 
 // ---- 共通 fetch ----
 async function fetchJSON(path, options = {}) {
@@ -27,11 +27,11 @@ async function fetchJSON(path, options = {}) {
 
 // ---- JSON-RPC 呼び出し ----
 async function rpcCall(method, params = []) {
-  return fetchJSON('/rpc', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+  return fetchJSON("/rpc", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      jsonrpc: '2.0',
+      jsonrpc: "2.0",
       id: 1,
       method,
       params,
@@ -39,34 +39,27 @@ async function rpcCall(method, params = []) {
   });
 }
 
-// ====== （今は未使用）WLD Market ======
-// 価格は後回しにするので、この関数は定義だけ残しておく。
-// 必要になったら Worker 側を整えてから loadDashboard 内で呼び出す。
+// ====== WLD Market (Worker 経由) ======
 async function fetchWLDMarket() {
-  const data = await fetchJSON('/market');
-  const market = data.market_data || {};
-  const priceUSD = market.current_price?.usd ?? 0;
-  const priceJPY =
-    market.current_price?.jpy ??
-    priceUSD *
-      (market.current_price?.jpy / market.current_price?.usd || 0);
-
+  // Worker 側はすでに整形済みの JSON を返す想定
+  // { priceUSD, priceJPY, change24h, marketCap, volume, sparkline }
+  const data = await fetchJSON("/market");
   return {
-    priceUSD,
-    priceJPY,
-    change24h: market.price_change_percentage_24h ?? 0,
-    marketCap: market.market_cap?.usd ?? 0,
-    volume: market.total_volume?.usd ?? 0,
-    sparkline: market.sparkline_7d?.price || [],
+    priceUSD: data.priceUSD ?? null,
+    priceJPY: data.priceJPY ?? null,
+    change24h: data.change24h ?? null,
+    marketCap: data.marketCap ?? null,
+    volume: data.volume ?? null,
+    sparkline: data.sparkline || [],
   };
 }
 
 // ====== Worldchain Stats（public RPC → Worker経由） ======
 async function fetchWorldchainStats(sampleBlocks = 20) {
   // 1) 最新ブロック番号
-  const latestRes = await rpcCall('eth_blockNumber', []);
+  const latestRes = await rpcCall("eth_blockNumber", []);
   if (!latestRes || !latestRes.result) {
-    throw new Error('eth_blockNumber failed');
+    throw new Error("eth_blockNumber failed");
   }
 
   const latestBlockHex = latestRes.result;
@@ -77,8 +70,8 @@ async function fetchWorldchainStats(sampleBlocks = 20) {
 
   // 2) 直近 N ブロック取得
   for (let i = 0; i < sampleBlocks; i++) {
-    const blockNumber = '0x' + (latestBlockNum - i).toString(16);
-    const blockRes = await rpcCall('eth_getBlockByNumber', [
+    const blockNumber = "0x" + (latestBlockNum - i).toString(16);
+    const blockRes = await rpcCall("eth_getBlockByNumber", [
       blockNumber,
       true,
     ]);
@@ -93,7 +86,7 @@ async function fetchWorldchainStats(sampleBlocks = 20) {
   }
 
   if (!blocks.length) {
-    throw new Error('No blocks fetched');
+    throw new Error("No blocks fetched");
   }
 
   // 昇順にソート
@@ -116,15 +109,13 @@ async function fetchWorldchainStats(sampleBlocks = 20) {
   const txCount24h = Math.round(tps * 86400);
 
   // ガス価格
-  const gasPriceRes = await rpcCall('eth_gasPrice', []);
+  const gasPriceRes = await rpcCall("eth_gasPrice", []);
   if (!gasPriceRes || !gasPriceRes.result) {
-    throw new Error('eth_gasPrice failed');
+    throw new Error("eth_gasPrice failed");
   }
   const gasPriceGwei = parseInt(gasPriceRes.result, 16) / 1e9;
   const gasBaseline = gasSamples.length
-    ? gasSamples.reduce((a, b) => a + b, 0) /
-      gasSamples.length /
-      1e9
+    ? gasSamples.reduce((a, b) => a + b, 0) / gasSamples.length / 1e9
     : gasPriceGwei;
 
   // アドレス数（簡易）
@@ -155,10 +146,10 @@ function computeActivityBreakdown(txs) {
   };
 
   txs.forEach((tx) => {
-    const input = (tx.input || '').toLowerCase();
-    if (!input || input === '0x') {
+    const input = (tx.input || "").toLowerCase();
+    if (!input || input === "0x") {
       counts.native += 1;
-    } else if (input.startsWith('0xa9059cbb')) {
+    } else if (input.startsWith("0xa9059cbb")) {
       counts.token += 1;
     } else if (input.length > 2) {
       counts.contract += 1;
@@ -191,12 +182,12 @@ function median(arr) {
 }
 
 function formatDiff(value) {
-  const sign = value > 0 ? '+' : '';
+  const sign = value > 0 ? "+" : "";
   return `${sign}${value.toFixed(2)}`;
 }
 
 function createSparklineSvg(data = [], width = 120, height = 40) {
-  if (!data.length) return '';
+  if (!data.length) return "";
   const min = Math.min(...data);
   const max = Math.max(...data);
   const range = max - min || 1;
@@ -210,46 +201,46 @@ function createSparklineSvg(data = [], width = 120, height = 40) {
       ).toFixed(2);
       return `${x},${y}`;
     })
-    .join(' ');
+    .join(" ");
   return `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" fill="none" xmlns="http://www.w3.org/2000/svg"><polyline points="${points}" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" /></svg>`;
 }
 
 // ====== renderers ======
 function renderNetworkStats(stats, diff = {}) {
-  const container = document.getElementById('network-stats');
-  container.innerHTML = '';
+  const container = document.getElementById("network-stats");
+  container.innerHTML = "";
 
   const cards = [
     {
-      title: 'TPS',
+      title: "TPS",
       value: stats.tps.toFixed(2),
       diff: diff.tps || 0,
     },
     {
-      title: '24h TX Count',
+      title: "24h TX Count",
       value: numberFormatter.format(stats.txCount24h),
       diff: diff.txCount24h || 0,
     },
     {
-      title: 'New Addresses (est)',
+      title: "New Addresses (est)",
       value: numberFormatter.format(stats.newAddresses),
       diff: diff.newAddresses || 0,
     },
     {
-      title: 'Total Addresses (est)',
+      title: "Total Addresses (est)",
       value: numberFormatter.format(stats.totalAddresses),
       diff: diff.totalAddresses || 0,
     },
     {
-      title: 'Gas Price (Gwei)',
+      title: "Gas Price (Gwei)",
       value: stats.gasPriceGwei.toFixed(2),
       diff: diff.gasPriceGwei || 0,
     },
   ];
 
   cards.forEach((card) => {
-    const article = document.createElement('article');
-    article.className = 'card';
+    const article = document.createElement("article");
+    article.className = "card";
     article.innerHTML = `
       <div class="card-title">${card.title}</div>
       <div class="card-value">${card.value}</div>
@@ -262,71 +253,71 @@ function renderNetworkStats(stats, diff = {}) {
 }
 
 function renderMarketStats(market) {
-  const container = document.getElementById('market-stats');
-  container.innerHTML = '';
+  const container = document.getElementById("market-stats");
+  container.innerHTML = "";
 
   const cards = [
     {
-      title: 'Price (USD)',
-      value: market.priceUSD
-        ? currencyFormatter.format(market.priceUSD)
-        : 'N/A',
-    },
-    {
-      title: 'Price (JPY)',
-      value: market.priceJPY
-        ? jpyFormatter.format(market.priceJPY)
-        : 'N/A',
-    },
-    {
-      title: '24h Change',
+      title: "Price (USD)",
       value:
-        market.change24h !== undefined
+        market.priceUSD != null
+          ? currencyFormatter.format(market.priceUSD)
+          : "N/A",
+    },
+    {
+      title: "Price (JPY)",
+      value:
+        market.priceJPY != null
+          ? jpyFormatter.format(market.priceJPY)
+          : "N/A",
+    },
+    {
+      title: "24h Change",
+      value:
+        market.change24h != null
           ? `${market.change24h.toFixed(2)}%`
-          : 'N/A',
+          : "N/A",
     },
     {
-      title: 'Market Cap',
+      title: "Market Cap",
       value:
-        market.marketCap !== undefined
+        market.marketCap != null
           ? currencyFormatter.format(market.marketCap)
-          : 'N/A',
+          : "N/A",
     },
     {
-      title: 'Volume',
+      title: "Volume",
       value:
-        market.volume !== undefined
+        market.volume != null
           ? currencyFormatter.format(market.volume)
-          : 'N/A',
+          : "N/A",
     },
   ];
 
   cards.forEach((card) => {
-    const article = document.createElement('article');
-    article.className = 'card';
+    const article = document.createElement("article");
+    article.className = "card";
     article.innerHTML = `
       <div class="card-title">${card.title}</div>
       <div class="card-value">${card.value}</div>
     `;
     container.appendChild(article);
   });
-
-  // priceChart 用に sparkline は今は空のまま
 }
 
 function renderActivityBreakdown(breakdown) {
-  const container = document.getElementById('activity-breakdown');
-  container.innerHTML = '';
+  const container = document.getElementById("activity-breakdown");
+  container.innerHTML = "";
   const entries = [
-    { label: 'Native Transfer', value: breakdown.native },
-    { label: 'Token Transfer', value: breakdown.token },
-    { label: 'Contract Call', value: breakdown.contract },
-    { label: 'Other', value: breakdown.other },
+    { label: "Native Transfer", value: breakdown.native },
+    { label: "Token Transfer", value: breakdown.token },
+    { label: "Contract Call", value: breakdown.contract },
+    { label: "Other", value: breakdown.other },
   ];
 
   entries.forEach((entry) => {
-    const article = document.createElement('article');
-    article.className = 'card';
+    const article = document.createElement("article");
+    article.className = "card";
     article.innerHTML = `
       <div class="card-title">${entry.label}</div>
       <div class="card-value">${entry.value.toFixed(1)}%</div>
@@ -339,15 +330,16 @@ function renderActivityBreakdown(breakdown) {
 }
 
 function renderCharts(priceSeries, txSeries) {
-  // priceChart は今はデータなし（あとで価格を復活させる）
-  drawLineCanvas('priceChart', priceSeries || [], '#0057ff');
-  drawLineCanvas('txChart', txSeries || [], '#00aa6c');
+  // priceChart: CoinGecko sparkline
+  drawLineCanvas("priceChart", priceSeries || [], "#0057ff");
+  // txChart: ブロックごとの TX 数
+  drawLineCanvas("txChart", txSeries || [], "#00aa6c");
 }
 
 function drawLineCanvas(id, data, color) {
   const canvas = document.getElementById(id);
   if (!canvas || !canvas.getContext) return;
-  const ctx = canvas.getContext('2d');
+  const ctx = canvas.getContext("2d");
   const width = (canvas.width = canvas.clientWidth || 300);
   const height = (canvas.height = canvas.clientHeight || 200);
   ctx.clearRect(0, 0, width, height);
@@ -369,41 +361,41 @@ function drawLineCanvas(id, data, color) {
 }
 
 function renderAlerts(stats) {
-  const container = document.getElementById('alerts');
+  const container = document.getElementById("alerts");
   const alerts = [];
   const medianTps = stats.medianTps || stats.tps;
   if (stats.tps > medianTps * 1.4) {
     alerts.push({
-      title: 'Spike Detected',
-      detail: 'TPS significantly above baseline.',
+      title: "Spike Detected",
+      detail: "TPS significantly above baseline.",
     });
   }
   if (stats.tps < medianTps * 0.7) {
     alerts.push({
-      title: 'Drop Detected',
-      detail: 'TPS significantly below baseline.',
+      title: "Drop Detected",
+      detail: "TPS significantly below baseline.",
     });
   }
   if (stats.gasPriceGwei > stats.gasBaseline * 1.5) {
     alerts.push({
-      title: 'High Gas',
-      detail: 'Gas price above baseline.',
+      title: "High Gas",
+      detail: "Gas price above baseline.",
     });
   }
 
-  container.innerHTML = '<h2>Alerts</h2>';
-  const grid = document.createElement('div');
-  grid.className = 'alerts-grid';
+  container.innerHTML = "<h2>Alerts</h2>";
+  const grid = document.createElement("div");
+  grid.className = "alerts-grid";
 
   if (!alerts.length) {
-    const empty = document.createElement('div');
-    empty.className = 'alert';
-    empty.textContent = 'No alerts. All metrics look normal.';
-    grid.appendChild(empty);
+    const empty = document.createElement("div");
+      empty.className = "alert";
+      empty.textContent = "No alerts. All metrics look normal.";
+      grid.appendChild(empty);
   } else {
     alerts.forEach((a) => {
-      const div = document.createElement('div');
-      div.className = 'alert';
+      const div = document.createElement("div");
+      div.className = "alert";
       div.innerHTML = `<strong>${a.title}</strong><div class="muted">${a.detail}</div>`;
       grid.appendChild(div);
     });
@@ -414,7 +406,7 @@ function renderAlerts(stats) {
 
 function saveDiff(stats) {
   const previous = JSON.parse(
-    localStorage.getItem(STORAGE_KEY) || '{}',
+    localStorage.getItem(STORAGE_KEY) || "{}",
   );
   localStorage.setItem(
     STORAGE_KEY,
@@ -458,39 +450,46 @@ function buildTxTrend(blocks) {
 
 // ====== main ======
 async function loadDashboard() {
-  const refreshBtn = document.getElementById('refresh-btn');
+  const refreshBtn = document.getElementById("refresh-btn");
   refreshBtn.disabled = true;
-  refreshBtn.textContent = 'Loading...';
+  refreshBtn.textContent = "Loading...";
   try {
-    // ★ 価格は呼ばず、Worldchain stats だけを取得する
+    // まずネットワーク統計を確実に取る
     const stats = await fetchWorldchainStats();
+
+    // 価格系は失敗してもダッシュボード全体は落とさない
+    let market = {
+      priceUSD: null,
+      priceJPY: null,
+      change24h: null,
+      marketCap: null,
+      volume: null,
+      sparkline: [],
+    };
+    try {
+      market = await fetchWLDMarket();
+    } catch (e) {
+      console.error("market fetch error", e);
+    }
 
     const activity = computeActivityBreakdown(stats.txs || []);
     const diff = saveDiff(stats);
+    const txTrend = buildTxTrend(stats.blocks || []);
 
     renderNetworkStats(stats, diff);
+    renderMarketStats(market);
     renderActivityBreakdown(activity);
-    renderCharts([], buildTxTrend(stats.blocks || []));
+    renderCharts(market.sparkline || [], txTrend);
     renderAlerts(stats);
-
-    // Market stats は今は N/A 表示にしておく
-    renderMarketStats({
-      priceUSD: null,
-      priceJPY: null,
-      change24h: undefined,
-      marketCap: undefined,
-      volume: undefined,
-      sparkline: [],
-    });
   } catch (err) {
     console.error(err);
   } finally {
     refreshBtn.disabled = false;
-    refreshBtn.textContent = 'Refresh';
+    refreshBtn.textContent = "Refresh";
   }
 }
 
-window.addEventListener('load', () => {
+window.addEventListener("load", () => {
   // 初期プレースホルダ
   renderNetworkStats(
     {
@@ -505,9 +504,9 @@ window.addEventListener('load', () => {
   renderMarketStats({
     priceUSD: null,
     priceJPY: null,
-    change24h: undefined,
-    marketCap: undefined,
-    volume: undefined,
+    change24h: null,
+    marketCap: null,
+    volume: null,
     sparkline: [],
   });
   renderActivityBreakdown({
@@ -525,6 +524,6 @@ window.addEventListener('load', () => {
   });
 
   loadDashboard();
-  const btn = document.getElementById('refresh-btn');
-  btn.addEventListener('click', loadDashboard);
+  const btn = document.getElementById("refresh-btn");
+  btn.addEventListener("click", loadDashboard);
 });
