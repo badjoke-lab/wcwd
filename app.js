@@ -39,41 +39,25 @@ async function rpcCall(method, params = []) {
   });
 }
 
-// ====== WLD Market (Worker 経由 / CoinGecko 生 JSON を整形) ======
+// ====== WLD Market (Worker 経由 / すでに整形済み JSON) ======
 async function fetchWLDMarket() {
-  // Worker は CoinGecko のレスポンスをそのまま返すので、
-  // ここで market_data から必要な値を抜き出す
+  // Worker はすでに { priceUSD, priceJPY, change24h, marketCap, volume, sparkline }
+  // の形で返すので、そのままバリデーションして使う
   const data = await fetchJSON("/market");
-
-  const market = data.market_data || {};
-  const priceUSD =
-    market.current_price && typeof market.current_price.usd === "number"
-      ? market.current_price.usd
-      : null;
-  const priceJPY =
-    market.current_price && typeof market.current_price.jpy === "number"
-      ? market.current_price.jpy
-      : null;
+  console.log("WLD market data from worker:", data);
 
   return {
-    priceUSD,
-    priceJPY,
+    priceUSD:
+      typeof data.priceUSD === "number" ? data.priceUSD : null,
+    priceJPY:
+      typeof data.priceJPY === "number" ? data.priceJPY : null,
     change24h:
-      typeof market.price_change_percentage_24h === "number"
-        ? market.price_change_percentage_24h
-        : null,
+      typeof data.change24h === "number" ? data.change24h : null,
     marketCap:
-      market.market_cap && typeof market.market_cap.usd === "number"
-        ? market.market_cap.usd
-        : null,
+      typeof data.marketCap === "number" ? data.marketCap : null,
     volume:
-      market.total_volume && typeof market.total_volume.usd === "number"
-        ? market.total_volume.usd
-        : null,
-    sparkline:
-      data.sparkline_7d && Array.isArray(data.sparkline_7d.price)
-        ? data.sparkline_7d.price
-        : [],
+      typeof data.volume === "number" ? data.volume : null,
+    sparkline: Array.isArray(data.sparkline) ? data.sparkline : [],
   };
 }
 
