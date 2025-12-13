@@ -92,35 +92,52 @@ async function fetchHistory(range = "7d") {
 function renderNetworkStats(snapshot) {
   const container = document.getElementById("network-stats");
   container.innerHTML = "";
+  const network = snapshot?.network || {};
+
+  const formatCardValue = (value, formatter) => {
+    if (value == null) {
+      return { display: "--", unavailable: true };
+    }
+    const formatted = formatter ? formatter(value) : value;
+    return { display: formatted, unavailable: false };
+  };
+
   const cards = [
     {
       title: "TPS",
-      value:
-        snapshot?.network?.tps != null
-          ? snapshot.network.tps.toFixed(2)
-          : "--",
+      value: network.tps,
+      formatter: (v) => v.toFixed(2),
+    },
+    {
+      title: "24h TX Count",
+      value: network.txCount24h,
+      formatter: (v) => numberFormatter.format(v),
+    },
+    {
+      title: "New Addresses (est)",
+      value: network.newAddresses24hEst,
+      formatter: (v) => numberFormatter.format(v),
+    },
+    {
+      title: "Total Addresses (est)",
+      value: network.totalAddressesEst,
+      formatter: (v) => numberFormatter.format(v),
     },
     {
       title: "Gas Price (Gwei)",
-      value:
-        snapshot?.network?.gasPriceGwei != null
-          ? snapshot.network.gasPriceGwei.toFixed(2)
-          : "--",
-    },
-    {
-      title: "Snapshot",
-      value: snapshot?.ts
-        ? new Date(snapshot.ts * 1000).toLocaleTimeString()
-        : "--",
+      value: network.gasPriceGwei,
+      formatter: (v) => v.toFixed(2),
     },
   ];
 
   cards.forEach((card) => {
+    const { display, unavailable } = formatCardValue(card.value, card.formatter);
     const article = document.createElement("article");
     article.className = "card";
     article.innerHTML = `
       <div class="card-title">${card.title}</div>
-      <div class="card-value">${card.value}</div>
+      <div class="card-value">${display}</div>
+      ${unavailable ? '<div class="muted unavailable-note">Unavailable (source TBD)</div>' : ""}
     `;
     container.appendChild(article);
   });
@@ -130,29 +147,53 @@ function renderMarketStats(snapshot) {
   const container = document.getElementById("market-stats");
   container.innerHTML = "";
   const market = snapshot?.market || {};
+  const isJPY = state.currentFiat === "JPY";
+  const formatCardValue = (value, formatter) => {
+    if (value == null) return { display: "--", unavailable: true };
+    const formatted = formatter ? formatter(value) : value;
+    return { display: formatted, unavailable: false };
+  };
+
+  const priceValue = isJPY
+    ? market.priceJPY ?? market.wldJpy
+    : market.priceUSD ?? market.wldUsd;
+  const marketCapValue = isJPY ? market.marketCapJPY : market.marketCapUSD;
+  const volumeValue = isJPY ? market.volume24hJPY : market.volume24hUSD;
+  const currencyFormatterFn = isJPY
+    ? (v) => jpyFormatter.format(v)
+    : (v) => currencyFormatter.format(v);
+
   const cards = [
     {
-      title: "Price (USD)",
-      value:
-        typeof market.wldUsd === "number"
-          ? currencyFormatter.format(market.wldUsd)
-          : "--",
+      title: `Price (${state.currentFiat})`,
+      value: priceValue,
+      formatter: currencyFormatterFn,
     },
     {
-      title: "Price (JPY)",
-      value:
-        typeof market.wldJpy === "number"
-          ? jpyFormatter.format(market.wldJpy)
-          : "--",
+      title: "24h Change",
+      value: market.change24hPct,
+      formatter: (v) => `${v > 0 ? "+" : ""}${v.toFixed(2)}%`,
+    },
+    {
+      title: `Market Cap (${state.currentFiat})`,
+      value: marketCapValue,
+      formatter: currencyFormatterFn,
+    },
+    {
+      title: `Volume (24h) (${state.currentFiat})`,
+      value: volumeValue,
+      formatter: currencyFormatterFn,
     },
   ];
 
   cards.forEach((card) => {
+    const { display, unavailable } = formatCardValue(card.value, card.formatter);
     const article = document.createElement("article");
     article.className = "card";
     article.innerHTML = `
       <div class="card-title">${card.title}</div>
-      <div class="card-value">${card.value}</div>
+      <div class="card-value">${display}</div>
+      ${unavailable ? '<div class="muted unavailable-note">Unavailable (source TBD)</div>' : ""}
     `;
     container.appendChild(article);
   });
@@ -265,7 +306,17 @@ function renderChartPanel(seriesKey, ids, options = {}) {
 }
 
 function renderPriceChart() {
-  const key = state.currentFiat === "JPY" ? "wldJpy" : "wldUsd";
+  const series = state.history?.series || {};
+  const key = (() => {
+    if (state.currentFiat === "JPY") {
+      if (series.priceJPY) return "priceJPY";
+      if (series.wldJpy) return "wldJpy";
+      return "priceJPY";
+    }
+    if (series.priceUSD) return "priceUSD";
+    if (series.wldUsd) return "wldUsd";
+    return "priceUSD";
+  })();
   renderChartPanel(
     key,
     {
@@ -435,6 +486,7 @@ function handleFiatToggle(event) {
   document
     .querySelectorAll("#fiat-toggle button")
     .forEach((b) => b.classList.toggle("active", b === btn));
+  renderMarketStats(state.current);
   renderPriceChart();
 }
 
