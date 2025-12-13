@@ -1,0 +1,11 @@
+name = "wcwd-worker"
+main = "src/index.js"
+compatibility_date = "2024-01-29"
+
+kv_namespaces = [
+  # KV namespace for WCWD history snapshots (replace IDs as appropriate for deployment).
+  { binding = "WCWD_HISTORY" }
+]
+
+[triggers]
+crons = ["*/15 * * * *"]
