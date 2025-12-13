@@ -15,25 +15,86 @@
   </header>
 
   <main>
-    <section id="network-stats" class="cards-grid">
-      <article class="card">Network stats placeholder</article>
+    <section id="network" class="section-block">
+      <div class="section-header">
+        <h2>Network Stats</h2>
+      </div>
+      <div id="network-stats" class="cards-grid"></div>
     </section>
 
-    <section id="market-stats" class="cards-grid">
-      <article class="card">Market stats placeholder</article>
+    <section id="market" class="section-block">
+      <div class="section-header">
+        <h2>Market</h2>
+        <div class="pill-toggle" id="fiat-toggle" role="group" aria-label="Fiat toggle">
+          <button type="button" data-fiat="USD" class="active">USD</button>
+          <button type="button" data-fiat="JPY">JPY</button>
+        </div>
+      </div>
+      <div id="market-stats" class="cards-grid"></div>
     </section>
 
-    <section id="activity-breakdown" class="cards-grid">
-      <article class="card">Activity breakdown placeholder</article>
+    <section id="activity" class="section-block">
+      <div class="section-header">
+        <h2>Activity Breakdown</h2>
+      </div>
+      <div id="activity-breakdown" class="cards-grid"></div>
     </section>
 
-    <section id="trend-charts">
-      <h2>Trend Charts</h2>
-      <canvas id="priceChart"></canvas>
-      <canvas id="txChart"></canvas>
+    <section id="trend-charts" class="section-block">
+      <div class="section-header">
+        <h2>Trend Charts</h2>
+        <div class="pill-toggle" id="range-toggle" role="group" aria-label="Range selector">
+          <button type="button" data-range="7d" class="active">7D</button>
+          <button type="button" data-range="30d">30D</button>
+        </div>
+      </div>
+      <div id="history-status" class="muted status-text"></div>
+      <div class="chart-grid">
+        <article class="chart-card">
+          <div class="chart-header">
+            <div>
+              <div class="chart-title">WLD Price</div>
+              <div class="chart-legend muted">Auto-rescaled • Uses fiat toggle</div>
+            </div>
+            <div class="latest-value" id="price-latest">--</div>
+          </div>
+          <div class="chart-canvas-wrapper">
+            <canvas id="priceChart" class="chart-canvas"></canvas>
+            <div class="chart-empty" id="price-empty">No data yet</div>
+          </div>
+        </article>
+
+        <article class="chart-card">
+          <div class="chart-header">
+            <div>
+              <div class="chart-title">TPS</div>
+              <div class="chart-legend muted">Throughput over time</div>
+            </div>
+            <div class="latest-value" id="tps-latest">--</div>
+          </div>
+          <div class="chart-canvas-wrapper">
+            <canvas id="tpsChart" class="chart-canvas"></canvas>
+            <div class="chart-empty" id="tps-empty">No data yet</div>
+          </div>
+        </article>
+
+        <article class="chart-card">
+          <div class="chart-header">
+            <div>
+              <div class="chart-title">Gas Price (Gwei)</div>
+              <div class="chart-legend muted">15m interval</div>
+            </div>
+            <div class="latest-value" id="gas-latest">--</div>
+          </div>
+          <div class="chart-canvas-wrapper">
+            <canvas id="gasChart" class="chart-canvas"></canvas>
+            <div class="chart-empty" id="gas-empty">No data yet</div>
+          </div>
+        </article>
+      </div>
     </section>
 
-    <section id="alerts">
+    <section id="alerts" class="section-block">
       <h2>Alerts</h2>
       <div class="alerts-content">Alerts placeholder</div>
     </section>
