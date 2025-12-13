@@ -18,7 +18,58 @@ const state = {
   history: null,
   currentRange: "7d",
   currentFiat: "USD",
+  autoRefresh: true,
 };
+
+let currentIntervalId = null;
+let historyIntervalId = null;
+
+function normalizeTimestamp(ts) {
+  if (typeof ts !== "number") return null;
+  return ts < 1e12 ? ts * 1000 : ts;
+}
+
+function formatTime(ts) {
+  const normalized = normalizeTimestamp(ts);
+  const value = normalized ?? Date.now();
+  const d = new Date(value);
+  const pad = (n) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(
+    d.getHours()
+  )}:${pad(d.getMinutes())}`;
+}
+
+function findClosestPoint(points, targetTs, toleranceMs = 2 * 60 * 60 * 1000) {
+  if (!Array.isArray(points) || points.length === 0) return null;
+  let best = null;
+  let bestDiff = Infinity;
+  for (const [ts, value] of points) {
+    const normalizedTs = normalizeTimestamp(ts);
+    if (normalizedTs == null) continue;
+    const diff = Math.abs(normalizedTs - targetTs);
+    if (diff <= toleranceMs && diff < bestDiff) {
+      bestDiff = diff;
+      best = [normalizedTs, value];
+    }
+  }
+  return best;
+}
+
+function compute24hDelta(points) {
+  if (!Array.isArray(points) || points.length === 0) return null;
+  const latestPoint = points[points.length - 1];
+  const latestTs = normalizeTimestamp(latestPoint?.[0]);
+  const latestValue = latestPoint?.[1];
+  if (latestTs == null || latestValue == null) return null;
+
+  const targetTs = latestTs - 24 * 60 * 60 * 1000;
+  const anchor = findClosestPoint(points, targetTs);
+  if (!anchor || anchor[1] == null) return null;
+
+  const delta = latestValue - anchor[1];
+  const percent = anchor[1] !== 0 ? (delta / anchor[1]) * 100 : null;
+  return { delta, percent };
+}
 
 // ---- fetch helpers ----
 async function fetchJSON(path) {
@@ -175,9 +226,14 @@ function drawLineChart(canvas, points, options = {}) {
   ctx.stroke();
 }
 
-function renderChartPanel(seriesKey, latestElementId, canvasId, options = {}) {
+function renderChartPanel(seriesKey, ids, options = {}) {
+  const { latestId, canvasId, deltaId, deltaPercentId } = ids;
   const canvas = document.getElementById(canvasId);
-  const latestEl = document.getElementById(latestElementId);
+  const latestEl = document.getElementById(latestId);
+  const deltaEl = deltaId ? document.getElementById(deltaId) : null;
+  const deltaPercentEl = deltaPercentId
+    ? document.getElementById(deltaPercentId)
+    : null;
   const historySeries = state.history?.series || {};
   const data = historySeries[seriesKey] || [];
 
@@ -186,26 +242,72 @@ function renderChartPanel(seriesKey, latestElementId, canvasId, options = {}) {
     latestEl.textContent = last?.[1] != null ? last[1].toFixed(2) : "--";
   }
 
+  const delta = compute24hDelta(data);
+  if (deltaEl) {
+    if (delta) {
+      const sign = delta.delta > 0 ? "+" : "";
+      deltaEl.textContent = `${sign}${delta.delta.toFixed(2)}`;
+    } else {
+      deltaEl.textContent = "—";
+    }
+  }
+
+  if (deltaPercentEl) {
+    if (delta && delta.percent != null) {
+      const sign = delta.percent > 0 ? "+" : "";
+      deltaPercentEl.textContent = `${sign}${delta.percent.toFixed(2)}%`;
+    } else {
+      deltaPercentEl.textContent = "—";
+    }
+  }
+
   drawLineChart(canvas, data, options);
 }
 
 function renderPriceChart() {
   const key = state.currentFiat === "JPY" ? "wldJpy" : "wldUsd";
-  renderChartPanel(key, "price-latest", "priceChart", {
-    color: "#0057ff",
-  });
+  renderChartPanel(
+    key,
+    {
+      latestId: "price-latest",
+      deltaId: "price-delta",
+      deltaPercentId: "price-delta-percent",
+      canvasId: "priceChart",
+    },
+    {
+      color: "#0057ff",
+    }
+  );
 }
 
 function renderAllCharts() {
   renderPriceChart();
-  renderChartPanel("tps", "tps-latest", "tpsChart", { color: "#00aa6c" });
+  renderChartPanel(
+    "tps",
+    {
+      latestId: "tps-latest",
+      deltaId: "tps-delta",
+      deltaPercentId: "tps-delta-percent",
+      canvasId: "tpsChart",
+    },
+    { color: "#00aa6c" }
+  );
   const gasKey =
     (state.history?.series?.gasPriceGwei && "gasPriceGwei") ||
     (state.history?.series?.gasGwei && "gasGwei") ||
     "gasPriceGwei";
-  renderChartPanel(gasKey, "gas-latest", "gasChart", {
-    color: "#f59e0b",
-  });
+  renderChartPanel(
+    gasKey,
+    {
+      latestId: "gas-latest",
+      deltaId: "gas-delta",
+      deltaPercentId: "gas-delta-percent",
+      canvasId: "gasChart",
+    },
+    {
+      color: "#f59e0b",
+    }
+  );
 }
 
 function setHistoryStatus(message = "") {
@@ -214,9 +316,37 @@ function setHistoryStatus(message = "") {
   el.textContent = message;
 }
 
+function setCurrentStatus(message = "") {
+  const el = document.getElementById("current-status");
+  if (!el) return;
+  el.textContent = message;
+}
+
+function updateTrendTimestamps() {
+  const currentEl = document.getElementById("updated-current");
+  const historyEl = document.getElementById("updated-history");
+  if (currentEl) {
+    const ts = state.current?.ts;
+    currentEl.textContent = `Current: ${ts ? formatTime(ts * 1000) : formatTime(Date.now())}`;
+  }
+
+  if (historyEl) {
+    const series = state.history?.series || {};
+    let latestTs = null;
+    Object.values(series).forEach((points) => {
+      if (!Array.isArray(points) || points.length === 0) return;
+      const ts = normalizeTimestamp(points[points.length - 1][0]);
+      if (ts != null && (latestTs == null || ts > latestTs)) latestTs = ts;
+    });
+    historyEl.textContent = `History latest: ${latestTs ? formatTime(latestTs) : "--"}`;
+  }
+}
+
 // ====== event handlers ======
-async function loadHistory(range) {
-  setHistoryStatus("Loading history…");
+async function loadHistory(range, { showLoading = false } = {}) {
+  if (showLoading) {
+    setHistoryStatus("Loading history…");
+  }
   try {
     const data = await fetchHistory(range);
     state.history = data;
@@ -224,7 +354,31 @@ async function loadHistory(range) {
     renderAllCharts();
   } catch (err) {
     console.error("History fetch failed", err);
-    setHistoryStatus("History unavailable");
+    setHistoryStatus("History refresh failed; showing previous data.");
+  } finally {
+    updateTrendTimestamps();
+  }
+}
+
+async function refreshCurrentSnapshot() {
+  try {
+    const data = await fetchCurrent();
+    state.current = data;
+    renderNetworkStats(state.current);
+    renderMarketStats(state.current);
+    setCurrentStatus("");
+  } catch (err) {
+    console.error("Current snapshot error", err);
+    setCurrentStatus("Current data refresh failed; showing previous snapshot.");
+    if (state.current) {
+      renderNetworkStats(state.current);
+      renderMarketStats(state.current);
+    } else {
+      renderNetworkStats(null);
+      renderMarketStats(null);
+    }
+  } finally {
+    updateTrendTimestamps();
   }
 }
 
@@ -233,21 +387,10 @@ async function loadDashboard() {
   refreshBtn.disabled = true;
   refreshBtn.textContent = "Loading...";
   try {
-    const [currentResult] = await Promise.allSettled([
-      fetchCurrent(),
-      loadHistory(state.currentRange),
+    await Promise.all([
+      refreshCurrentSnapshot(),
+      loadHistory(state.currentRange, { showLoading: true }),
     ]);
-
-    if (currentResult.status === "fulfilled") {
-      state.current = currentResult.value;
-      renderNetworkStats(state.current);
-      renderMarketStats(state.current);
-    } else {
-      console.error("Current snapshot error", currentResult.reason);
-      renderNetworkStats(null);
-      renderMarketStats(null);
-    }
-
     renderActivityBreakdown();
     renderAllCharts();
   } catch (err) {
@@ -256,6 +399,32 @@ async function loadDashboard() {
     refreshBtn.disabled = false;
     refreshBtn.textContent = "Refresh";
   }
+}
+
+function clearAutoTimers() {
+  if (currentIntervalId) {
+    clearInterval(currentIntervalId);
+    currentIntervalId = null;
+  }
+  if (historyIntervalId) {
+    clearInterval(historyIntervalId);
+    historyIntervalId = null;
+  }
+}
+
+function applyAutoRefresh() {
+  clearAutoTimers();
+  const autoToggle = document.getElementById("auto-toggle");
+  if (autoToggle) autoToggle.checked = state.autoRefresh;
+  if (!state.autoRefresh) return;
+
+  currentIntervalId = setInterval(() => {
+    refreshCurrentSnapshot();
+  }, 60 * 1000);
+
+  historyIntervalId = setInterval(() => {
+    loadHistory(state.currentRange);
+  }, 5 * 60 * 1000);
 }
 
 function handleFiatToggle(event) {
@@ -278,7 +447,12 @@ function handleRangeToggle(event) {
   document
     .querySelectorAll("#range-toggle button")
     .forEach((b) => b.classList.toggle("active", b === btn));
-  loadHistory(range);
+  loadHistory(range, { showLoading: true });
+}
+
+function handleAutoToggle(event) {
+  state.autoRefresh = event.target.checked;
+  applyAutoRefresh();
 }
 
 // ====== bootstrap ======
@@ -297,6 +471,10 @@ window.addEventListener("load", () => {
   document
     .getElementById("range-toggle")
     .addEventListener("click", handleRangeToggle);
+  document
+    .getElementById("auto-toggle")
+    .addEventListener("change", handleAutoToggle);
 
   loadDashboard();
+  applyAutoRefresh();
 });
