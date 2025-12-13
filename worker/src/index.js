@@ -61,9 +61,19 @@ function withNetworkDefaults(network = {}) {
     tps: null,
     gasPriceGwei: null,
     txCount24h: null,
-    newAddresses24hEst: null,
+    newAddressesEst: null,
     totalAddressesEst: null,
     ...network,
+  };
+}
+
+function withActivityDefaults(activity = {}) {
+  return {
+    nativeTransferPct: null,
+    tokenTransferPct: null,
+    contractCallPct: null,
+    otherPct: null,
+    ...activity,
   };
 }
 
@@ -76,8 +86,41 @@ function withMarketDefaults(market = {}) {
     marketCapJPY: null,
     volume24hUSD: null,
     volume24hJPY: null,
+    wldUsd: null,
+    wldJpy: null,
     ...market,
   };
+}
+
+function computeActivityBreakdown(transactions = []) {
+  const counts = {
+    native: 0,
+    token: 0,
+    contract: 0,
+    other: 0,
+  };
+
+  transactions.forEach((tx) => {
+    const input = (tx.input || "").toLowerCase();
+    if (!input || input === "0x") {
+      counts.native += 1;
+    } else if (input.startsWith("0xa9059cbb")) {
+      counts.token += 1;
+    } else if (input.length > 2) {
+      counts.contract += 1;
+    } else {
+      counts.other += 1;
+    }
+  });
+
+  const total = Object.values(counts).reduce((a, b) => a + b, 0) || 1;
+
+  return withActivityDefaults({
+    nativeTransferPct: round((counts.native / total) * 100, 2),
+    tokenTransferPct: round((counts.token / total) * 100, 2),
+    contractCallPct: round((counts.contract / total) * 100, 2),
+    otherPct: round((counts.other / total) * 100, 2),
+  });
 }
 
 async function fetchNetworkSnapshot(env) {
@@ -107,26 +150,47 @@ async function fetchNetworkSnapshot(env) {
   const totalTx = txCounts.reduce((a, b) => a + b, 0);
   const timeDelta = Math.max(1, timestamps[timestamps.length - 1] - timestamps[0]);
   const tps = round(totalTx / timeDelta, 2);
+  const txCount24h = Math.round(tps * 86400);
+
+  const transactions = blocks.flatMap((b) => b.transactions || []);
+  const addresses = new Set();
+  transactions.forEach((tx) => {
+    if (tx.from) addresses.add(tx.from.toLowerCase());
+    if (tx.to) addresses.add(tx.to.toLowerCase());
+  });
+  const newAddressesEst = addresses.size || null;
+
+  const activity = computeActivityBreakdown(transactions);
 
   const gasHex = await rpcCall(rpcUrl, "eth_gasPrice");
   const gasPriceGwei = round(parseInt(gasHex, 16) / 1e9, 2);
 
-  return withNetworkDefaults({ tps, gasPriceGwei });
+  return {
+    metrics: withNetworkDefaults({
+      tps,
+      txCount24h,
+      newAddressesEst,
+      totalAddressesEst: null,
+      gasPriceGwei,
+    }),
+    activity,
+  };
 }
 
 async function fetchMarketSnapshot() {
   const url =
-    "https://api.coingecko.com/api/v3/simple/price?ids=worldcoin-wld&vs_currencies=usd,jpy&include_market_cap=true&include_24hr_vol=true&include_24hr_change=true";
+    "https://api.coingecko.com/api/v3/simple/price?ids=worldcoin&vs_currencies=usd,jpy&include_market_cap=true&include_24hr_vol=true&include_24hr_change=true";
   const res = await fetch(url, { cf: { cacheTtl: 300, cacheEverything: true } });
   if (!res.ok) {
     throw new Error(`Price fetch failed with status ${res.status}`);
   }
   const data = await res.json();
-  const entry = data["worldcoin-wld"] || {};
+  const entry = data["worldcoin"] || {};
   return withMarketDefaults({
     priceUSD: typeof entry.usd === "number" ? entry.usd : null,
     priceJPY: typeof entry.jpy === "number" ? entry.jpy : null,
-    change24hPct: typeof entry.usd_24h_change === "number" ? entry.usd_24h_change : null,
+    change24hPct:
+      typeof entry.usd_24h_change === "number" ? round(entry.usd_24h_change, 2) : null,
     marketCapUSD:
       typeof entry.usd_market_cap === "number" ? round(entry.usd_market_cap, 0) : null,
     marketCapJPY:
@@ -135,16 +199,26 @@ async function fetchMarketSnapshot() {
       typeof entry.usd_24h_vol === "number" ? round(entry.usd_24h_vol, 0) : null,
     volume24hJPY:
       typeof entry.jpy_24h_vol === "number" ? round(entry.jpy_24h_vol, 0) : null,
+    wldUsd: typeof entry.usd === "number" ? entry.usd : null,
+    wldJpy: typeof entry.jpy === "number" ? entry.jpy : null,
   });
 }
 
 async function buildCurrentSnapshot(env) {
-  const [network, market] = await Promise.all([
+  const [networkResult, market] = await Promise.all([
     fetchNetworkSnapshot(env),
     fetchMarketSnapshot(),
   ]);
+
   const ts = Math.floor(Date.now() / 1000);
-  return { ts, network: withNetworkDefaults(network), market: withMarketDefaults(market) };
+
+  return {
+    ok: true,
+    ts,
+    network: withNetworkDefaults(networkResult?.metrics || networkResult),
+    market: withMarketDefaults(market),
+    activity: withActivityDefaults(networkResult?.activity),
+  };
 }
 
 async function saveLatestSnapshot(env, snapshot) {
@@ -288,9 +362,11 @@ async function handleCurrent(env) {
 
     if (fallback && typeof fallback === "object") {
       const normalized = {
+        ok: true,
         ...fallback,
         network: withNetworkDefaults(fallback.network),
         market: withMarketDefaults(fallback.market),
+        activity: withActivityDefaults(fallback.activity),
       };
       return jsonResponse({ ...normalized, stale: true });
     }
