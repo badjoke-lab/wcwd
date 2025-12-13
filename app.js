@@ -115,7 +115,7 @@ function renderNetworkStats(snapshot) {
     },
     {
       title: "New Addresses (est)",
-      value: network.newAddresses24hEst,
+      value: network.newAddressesEst ?? network.newAddresses24hEst,
       formatter: (v) => numberFormatter.format(v),
     },
     {
