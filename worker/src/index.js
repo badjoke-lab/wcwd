@@ -56,6 +56,30 @@ async function rpcCall(url, method, params = []) {
   return data.result;
 }
 
+function withNetworkDefaults(network = {}) {
+  return {
+    tps: null,
+    gasPriceGwei: null,
+    txCount24h: null,
+    newAddresses24hEst: null,
+    totalAddressesEst: null,
+    ...network,
+  };
+}
+
+function withMarketDefaults(market = {}) {
+  return {
+    priceUSD: null,
+    priceJPY: null,
+    change24hPct: null,
+    marketCapUSD: null,
+    marketCapJPY: null,
+    volume24hUSD: null,
+    volume24hJPY: null,
+    ...market,
+  };
+}
+
 async function fetchNetworkSnapshot(env) {
   const rpcUrl = env.WORLDCHAIN_RPC_ENDPOINT || DEFAULT_RPC;
   const latestHex = await rpcCall(rpcUrl, "eth_blockNumber");
@@ -87,22 +111,31 @@ async function fetchNetworkSnapshot(env) {
   const gasHex = await rpcCall(rpcUrl, "eth_gasPrice");
   const gasPriceGwei = round(parseInt(gasHex, 16) / 1e9, 2);
 
-  return { tps, gasPriceGwei };
+  return withNetworkDefaults({ tps, gasPriceGwei });
 }
 
 async function fetchMarketSnapshot() {
   const url =
-    "https://api.coingecko.com/api/v3/simple/price?ids=worldcoin-wld&vs_currencies=usd,jpy";
+    "https://api.coingecko.com/api/v3/simple/price?ids=worldcoin-wld&vs_currencies=usd,jpy&include_market_cap=true&include_24hr_vol=true&include_24hr_change=true";
   const res = await fetch(url, { cf: { cacheTtl: 300, cacheEverything: true } });
   if (!res.ok) {
     throw new Error(`Price fetch failed with status ${res.status}`);
   }
   const data = await res.json();
   const entry = data["worldcoin-wld"] || {};
-  return {
-    wldUsd: typeof entry.usd === "number" ? entry.usd : null,
-    wldJpy: typeof entry.jpy === "number" ? entry.jpy : null,
-  };
+  return withMarketDefaults({
+    priceUSD: typeof entry.usd === "number" ? entry.usd : null,
+    priceJPY: typeof entry.jpy === "number" ? entry.jpy : null,
+    change24hPct: typeof entry.usd_24h_change === "number" ? entry.usd_24h_change : null,
+    marketCapUSD:
+      typeof entry.usd_market_cap === "number" ? round(entry.usd_market_cap, 0) : null,
+    marketCapJPY:
+      typeof entry.jpy_market_cap === "number" ? round(entry.jpy_market_cap, 0) : null,
+    volume24hUSD:
+      typeof entry.usd_24h_vol === "number" ? round(entry.usd_24h_vol, 0) : null,
+    volume24hJPY:
+      typeof entry.jpy_24h_vol === "number" ? round(entry.jpy_24h_vol, 0) : null,
+  });
 }
 
 async function buildCurrentSnapshot(env) {
@@ -111,7 +144,7 @@ async function buildCurrentSnapshot(env) {
     fetchMarketSnapshot(),
   ]);
   const ts = Math.floor(Date.now() / 1000);
-  return { ts, network, market };
+  return { ts, network: withNetworkDefaults(network), market: withMarketDefaults(market) };
 }
 
 async function saveLatestSnapshot(env, snapshot) {
@@ -197,8 +230,8 @@ function aggregateSeries(points) {
   const series = {
     tps: [],
     gasPriceGwei: [],
-    wldUsd: [],
-    wldJpy: [],
+    priceUSD: [],
+    priceJPY: [],
   };
 
   points
@@ -211,11 +244,24 @@ function aggregateSeries(points) {
       if (p.network && typeof p.network.gasPriceGwei === "number") {
         series.gasPriceGwei.push([p.ts, p.network.gasPriceGwei]);
       }
-      if (p.market && typeof p.market.wldUsd === "number") {
-        series.wldUsd.push([p.ts, p.market.wldUsd]);
+      const priceUSD =
+        p.market && typeof p.market.priceUSD === "number"
+          ? p.market.priceUSD
+          : p.market && typeof p.market.wldUsd === "number"
+          ? p.market.wldUsd
+          : null;
+      if (typeof priceUSD === "number") {
+        series.priceUSD.push([p.ts, priceUSD]);
       }
-      if (p.market && typeof p.market.wldJpy === "number") {
-        series.wldJpy.push([p.ts, p.market.wldJpy]);
+
+      const priceJPY =
+        p.market && typeof p.market.priceJPY === "number"
+          ? p.market.priceJPY
+          : p.market && typeof p.market.wldJpy === "number"
+          ? p.market.wldJpy
+          : null;
+      if (typeof priceJPY === "number") {
+        series.priceJPY.push([p.ts, priceJPY]);
       }
     });
 
@@ -241,7 +287,12 @@ async function handleCurrent(env) {
     }
 
     if (fallback && typeof fallback === "object") {
-      return jsonResponse({ ...fallback, stale: true });
+      const normalized = {
+        ...fallback,
+        network: withNetworkDefaults(fallback.network),
+        market: withMarketDefaults(fallback.market),
+      };
+      return jsonResponse({ ...normalized, stale: true });
     }
 
     return jsonResponse({
