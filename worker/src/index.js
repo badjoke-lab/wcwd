@@ -114,6 +114,21 @@ async function buildCurrentSnapshot(env) {
   return { ts, network, market };
 }
 
+async function saveLatestSnapshot(env, snapshot) {
+  const payload = {
+    ...snapshot,
+    savedAt: Math.floor(Date.now() / 1000),
+  };
+
+  try {
+    await env.WCWD_HISTORY.put("current:latest", JSON.stringify(payload));
+  } catch (err) {
+    console.error("KV put failed for current:latest", err);
+  }
+
+  return payload;
+}
+
 async function appendSnapshot(env) {
   let snapshot;
   try {
@@ -122,6 +137,8 @@ async function appendSnapshot(env) {
     console.error("Failed to build snapshot", err);
     return;
   }
+
+  await saveLatestSnapshot(env, snapshot);
 
   const day = formatDay(new Date(snapshot.ts * 1000));
   const key = `${HISTORY_PREFIX}${day}`;
@@ -208,10 +225,32 @@ function aggregateSeries(points) {
 async function handleCurrent(env) {
   try {
     const snapshot = await buildCurrentSnapshot(env);
-    return jsonResponse(snapshot);
+    const latest = await saveLatestSnapshot(env, snapshot);
+    return jsonResponse(latest);
   } catch (err) {
-    console.error("Current snapshot failed", err);
-    return jsonResponse({ error: "Failed to build snapshot" }, 500);
+    console.error("snapshot build failed", { reason: String(err) });
+
+    let fallback;
+    try {
+      const stored = await env.WCWD_HISTORY.get("current:latest");
+      if (stored) {
+        fallback = JSON.parse(stored);
+      }
+    } catch (kvErr) {
+      console.error("fallback snapshot fetch failed", kvErr);
+    }
+
+    if (fallback && typeof fallback === "object") {
+      return jsonResponse({ ...fallback, stale: true });
+    }
+
+    return jsonResponse({
+      ok: false,
+      error: {
+        code: "SNAPSHOT_BUILD_FAILED",
+        message: String(err),
+      },
+    });
   }
 }
 
