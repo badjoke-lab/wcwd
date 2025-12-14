@@ -4,43 +4,58 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>WCWD Dashboard</title>
-  <link rel="stylesheet" href="./style.css" />
+  <link rel="stylesheet" href="/style.css" />
 </head>
 <body>
-  <h1>WCWD Dashboard</h1>
+  <main>
+    <h1>WCWD Dashboard</h1>
 
-  <h2>Network Stats</h2>
-  <div class="row"><b>TPS (Transactions per Second):</b> <span id="tps">—</span></div>
-  <div class="row"><b>24h TX (24h Transactions):</b> <span id="tx24h">—</span></div>
-  <div class="row"><b>New Addresses (24h):</b> <span id="newAddr24h">—</span></div>
-  <div class="row"><b>Total Addresses:</b> <span id="totalAddr">—</span></div>
-  <div class="row"><b>Current Gas Price:</b> <span id="gasGwei">—</span></div>
+    <section>
+      <h2>Network Stats</h2>
+      <div><strong>TPS:</strong> <span id="tps">—</span></div>
+      <div><strong>24h TX:</strong> <span id="tx24h">—</span></div>
+      <div><strong>New Addresses (24h):</strong> <span id="newAddr24h">—</span></div>
+      <div><strong>Total Addresses (est):</strong> <span id="totalAddr">—</span></div>
+      <div><strong>Gas Price (Gwei):</strong> <span id="gasGwei">—</span></div>
+    </section>
 
-  <h2>WLD Market Stats</h2>
-  <div class="row"><b>WLD Price (USD/JPY):</b> <span id="price">—</span></div>
-  <div class="row"><b>24h Price Change:</b> <span id="chg24h">—</span></div>
-  <div class="row"><b>Market Cap:</b> <span id="mcap">—</span></div>
-  <div class="row"><b>24h Trading Volume:</b> <span id="vol24h">—</span></div>
-  <div class="row"><b>7d Price Trend:</b> <span id="spark7d">—</span></div>
+    <section>
+      <h2>WLD Market Stats</h2>
+      <div><strong>WLD Price (USD/JPY):</strong> <span id="price">—</span></div>
+      <div><strong>24h Price Change:</strong> <span id="chg24h">—</span></div>
+      <div><strong>Market Cap (USD):</strong> <span id="mcap">—</span></div>
+      <div><strong>24h Volume (USD):</strong> <span id="vol24h">—</span></div>
+      <div><strong>7d Sparkline:</strong> <span id="spark7d">—</span></div>
+    </section>
 
-  <h2>Activity Breakdown</h2>
-  <div class="row"><b>Native Transfers (%):</b> <span id="nativePct">—</span></div>
-  <div class="row"><b>Token Transfers (%):</b> <span id="tokenPct">—</span></div>
-  <div class="row"><b>Contract Calls (%):</b> <span id="contractPct">—</span></div>
-  <div class="row"><b>Other Transactions (%):</b> <span id="otherPct">—</span></div>
+    <section>
+      <h2>Activity Breakdown (sample)</h2>
+      <div><strong>Native:</strong> <span id="nativePct">—</span></div>
+      <div><strong>Token:</strong> <span id="tokenPct">—</span></div>
+      <div><strong>Contract:</strong> <span id="contractPct">—</span></div>
+      <div><strong>Other:</strong> <span id="otherPct">—</span></div>
+    </section>
 
-  <h2>Trend Charts</h2>
-  <div class="row"><b>WLD 7d Price Trend:</b> <span id="trendWld">—</span></div>
-  <div class="row"><b>TX 7d Trend:</b> <span id="trendTx">—</span></div>
+    <section>
+      <h2>Trend Charts</h2>
+      <div><strong>WLD 7d Trend:</strong> <span id="trendWld">—</span></div>
+      <div><strong>TX 7d Trend:</strong> <span id="trendTx">—</span></div>
+    </section>
 
-  <h2>Alerts</h2>
-  <div class="row"><b>Spike (TPS &gt; 1.4x avg):</b> <span id="alertSpike">—</span></div>
-  <div class="row"><b>Drop (TPS &lt; 0.7x avg):</b> <span id="alertDrop">—</span></div>
-  <div class="row"><b>High Gas Price:</b> <span id="alertGas">—</span></div>
+    <section>
+      <h2>Alerts</h2>
+      <div><strong>Spike:</strong> <span id="alertSpike">—</span></div>
+      <div><strong>Drop:</strong> <span id="alertDrop">—</span></div>
+      <div><strong>High Gas:</strong> <span id="alertGas">—</span></div>
+    </section>
 
-  <div class="row small"><b>Last Update:</b> <span id="updated">—</span></div>
-  <div class="row small"><b>Debug:</b> <span id="debug">—</span></div>
+    <section>
+      <h2>Status</h2>
+      <div><strong>Last Update:</strong> <span id="updated">—</span></div>
+      <div><strong>Debug:</strong> <span id="debug">—</span></div>
+    </section>
+  </main>
 
-  <script src="./app.js"></script>
+  <script src="/app.js"></script>
 </body>
 </html>
