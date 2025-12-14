@@ -1,83 +1,46 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>WCWD Dashboard</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      margin: 0;
-      padding: 20px;
-      background-color: #fff;
-      color: #000;
-    }
-    h1 {
-      text-align: center;
-      margin-bottom: 20px;
-    }
-    .section {
-      margin-bottom: 30px;
-    }
-    .label {
-      font-weight: bold;
-    }
-    .field {
-      margin-top: 10px;
-    }
-    .value {
-      padding: 5px;
-      margin-top: 5px;
-      background-color: #f4f4f4;
-    }
-  </style>
+  <link rel="stylesheet" href="./style.css" />
 </head>
 <body>
   <h1>WCWD Dashboard</h1>
-  
-  <!-- Network Stats Section -->
-  <div class="section" id="network-stats">
-    <h2>Network Stats</h2>
-    <div class="field"><span class="label">TPS (Transactions per Second):</span> <span class="value" id="tps"></span></div>
-    <div class="field"><span class="label">24h TX (24h Transactions):</span> <span class="value" id="tx-24h"></span></div>
-    <div class="field"><span class="label">New Addresses (24h):</span> <span class="value" id="new-addresses"></span></div>
-    <div class="field"><span class="label">Total Addresses:</span> <span class="value" id="total-addresses"></span></div>
-    <div class="field"><span class="label">Current Gas Price:</span> <span class="value" id="gas-price"></span></div>
-  </div>
 
-  <!-- WLD Market Stats Section -->
-  <div class="section" id="wld-market-stats">
-    <h2>WLD Market Stats</h2>
-    <div class="field"><span class="label">WLD Price (USD/JPY):</span> <span class="value" id="wld-price"></span></div>
-    <div class="field"><span class="label">24h Price Change:</span> <span class="value" id="price-change"></span></div>
-    <div class="field"><span class="label">Market Cap:</span> <span class="value" id="market-cap"></span></div>
-    <div class="field"><span class="label">24h Trading Volume:</span> <span class="value" id="volume-24h"></span></div>
-    <div class="field"><span class="label">7d Price Trend:</span> <span class="value" id="price-trend-7d"></span></div>
-  </div>
+  <h2>Network Stats</h2>
+  <div class="row"><b>TPS (Transactions per Second):</b> <span id="tps">—</span></div>
+  <div class="row"><b>24h TX (24h Transactions):</b> <span id="tx24h">—</span></div>
+  <div class="row"><b>New Addresses (24h):</b> <span id="newAddr24h">—</span></div>
+  <div class="row"><b>Total Addresses:</b> <span id="totalAddr">—</span></div>
+  <div class="row"><b>Current Gas Price:</b> <span id="gasGwei">—</span></div>
 
-  <!-- Activity Breakdown Section -->
-  <div class="section" id="activity-breakdown">
-    <h2>Activity Breakdown</h2>
-    <div class="field"><span class="label">Native Transfers (%):</span> <span class="value" id="native-transfer"></span></div>
-    <div class="field"><span class="label">Token Transfers (%):</span> <span class="value" id="token-transfer"></span></div>
-    <div class="field"><span class="label">Contract Calls (%):</span> <span class="value" id="contract-call"></span></div>
-    <div class="field"><span class="label">Other Transactions (%):</span> <span class="value" id="other-transactions"></span></div>
-  </div>
+  <h2>WLD Market Stats</h2>
+  <div class="row"><b>WLD Price (USD/JPY):</b> <span id="price">—</span></div>
+  <div class="row"><b>24h Price Change:</b> <span id="chg24h">—</span></div>
+  <div class="row"><b>Market Cap:</b> <span id="mcap">—</span></div>
+  <div class="row"><b>24h Trading Volume:</b> <span id="vol24h">—</span></div>
+  <div class="row"><b>7d Price Trend:</b> <span id="spark7d">—</span></div>
 
-  <!-- Trend Charts Section -->
-  <div class="section" id="trend-charts">
-    <h2>Trend Charts</h2>
-    <div class="field"><span class="label">WLD 7d Price Trend:</span> <span class="value" id="trend-price-7d"></span></div>
-    <div class="field"><span class="label">TX 7d Trend:</span> <span class="value" id="trend-tx-7d"></span></div>
-  </div>
+  <h2>Activity Breakdown</h2>
+  <div class="row"><b>Native Transfers (%):</b> <span id="nativePct">—</span></div>
+  <div class="row"><b>Token Transfers (%):</b> <span id="tokenPct">—</span></div>
+  <div class="row"><b>Contract Calls (%):</b> <span id="contractPct">—</span></div>
+  <div class="row"><b>Other Transactions (%):</b> <span id="otherPct">—</span></div>
 
-  <!-- Alerts Section -->
-  <div class="section" id="alerts">
-    <h2>Alerts</h2>
-    <div class="field"><span class="label">Spike (TPS > 1.4x avg):</span> <span class="value" id="alert-spike"></span></div>
-    <div class="field"><span class="label">Drop (TPS < 0.7x avg):</span> <span class="value" id="alert-drop"></span></div>
-    <div class="field"><span class="label">High Gas Price:</span> <span class="value" id="alert-high-gas"></span></div>
-  </div>
-  
+  <h2>Trend Charts</h2>
+  <div class="row"><b>WLD 7d Price Trend:</b> <span id="trendWld">—</span></div>
+  <div class="row"><b>TX 7d Trend:</b> <span id="trendTx">—</span></div>
+
+  <h2>Alerts</h2>
+  <div class="row"><b>Spike (TPS &gt; 1.4x avg):</b> <span id="alertSpike">—</span></div>
+  <div class="row"><b>Drop (TPS &lt; 0.7x avg):</b> <span id="alertDrop">—</span></div>
+  <div class="row"><b>High Gas Price:</b> <span id="alertGas">—</span></div>
+
+  <div class="row small"><b>Last Update:</b> <span id="updated">—</span></div>
+  <div class="row small"><b>Debug:</b> <span id="debug">—</span></div>
+
+  <script src="./app.js"></script>
 </body>
 </html>
