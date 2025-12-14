@@ -96,6 +96,8 @@ function withMarketDefaults(market = {}) {
     volume24hJpy: null,
     wldUsd: null,
     wldJpy: null,
+    change24hUsd: null,
+    change24hJpy: null,
     ...market,
   };
 }
@@ -159,6 +161,7 @@ async function fetchNetworkSnapshot(env) {
   const timeDelta = Math.max(1, timestamps[timestamps.length - 1] - timestamps[0]);
   const tps = round(totalTx / timeDelta, 2);
   const txCount24h = Math.round(tps * 86400);
+  const txCount24hEst = typeof tps === "number" ? Math.round(tps * 86400) : null;
 
   const transactions = blocks.flatMap((b) => b.transactions || []);
   const addresses = new Set();
@@ -177,6 +180,7 @@ async function fetchNetworkSnapshot(env) {
     metrics: withNetworkDefaults({
       tps,
       txCount24h,
+      txCount24hEst,
       newAddressesEst,
       totalAddressesEst: null,
       gasPriceGwei,
@@ -188,38 +192,48 @@ async function fetchNetworkSnapshot(env) {
 async function fetchMarketSnapshot() {
   const url =
     "https://api.coingecko.com/api/v3/simple/price?ids=worldcoin&vs_currencies=usd,jpy&include_market_cap=true&include_24hr_vol=true&include_24hr_change=true";
-  const res = await fetch(url, { cf: { cacheTtl: 300, cacheEverything: true } });
-  if (!res.ok) {
-    throw new Error(`Price fetch failed with status ${res.status}`);
+
+  try {
+    const res = await fetch(url, { cf: { cacheTtl: 180, cacheEverything: true } });
+    if (!res.ok) {
+      throw new Error(`Price fetch failed with status ${res.status}`);
+    }
+    const data = await res.json();
+    const entry = data["worldcoin"] || {};
+    return withMarketDefaults({
+      priceUSD: typeof entry.usd === "number" ? entry.usd : null,
+      priceUsd: typeof entry.usd === "number" ? entry.usd : null,
+      priceJPY: typeof entry.jpy === "number" ? entry.jpy : null,
+      priceJpy: typeof entry.jpy === "number" ? entry.jpy : null,
+      change24hPct:
+        typeof entry.usd_24h_change === "number" ? round(entry.usd_24h_change, 2) : null,
+      change24hUsd:
+        typeof entry.usd_24h_change === "number" ? round(entry.usd_24h_change, 2) : null,
+      change24hJpy:
+        typeof entry.jpy_24h_change === "number" ? round(entry.jpy_24h_change, 2) : null,
+      marketCapUSD:
+        typeof entry.usd_market_cap === "number" ? round(entry.usd_market_cap, 0) : null,
+      marketCapUsd:
+        typeof entry.usd_market_cap === "number" ? round(entry.usd_market_cap, 0) : null,
+      marketCapJPY:
+        typeof entry.jpy_market_cap === "number" ? round(entry.jpy_market_cap, 0) : null,
+      marketCapJpy:
+        typeof entry.jpy_market_cap === "number" ? round(entry.jpy_market_cap, 0) : null,
+      volume24hUSD:
+        typeof entry.usd_24h_vol === "number" ? round(entry.usd_24h_vol, 0) : null,
+      volume24hUsd:
+        typeof entry.usd_24h_vol === "number" ? round(entry.usd_24h_vol, 0) : null,
+      volume24hJPY:
+        typeof entry.jpy_24h_vol === "number" ? round(entry.jpy_24h_vol, 0) : null,
+      volume24hJpy:
+        typeof entry.jpy_24h_vol === "number" ? round(entry.jpy_24h_vol, 0) : null,
+      wldUsd: typeof entry.usd === "number" ? entry.usd : null,
+      wldJpy: typeof entry.jpy === "number" ? entry.jpy : null,
+    });
+  } catch (err) {
+    console.error("Market fetch failed", err);
+    return withMarketDefaults();
   }
-  const data = await res.json();
-  const entry = data["worldcoin"] || {};
-  return withMarketDefaults({
-    priceUSD: typeof entry.usd === "number" ? entry.usd : null,
-    priceUsd: typeof entry.usd === "number" ? entry.usd : null,
-    priceJPY: typeof entry.jpy === "number" ? entry.jpy : null,
-    priceJpy: typeof entry.jpy === "number" ? entry.jpy : null,
-    change24hPct:
-      typeof entry.usd_24h_change === "number" ? round(entry.usd_24h_change, 2) : null,
-    marketCapUSD:
-      typeof entry.usd_market_cap === "number" ? round(entry.usd_market_cap, 0) : null,
-    marketCapUsd:
-      typeof entry.usd_market_cap === "number" ? round(entry.usd_market_cap, 0) : null,
-    marketCapJPY:
-      typeof entry.jpy_market_cap === "number" ? round(entry.jpy_market_cap, 0) : null,
-    marketCapJpy:
-      typeof entry.jpy_market_cap === "number" ? round(entry.jpy_market_cap, 0) : null,
-    volume24hUSD:
-      typeof entry.usd_24h_vol === "number" ? round(entry.usd_24h_vol, 0) : null,
-    volume24hUsd:
-      typeof entry.usd_24h_vol === "number" ? round(entry.usd_24h_vol, 0) : null,
-    volume24hJPY:
-      typeof entry.jpy_24h_vol === "number" ? round(entry.jpy_24h_vol, 0) : null,
-    volume24hJpy:
-      typeof entry.jpy_24h_vol === "number" ? round(entry.jpy_24h_vol, 0) : null,
-    wldUsd: typeof entry.usd === "number" ? entry.usd : null,
-    wldJpy: typeof entry.jpy === "number" ? entry.jpy : null,
-  });
 }
 
 async function fetchNetworkHistoryStats(env, referenceTs = Math.floor(Date.now() / 1000)) {

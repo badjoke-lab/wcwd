@@ -11,6 +11,10 @@ const jpyFormatter = new Intl.NumberFormat("ja-JP", {
   maximumFractionDigits: 0,
 });
 
+const compactNumberFormatter = new Intl.NumberFormat("en-US", {
+  maximumFractionDigits: 1,
+});
+
 const API_BASE = "https://dawn-river-686e.badjoke-lab.workers.dev/api/wcwd";
 
 const state = {
@@ -71,6 +75,19 @@ function compute24hDelta(points) {
   return { delta, percent };
 }
 
+function formatCompactFiat(value, isJPY = false) {
+  const symbol = isJPY ? "¥" : "$";
+  const abs = Math.abs(value);
+  const formatWithSuffix = (divisor, suffix) => `${symbol}${compactNumberFormatter.format(value / divisor)}${suffix}`;
+
+  if (abs >= 1e12) return formatWithSuffix(1e12, "T");
+  if (abs >= 1e9) return formatWithSuffix(1e9, "B");
+  if (abs >= 1e6) return formatWithSuffix(1e6, "M");
+  if (abs >= 1e3) return `${symbol}${numberFormatter.format(Math.round(value))}`;
+
+  return isJPY ? jpyFormatter.format(value) : currencyFormatter.format(value);
+}
+
 // ---- fetch helpers ----
 async function fetchJSON(path) {
   const res = await fetch(`${API_BASE}${path}`);
@@ -114,16 +131,6 @@ function renderNetworkStats(snapshot) {
       formatter: (v) => numberFormatter.format(v),
     },
     {
-      title: "New Addresses (est)",
-      value: network.newAddressesEst ?? network.newAddresses24hEst,
-      formatter: (v) => numberFormatter.format(v),
-    },
-    {
-      title: "Total Addresses (est)",
-      value: network.totalAddressesEst,
-      formatter: (v) => numberFormatter.format(v),
-    },
-    {
       title: "Gas Price (Gwei)",
       value: network.gasPriceGwei,
       formatter: (v) => v.toFixed(2),
@@ -158,14 +165,17 @@ function renderMarketStats(snapshot) {
     ? market.priceJPY ?? market.priceJpy ?? market.wldJpy
     : market.priceUSD ?? market.priceUsd ?? market.wldUsd;
   const marketCapValue = isJPY
-    ? market.marketCapJPY ?? market.marketCapJpy
-    : market.marketCapUSD ?? market.marketCapUsd;
+    ? market.marketCapJPY ?? market.marketCapJpy ?? market.marketCapUsd
+    : market.marketCapUSD ?? market.marketCapUsd ?? market.marketCapJpy;
   const volumeValue = isJPY
-    ? market.volume24hJPY ?? market.volume24hJpy
-    : market.volume24hUSD ?? market.volume24hUsd;
+    ? market.volume24hJPY ?? market.volume24hJpy ?? market.volume24hUsd
+    : market.volume24hUSD ?? market.volume24hUsd ?? market.volume24hJpy;
+  const changeValue = isJPY
+    ? market.change24hJpy ?? market.change24hUsd ?? market.change24hPct
+    : market.change24hUsd ?? market.change24hPct;
   const currencyFormatterFn = isJPY
-    ? (v) => jpyFormatter.format(v)
-    : (v) => currencyFormatter.format(v);
+    ? (v) => formatCompactFiat(v, true)
+    : (v) => formatCompactFiat(v, false);
 
   const cards = [
     {
@@ -175,7 +185,7 @@ function renderMarketStats(snapshot) {
     },
     {
       title: "24h Change",
-      value: market.change24hPct,
+      value: changeValue,
       formatter: (v) => `${v > 0 ? "+" : ""}${v.toFixed(2)}%`,
     },
     {
