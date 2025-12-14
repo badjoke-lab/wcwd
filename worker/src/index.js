@@ -160,8 +160,8 @@ async function fetchNetworkSnapshot(env) {
   const totalTx = txCounts.reduce((a, b) => a + b, 0);
   const timeDelta = Math.max(1, timestamps[timestamps.length - 1] - timestamps[0]);
   const tps = round(totalTx / timeDelta, 2);
-  const txCount24h = Math.round(tps * 86400);
-  const txCount24hEst = typeof tps === "number" ? Math.round(tps * 86400) : null;
+  const txCount24hEst = Number.isFinite(tps) ? Math.round(tps * 86400) : null;
+  const txCount24h = txCount24hEst;
 
   const transactions = blocks.flatMap((b) => b.transactions || []);
   const addresses = new Set();
@@ -189,9 +189,15 @@ async function fetchNetworkSnapshot(env) {
   };
 }
 
-async function fetchMarketSnapshot() {
-  const url =
-    "https://api.coingecko.com/api/v3/simple/price?ids=worldcoin&vs_currencies=usd,jpy&include_market_cap=true&include_24hr_vol=true&include_24hr_change=true";
+async function fetchMarketSnapshot(env) {
+  const params = new URLSearchParams({
+    ids: "worldcoin",
+    vs_currencies: "usd,jpy",
+    include_market_cap: "true",
+    include_24hr_vol: "true",
+    include_24hr_change: "true",
+  });
+  const url = `https://api.coingecko.com/api/v3/simple/price?${params.toString()}`;
 
   try {
     const res = await fetch(url, { cf: { cacheTtl: 180, cacheEverything: true } });
@@ -232,6 +238,21 @@ async function fetchMarketSnapshot() {
     });
   } catch (err) {
     console.error("Market fetch failed", err);
+
+    if (env?.WCWD_HISTORY) {
+      try {
+        const stored = await env.WCWD_HISTORY.get("current:latest");
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed?.market) {
+            return withMarketDefaults(parsed.market);
+          }
+        }
+      } catch (fallbackErr) {
+        console.error("Market fallback load failed", fallbackErr);
+      }
+    }
+
     return withMarketDefaults();
   }
 }
@@ -277,7 +298,7 @@ async function buildCurrentSnapshot(env) {
   const ts = Math.floor(Date.now() / 1000);
   const [networkResult, market, historyStats] = await Promise.all([
     fetchNetworkSnapshot(env),
-    fetchMarketSnapshot(),
+    fetchMarketSnapshot(env),
     fetchNetworkHistoryStats(env, ts),
   ]);
 

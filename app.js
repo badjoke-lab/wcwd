@@ -165,11 +165,11 @@ function renderMarketStats(snapshot) {
     ? market.priceJPY ?? market.priceJpy ?? market.wldJpy
     : market.priceUSD ?? market.priceUsd ?? market.wldUsd;
   const marketCapValue = isJPY
-    ? market.marketCapJPY ?? market.marketCapJpy ?? market.marketCapUsd
-    : market.marketCapUSD ?? market.marketCapUsd ?? market.marketCapJpy;
+    ? market.marketCapJPY ?? market.marketCapJpy
+    : market.marketCapUSD ?? market.marketCapUsd;
   const volumeValue = isJPY
-    ? market.volume24hJPY ?? market.volume24hJpy ?? market.volume24hUsd
-    : market.volume24hUSD ?? market.volume24hUsd ?? market.volume24hJpy;
+    ? market.volume24hJPY ?? market.volume24hJpy
+    : market.volume24hUSD ?? market.volume24hUsd;
   const changeValue = isJPY
     ? market.change24hJpy ?? market.change24hUsd ?? market.change24hPct
     : market.change24hUsd ?? market.change24hPct;
