@@ -61,6 +61,8 @@ function withNetworkDefaults(network = {}) {
     tps: null,
     gasPriceGwei: null,
     txCount24h: null,
+    avgTps24h: null,
+    txCount24hEst: null,
     newAddressesEst: null,
     totalAddressesEst: null,
     ...network,
@@ -80,12 +82,18 @@ function withActivityDefaults(activity = {}) {
 function withMarketDefaults(market = {}) {
   return {
     priceUSD: null,
+    priceUsd: null,
     priceJPY: null,
+    priceJpy: null,
     change24hPct: null,
     marketCapUSD: null,
+    marketCapUsd: null,
     marketCapJPY: null,
+    marketCapJpy: null,
     volume24hUSD: null,
+    volume24hUsd: null,
     volume24hJPY: null,
+    volume24hJpy: null,
     wldUsd: null,
     wldJpy: null,
     ...market,
@@ -188,34 +196,93 @@ async function fetchMarketSnapshot() {
   const entry = data["worldcoin"] || {};
   return withMarketDefaults({
     priceUSD: typeof entry.usd === "number" ? entry.usd : null,
+    priceUsd: typeof entry.usd === "number" ? entry.usd : null,
     priceJPY: typeof entry.jpy === "number" ? entry.jpy : null,
+    priceJpy: typeof entry.jpy === "number" ? entry.jpy : null,
     change24hPct:
       typeof entry.usd_24h_change === "number" ? round(entry.usd_24h_change, 2) : null,
     marketCapUSD:
       typeof entry.usd_market_cap === "number" ? round(entry.usd_market_cap, 0) : null,
+    marketCapUsd:
+      typeof entry.usd_market_cap === "number" ? round(entry.usd_market_cap, 0) : null,
     marketCapJPY:
+      typeof entry.jpy_market_cap === "number" ? round(entry.jpy_market_cap, 0) : null,
+    marketCapJpy:
       typeof entry.jpy_market_cap === "number" ? round(entry.jpy_market_cap, 0) : null,
     volume24hUSD:
       typeof entry.usd_24h_vol === "number" ? round(entry.usd_24h_vol, 0) : null,
+    volume24hUsd:
+      typeof entry.usd_24h_vol === "number" ? round(entry.usd_24h_vol, 0) : null,
     volume24hJPY:
+      typeof entry.jpy_24h_vol === "number" ? round(entry.jpy_24h_vol, 0) : null,
+    volume24hJpy:
       typeof entry.jpy_24h_vol === "number" ? round(entry.jpy_24h_vol, 0) : null,
     wldUsd: typeof entry.usd === "number" ? entry.usd : null,
     wldJpy: typeof entry.jpy === "number" ? entry.jpy : null,
   });
 }
 
+async function fetchNetworkHistoryStats(env, referenceTs = Math.floor(Date.now() / 1000)) {
+  const targetTs = referenceTs - 24 * 60 * 60;
+  const days = [new Date(referenceTs * 1000), new Date(targetTs * 1000)];
+  const keys = Array.from(
+    new Set(
+      days.map((d) => `${HISTORY_PREFIX}${formatDay(new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate())))}`),
+    ),
+  );
+
+  const results = await Promise.all(keys.map((key) => env.WCWD_HISTORY.get(key)));
+  const points = [];
+
+  results.forEach((entry) => {
+    if (!entry) return;
+    try {
+      const parsed = JSON.parse(entry);
+      if (parsed && Array.isArray(parsed.points)) {
+        points.push(...parsed.points);
+      }
+    } catch (err) {
+      console.error("Failed to parse history entry for stats", err);
+    }
+  });
+
+  const recent = points.filter(
+    (p) => p && typeof p.ts === "number" && p.ts >= targetTs && p.network && typeof p.network.tps === "number",
+  );
+
+  if (!recent.length) {
+    return {};
+  }
+
+  const avgTps = recent.reduce((sum, p) => sum + p.network.tps, 0) / recent.length;
+  const avgTps24h = round(avgTps, 2);
+  return { avgTps24h, txCount24hEst: Math.round(avgTps24h * 86400) };
+}
+
 async function buildCurrentSnapshot(env) {
-  const [networkResult, market] = await Promise.all([
+  const ts = Math.floor(Date.now() / 1000);
+  const [networkResult, market, historyStats] = await Promise.all([
     fetchNetworkSnapshot(env),
     fetchMarketSnapshot(),
+    fetchNetworkHistoryStats(env, ts),
   ]);
-
-  const ts = Math.floor(Date.now() / 1000);
 
   return {
     ok: true,
     ts,
-    network: withNetworkDefaults(networkResult?.metrics || networkResult),
+    network: (() => {
+      const merged = withNetworkDefaults({
+        ...(networkResult?.metrics || networkResult),
+        ...historyStats,
+      });
+      if (merged.txCount24hEst == null && typeof merged.txCount24h === "number") {
+        merged.txCount24hEst = merged.txCount24h;
+      }
+      if (merged.avgTps24h == null && typeof merged.tps === "number") {
+        merged.avgTps24h = merged.tps;
+      }
+      return merged;
+    })(),
     market: withMarketDefaults(market),
     activity: withActivityDefaults(networkResult?.activity),
   };
@@ -346,6 +413,35 @@ async function handleCurrent(env) {
   try {
     const snapshot = await buildCurrentSnapshot(env);
     const latest = await saveLatestSnapshot(env, snapshot);
+    // Example response shape for /api/wcwd/current
+    // {
+    //   "ok": true,
+    //   "ts": 1720000000,
+    //   "network": {
+    //     "tps": 3.21,
+    //     "avgTps24h": 3.05,
+    //     "txCount24h": 277000,
+    //     "txCount24hEst": 263520,
+    //     "newAddressesEst": 1200,
+    //     "totalAddressesEst": null,
+    //     "gasPriceGwei": 4.2
+    //   },
+    //   "market": {
+    //     "priceUSD": 2.11,
+    //     "priceJPY": 308,
+    //     "change24hPct": 1.23,
+    //     "marketCapUSD": 123456789,
+    //     "volume24hUSD": 9876543,
+    //     "wldUsd": 2.11,
+    //     "wldJpy": 308
+    //   },
+    //   "activity": {
+    //     "nativeTransferPct": 50,
+    //     "tokenTransferPct": 25,
+    //     "contractCallPct": 20,
+    //     "otherPct": 5
+    //   }
+    // }
     return jsonResponse(latest);
   } catch (err) {
     console.error("snapshot build failed", { reason: String(err) });

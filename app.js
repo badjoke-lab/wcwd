@@ -109,8 +109,8 @@ function renderNetworkStats(snapshot) {
       formatter: (v) => v.toFixed(2),
     },
     {
-      title: "24h TX Count",
-      value: network.txCount24h,
+      title: "24h TX Count (est)",
+      value: network.txCount24hEst ?? network.txCount24h,
       formatter: (v) => numberFormatter.format(v),
     },
     {
@@ -155,10 +155,14 @@ function renderMarketStats(snapshot) {
   };
 
   const priceValue = isJPY
-    ? market.priceJPY ?? market.wldJpy
-    : market.priceUSD ?? market.wldUsd;
-  const marketCapValue = isJPY ? market.marketCapJPY : market.marketCapUSD;
-  const volumeValue = isJPY ? market.volume24hJPY : market.volume24hUSD;
+    ? market.priceJPY ?? market.priceJpy ?? market.wldJpy
+    : market.priceUSD ?? market.priceUsd ?? market.wldUsd;
+  const marketCapValue = isJPY
+    ? market.marketCapJPY ?? market.marketCapJpy
+    : market.marketCapUSD ?? market.marketCapUsd;
+  const volumeValue = isJPY
+    ? market.volume24hJPY ?? market.volume24hJpy
+    : market.volume24hUSD ?? market.volume24hUsd;
   const currencyFormatterFn = isJPY
     ? (v) => jpyFormatter.format(v)
     : (v) => currencyFormatter.format(v);

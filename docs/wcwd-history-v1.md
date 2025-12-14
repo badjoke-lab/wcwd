@@ -43,6 +43,11 @@ WCWD progresses from a current snapshot viewer into a history-enabled mini monit
       ```
     - Series arrays are optimized for charts and include only [timestamp, value] tuples.
 
+### `/api/wcwd/current` payload notes (2024-07 refresh)
+- **Market**: provides price in USD/JPY along with 24h change %, market cap, and 24h volume in both currencies (`priceUSD/priceJPY`, `change24hPct`, `marketCapUSD/JPY`, `volume24hUSD/JPY`, plus `wldUsd/wldJpy` aliases).
+- **Network**: exposes real-time TPS plus 24h estimates derived from the 15m history (`avgTps24h`, `txCount24hEst`) alongside the existing instantaneous estimate (`txCount24h`).
+- **Addresses**: `newAddressesEst` and `totalAddressesEst` remain nullable/TBD when the data source is unavailable.
+
 ### Example `/api/wcwd/history` response (7d)
 ```json
 {
