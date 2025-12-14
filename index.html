@@ -1,58 +1,56 @@
 <!doctype html>
-<html lang="en">
+<html lang="ja">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>WCWD Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WCWD (Skeleton)</title>
   <link rel="stylesheet" href="/style.css" />
 </head>
 <body>
-  <main>
-    <h1>WCWD Dashboard</h1>
+  <main class="wrap">
+    <h1>WCWD — Skeleton</h1>
+
+    <div class="row">
+      <button id="reload">Reload</button>
+      <div class="muted">Status: <span id="status">—</span></div>
+    </div>
 
     <section>
-      <h2>Network Stats</h2>
-      <div><strong>TPS:</strong> <span id="tps">—</span></div>
-      <div><strong>24h TX:</strong> <span id="tx24h">—</span></div>
-      <div><strong>New Addresses (24h):</strong> <span id="newAddr24h">—</span></div>
-      <div><strong>Total Addresses (est):</strong> <span id="totalAddr">—</span></div>
-      <div><strong>Gas Price (Gwei):</strong> <span id="gasGwei">—</span></div>
+      <h2>1) CORE RPC</h2>
+      <div class="grid">
+        <div><b>chainId</b><div id="chainId">—</div></div>
+        <div><b>blockNumber</b><div id="blockNumber">—</div></div>
+        <div><b>gasPrice</b><div id="gasPrice">—</div></div>
+        <div><b>maxPriorityFee</b><div id="priorityFee">—</div></div>
+        <div><b>TPS(est)</b><div id="tps">—</div></div>
+        <div><b>blockTimeAvg(s)</b><div id="blockTime">—</div></div>
+      </div>
     </section>
 
     <section>
-      <h2>WLD Market Stats</h2>
-      <div><strong>WLD Price (USD/JPY):</strong> <span id="price">—</span></div>
-      <div><strong>24h Price Change:</strong> <span id="chg24h">—</span></div>
-      <div><strong>Market Cap (USD):</strong> <span id="mcap">—</span></div>
-      <div><strong>24h Volume (USD):</strong> <span id="vol24h">—</span></div>
-      <div><strong>7d Sparkline:</strong> <span id="spark7d">—</span></div>
+      <h2>2-3) FREE extras</h2>
+      <div class="grid">
+        <div><b>World status sample</b><pre id="worldStatus">—</pre></div>
+        <div><b>worldscan reachability</b><div id="worldscan">—</div></div>
+      </div>
     </section>
 
     <section>
-      <h2>Activity Breakdown (sample)</h2>
-      <div><strong>Native:</strong> <span id="nativePct">—</span></div>
-      <div><strong>Token:</strong> <span id="tokenPct">—</span></div>
-      <div><strong>Contract:</strong> <span id="contractPct">—</span></div>
-      <div><strong>Other:</strong> <span id="otherPct">—</span></div>
+      <h2>4-5) KEYED extras (optional)</h2>
+      <div class="grid">
+        <div><b>Etherscan</b><pre id="etherscan">—</pre></div>
+        <div><b>CoinGecko</b><pre id="coingecko">—</pre></div>
+      </div>
     </section>
 
     <section>
-      <h2>Trend Charts</h2>
-      <div><strong>WLD 7d Trend:</strong> <span id="trendWld">—</span></div>
-      <div><strong>TX 7d Trend:</strong> <span id="trendTx">—</span></div>
+      <h2>Errors</h2>
+      <pre id="errors">—</pre>
     </section>
 
     <section>
-      <h2>Alerts</h2>
-      <div><strong>Spike:</strong> <span id="alertSpike">—</span></div>
-      <div><strong>Drop:</strong> <span id="alertDrop">—</span></div>
-      <div><strong>High Gas:</strong> <span id="alertGas">—</span></div>
-    </section>
-
-    <section>
-      <h2>Status</h2>
-      <div><strong>Last Update:</strong> <span id="updated">—</span></div>
-      <div><strong>Debug:</strong> <span id="debug">—</span></div>
+      <h2>Raw (debug)</h2>
+      <pre id="raw">—</pre>
     </section>
   </main>
 
