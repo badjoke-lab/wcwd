@@ -13,9 +13,15 @@ function setNote(sel, v) {
 }
 
 function hexToInt(h) {
-  if (!h || typeof h !== "string") return null;
-  if (!h.startsWith("0x")) return Number(h);
-  const n = parseInt(h.slice(2), 16);
+  if (h === null || h === undefined) return null;
+  if (typeof h !== "string") return null;
+  if (!h) return null;
+  // 0x... 以外も一応受ける
+  if (!h.startsWith("0x")) {
+    const n = Number(h);
+    return Number.isFinite(n) ? n : null;
+  }
+  const n = parseInt(h, 16);
   return Number.isFinite(n) ? n : null;
 }
 
@@ -28,16 +34,16 @@ function fmtNum(n) {
   if (Math.abs(x) >= 1e6) return (x / 1e6).toFixed(2) + "M";
   if (Math.abs(x) >= 1e3) return (x / 1e3).toFixed(2) + "K";
   if (Math.abs(x) < 1) return x.toPrecision(4);
-  return x.toLocaleString(undefined, { maximumFractionDigits: 4 });
+  return x.toLocaleString(undefined, { maximumFractionDigits: 6 });
 }
 
 function sparkline(nums, width = 24) {
-  const arr = (nums || []).map(Number).filter((n) => Number.isFinite(n));
+  const arr = (nums || []).filter((n) => typeof n === "number" && Number.isFinite(n));
   if (arr.length < 2) return "—";
   const blocks = "▁▂▃▄▅▆▇█";
   const min = Math.min(...arr);
   const max = Math.max(...arr);
-  const span = (max - min) || 1;
+  const span = max - min || 1;
 
   const step = Math.max(1, Math.floor(arr.length / width));
   let out = "";
@@ -64,113 +70,97 @@ function avgSamples(arr) {
   return xs.reduce((a, b) => a + b, 0) / xs.length;
 }
 
-/**
- * /api/summary の coingecko を吸収して表示用に整形
- * - 現状の Functions は out.coingecko = { mode, data, http_status?, skipped? } で返す
- * - data は
- *   A) markets 配列（coins/markets）: [{ current_price, market_cap, total_volume, price_change_percentage_24h, sparkline_in_7d:{price:[]} }]
- *   B) simple price オブジェクト: { "worldcoin-wld": { usd, jpy, ... } } みたいな形
- *   C) 文字列（エラー本文等）
- */
+// CoinGecko: summary.js の coingecko.data を吸収（markets配列 or 文字列 or 他）
 function parseCoinGecko(cg) {
   const res = {
     ok: false,
-    mode: cg?.mode || "",
+    note: "",
     usd: null,
     jpy: null,
-    chg24h: null,
-    mc: null,
-    vol: null,
-    prices7d: null,
-    note: "",
+    usd_24h_change: null,
+    usd_market_cap: null,
+    usd_24h_vol: null,
+    spark7d: null,
   };
 
-  if (!cg || typeof cg !== "object") {
-    res.note = "CoinGecko: missing";
-    return res;
-  }
-  if (cg.skipped) {
-    res.note = String(cg.skipped);
+  if (!cg) {
+    res.note = "CoinGecko: missing field";
     return res;
   }
 
-  let data = cg.data;
+  const mode = cg.mode || "?";
+  const data = cg.data;
 
-  // data が JSON 文字列で来た場合の救済
-  if (typeof data === "string") {
-    try {
-      data = JSON.parse(data);
-    } catch {
-      res.note = `CoinGecko: ${data.slice(0, 120)}`;
-      return res;
-    }
+  if (!data) {
+    res.note = `CoinGecko: unavailable (mode=${mode})`;
+    return res;
   }
 
-  // A) markets 配列
+  // markets: 配列が基本
   if (Array.isArray(data)) {
-    if (!data.length) {
-      res.note = "CoinGecko: markets returned 0 items (check coin id).";
+    if (data.length === 0) {
+      res.note = `CoinGecko: empty data[] (mode=${mode})`;
       return res;
     }
-    const it = data[0] || {};
-    res.usd = it.current_price ?? null;
-    res.mc = it.market_cap ?? null;
-    res.vol = it.total_volume ?? null;
-    res.chg24h = it.price_change_percentage_24h ?? it.price_change_percentage_24h_in_currency ?? null;
-    res.prices7d = it.sparkline_in_7d?.price || null;
-    res.ok = true;
+    const m = data[0] || {};
+    // /coins/markets の代表的フィールド
+    res.usd = (m.current_price ?? null);
+    res.usd_market_cap = (m.market_cap ?? null);
+    res.usd_24h_vol = (m.total_volume ?? null);
+    // 24h変化はこのどれかに入る（環境差があるので吸収）
+    res.usd_24h_change =
+      (m.price_change_percentage_24h ??
+        m.price_change_percentage_24h_in_currency ??
+        m.price_change_percentage_24h_in_usd ??
+        null);
 
-    // この endpoints では JPY が無いことがある
-    res.note =
-      `CoinGecko mode: ${res.mode || "?"}` +
-      (res.jpy == null ? " / JPY not included by current endpoint" : "");
+    const sp = m.sparkline_in_7d && Array.isArray(m.sparkline_in_7d.price)
+      ? m.sparkline_in_7d.price
+      : null;
+    res.spark7d = sp;
+
+    // このビルドのsummary.jsは vs_currency=usd なのでJPYは出ない
+    res.jpy = null;
+
+    res.ok = true;
+    res.note = `CoinGecko mode: ${mode} / source: coins/markets`;
     return res;
   }
 
-  // B) simple price オブジェクト（キーが worldcoin-wld / worldcoin など）
-  if (data && typeof data === "object") {
-    const key =
-      data["worldcoin-wld"] ? "worldcoin-wld" :
-      data["worldcoin"] ? "worldcoin" :
-      Object.keys(data)[0];
-
-    const s = key ? data[key] : null;
-    if (s && typeof s === "object") {
-      res.usd = s.usd ?? null;
-      res.jpy = s.jpy ?? null;
-      res.mc = s.usd_market_cap ?? null;
-      res.vol = s.usd_24h_vol ?? null;
-      res.chg24h = s.usd_24h_change ?? null;
-      // simple price には 7d が無いので prices7d は null のまま
-      res.ok = true;
-      res.note = `CoinGecko mode: ${res.mode || "?"} / id: ${key || "?"}`;
-      return res;
-    }
+  // もし将来 simple/price 形式の object が入ってきても壊れないように
+  if (typeof data === "object") {
+    // 例: { worldcoin: { usd, jpy, usd_market_cap, usd_24h_vol, usd_24h_change } }
+    const w = data.worldcoin || data;
+    res.usd = w.usd ?? w.current_price ?? null;
+    res.jpy = w.jpy ?? null;
+    res.usd_market_cap = w.usd_market_cap ?? w.market_cap ?? null;
+    res.usd_24h_vol = w.usd_24h_vol ?? w.total_volume ?? null;
+    res.usd_24h_change = w.usd_24h_change ?? w.price_change_percentage_24h ?? null;
+    // sparkline はこの形式では通常ない
+    res.spark7d = null;
+    res.ok = true;
+    res.note = `CoinGecko mode: ${mode} / source: object`;
+    return res;
   }
 
-  res.note = "CoinGecko: unrecognized payload";
+  // 文字列（エラーメッセージ等）
+  res.note = `CoinGecko: non-JSON data (mode=${mode})`;
   return res;
 }
 
 async function load() {
   setText("#status", "loading...");
   setText("#errors", "—");
-  setText("#raw", "—");
 
   try {
     const r = await fetch("/api/summary", { cache: "no-store" });
-    const text = await r.text();
-    let j = null;
-    try { j = JSON.parse(text); } catch { /* ignore */ }
+    const j = await r.json().catch(() => null);
+    if (!r.ok || !j) throw new Error(`HTTP ${r.status}`);
 
-    if (!r.ok) {
-      throw new Error(`HTTP ${r.status}: ${text.slice(0, 160)}`);
-    }
-    if (!j) {
-      throw new Error(`Invalid JSON: ${text.slice(0, 160)}`);
-    }
-
+    // Status 表示：サーバ側 out.ok は errors があると false になる仕様
     setText("#status", j.ok ? "OK" : "PARTIAL");
+
+    // Raw/debug
     setText("#raw", JSON.stringify(j, null, 2));
     setText("#errors", (j.errors && j.errors.length) ? j.errors.join("\n") : "—");
 
@@ -183,43 +173,40 @@ async function load() {
     const gasGwei = gasWei != null ? gasWei / 1e9 : null;
     setText("#gasPrice", gasGwei != null ? `${fmtNum(gasGwei)} gwei` : "—");
 
-    // address 系は indexer 無しなので固定で明示
+    // address系は indexer無しだと取れないので明示
     setText("#newAddr24h", "N/A");
-    setNote("#newAddrNote", "Needs indexer API (not in current build).");
+    setNote("#newAddrNote", "No indexer API for address counts in current build.");
     setText("#totalAddr", "N/A");
-    setNote("#totalAddrNote", "Needs indexer API (not in current build).");
+    setNote("#totalAddrNote", "No indexer API for total address count in current build.");
 
-    // 2) WLD Market (CoinGecko)
-    const cg = parseCoinGecko(j.coingecko);
-    if (cg.ok) {
-      setText("#wldUsd", cg.usd != null ? `$${fmtNum(cg.usd)}` : "—");
-      setText("#wldJpy", cg.jpy != null ? `¥${fmtNum(cg.jpy)}` : "—");
-      setText("#wldChg24h", cg.chg24h != null ? `${fmtNum(cg.chg24h)}%` : "—");
-      setText("#wldMc", cg.mc != null ? `$${fmtNum(cg.mc)}` : "—");
-      setText("#wldVol", cg.vol != null ? `$${fmtNum(cg.vol)}` : "—");
-      setText("#wldSpark7d", cg.prices7d ? sparkline(cg.prices7d) : "—");
-      setText("#chartWld7d", cg.prices7d ? sparkline(cg.prices7d, 40) : "—");
-      setNote("#cgNote", cg.note || "CoinGecko OK");
+    // 2) WLD Market (coingecko.data を読む)
+    const cgParsed = parseCoinGecko(j.coingecko);
+    if (cgParsed.ok) {
+      setText("#wldUsd", cgParsed.usd != null ? `$${fmtNum(cgParsed.usd)}` : "—");
+      setText("#wldJpy", cgParsed.jpy != null ? `¥${fmtNum(cgParsed.jpy)}` : "N/A");
+      setText("#wldChg24h", cgParsed.usd_24h_change != null ? `${fmtNum(cgParsed.usd_24h_change)}%` : "—");
+      setText("#wldMc", cgParsed.usd_market_cap != null ? `$${fmtNum(cgParsed.usd_market_cap)}` : "—");
+      setText("#wldVol", cgParsed.usd_24h_vol != null ? `$${fmtNum(cgParsed.usd_24h_vol)}` : "—");
+
+      const sp = cgParsed.spark7d;
+      setText("#wldSpark7d", sp ? sparkline(sp) : "—");
+      setText("#chartWld7d", sp ? sparkline(sp, 40) : "—");
+
+      setNote("#cgNote", cgParsed.note + (cgParsed.jpy == null ? " / JPY not provided by current server query" : ""));
     } else {
-      setNote("#cgNote", cg.note || "CoinGecko: unavailable");
-      setText("#wldUsd", "—");
-      setText("#wldJpy", "—");
-      setText("#wldChg24h", "—");
-      setText("#wldMc", "—");
-      setText("#wldVol", "—");
-      setText("#wldSpark7d", "—");
-      setText("#chartWld7d", "—");
+      setNote("#cgNote", cgParsed.note || "CoinGecko: unavailable");
     }
 
-    // 3) Activity Breakdown（API 側に 아직無いので明示）
+    // 3) Activity Breakdown
+    // 現状 summary.js は activity_sample を返してないので N/A 扱いにする
     setText("#pctNative", "N/A");
     setText("#pctToken", "N/A");
     setText("#pctContract", "N/A");
     setText("#pctOther", "N/A");
-    setNote("#pctTokenNote", "Not implemented (needs tx/log/indexer).");
-    setNote("#actNote", "Not implemented in /api/summary yet.");
+    setNote("#pctTokenNote", "Token/native/contract breakdown needs extra server-side computation or indexer.");
+    setNote("#actNote", "Activity breakdown is not implemented in current /api/summary.");
 
-    // 4) TX 7d trend（未実装）
+    // 4) Trend Charts
     setText("#chartTx7d", "N/A");
     setNote("#chartTxNote", "Needs daily tx-count API / indexer.");
 
