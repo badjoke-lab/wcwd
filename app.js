@@ -1,7 +1,3 @@
-// WCWD Skeleton app.js
-// Version bump to make it obvious in DevTools which file is running.
-const APP_VERSION = "2025-12-15.2";
-
 const $ = (sel) => document.querySelector(sel);
 
 function setText(sel, v) {
@@ -17,14 +13,8 @@ function setNote(sel, v) {
 }
 
 function hexToInt(h) {
-  if (h === null || h === undefined) return null;
-  if (typeof h === "number" && Number.isFinite(h)) return h;
-  if (typeof h !== "string") return null;
-  if (h === "" || h === "null") return null;
-  if (!h.startsWith("0x")) {
-    const n = Number(h);
-    return Number.isFinite(n) ? n : null;
-  }
+  if (!h || typeof h !== "string") return null;
+  if (!h.startsWith("0x")) return Number(h);
   const n = parseInt(h, 16);
   return Number.isFinite(n) ? n : null;
 }
@@ -42,7 +32,7 @@ function fmtNum(n) {
 }
 
 function sparkline(nums, width = 24) {
-  const arr = (nums || []).map(Number).filter((n) => Number.isFinite(n));
+  const arr = (nums || []).filter(n => typeof n === "number" && Number.isFinite(n));
   if (arr.length < 2) return "—";
   const blocks = "▁▂▃▄▅▆▇█";
   const min = Math.min(...arr);
@@ -68,95 +58,94 @@ function pushSample(key, v, max = 20) {
 }
 
 function avgSamples(arr) {
-  const xs = (arr || []).map((o) => Number(o.v)).filter((n) => Number.isFinite(n));
+  const xs = (arr || []).map(o => Number(o.v)).filter(n => Number.isFinite(n));
   if (!xs.length) return null;
   return xs.reduce((a, b) => a + b, 0) / xs.length;
 }
 
-/**
- * CoinGecko response can be 2 shapes depending on /api/summary implementation:
- *  A) "simple" shape (simple/price):  coingecko.simple = { usd, usd_market_cap, ... }
- *  B) "markets" shape (coins/markets): coingecko.data = [ { current_price, market_cap, total_volume, ...,
- *                                                          sparkline_in_7d: { price: [...] } } ]
- * We normalize into:
- *  { ok, mode, simple, spark_prices_7d }
- */
-function normalizeCoinGecko(cg) {
-  if (!cg) return { ok: false };
-
-  // A) simple shape already normalized by backend
-  if (cg.simple && typeof cg.simple === "object") {
-    return {
-      ok: true,
-      mode: cg.mode || "simple",
-      simple: cg.simple,
-      spark_prices_7d: cg.chart7d_usd?.prices || null,
-      coin_id: cg.coin_id || "worldcoin",
-    };
+function safeJsonStringify(obj, limitChars = 25000) {
+  let s = "";
+  try {
+    s = JSON.stringify(obj, null, 2);
+  } catch (e) {
+    return `<<stringify failed>> ${String(e?.message || e)}`;
   }
+  if (s.length <= limitChars) return s;
+  return s.slice(0, limitChars) + "\n…(truncated)…";
+}
 
-  // B) markets shape (backend puts the whole JSON into cg.data)
-  const arr = Array.isArray(cg.data) ? cg.data : null;
-  const row = arr && arr.length ? arr[0] : null;
-  if (row && typeof row === "object") {
-    const simple = {
-      usd: row.current_price ?? null,
-      usd_market_cap: row.market_cap ?? null,
-      usd_24h_vol: row.total_volume ?? null,
-      usd_24h_change: row.price_change_percentage_24h ?? null,
-      // JPY may not be present in markets (vs_currency fixed to usd in backend)
-      jpy: null,
-      jpy_market_cap: null,
-      jpy_24h_vol: null,
-      jpy_24h_change: null,
-    };
-    const spark = row.sparkline_in_7d?.price || null;
+// CoinGecko data parser (supports your current backend shape: {mode, data})
+function parseCoinGecko(cg) {
+  // backend: /coins/markets returns Array
+  if (cg && Array.isArray(cg.data)) {
+    if (cg.data.length === 0) return { ok: false, reason: "CoinGecko returned empty array. Likely wrong coin id (use worldcoin-wld)." };
+    const w = cg.data[0] || {};
+    const prices = w.sparkline_in_7d?.price;
     return {
       ok: true,
       mode: cg.mode || "markets",
-      simple,
-      spark_prices_7d: Array.isArray(spark) ? spark : null,
-      coin_id: row.id || "worldcoin",
+      coin_id: w.id,
+      usd: w.current_price,
+      jpy: null, // not available in markets(usd) response
+      usd_24h_change: w.price_change_percentage_24h,
+      usd_market_cap: w.market_cap,
+      usd_24h_vol: w.total_volume,
+      spark7d: Array.isArray(prices) ? prices : null,
+      note: "markets endpoint (vs_currency=usd). JPY needs a second call or simple/price."
     };
   }
 
-  return { ok: false };
+  // backend might be changed later to return an object (simple/price style)
+  // e.g. { data: {"worldcoin-wld": {...}} } or direct { "worldcoin-wld": {...} }
+  const d = cg?.data || cg;
+  if (d && typeof d === "object" && !Array.isArray(d)) {
+    const key = d["worldcoin-wld"] ? "worldcoin-wld" : (d["worldcoin"] ? "worldcoin" : null);
+    if (!key) return { ok: false, reason: "CoinGecko object has no worldcoin-wld/worldcoin key." };
+    const s = d[key];
+    return {
+      ok: true,
+      mode: cg?.mode || "simple",
+      coin_id: key,
+      usd: s.usd,
+      jpy: s.jpy,
+      usd_24h_change: s.usd_24h_change,
+      usd_market_cap: s.usd_market_cap,
+      usd_24h_vol: s.usd_24h_vol,
+      spark7d: null,
+      note: "simple/price style response."
+    };
+  }
+
+  return { ok: false, reason: "CoinGecko data missing." };
 }
 
 async function load() {
   setText("#status", "loading...");
   setText("#errors", "—");
 
-  // Optional: show version in console for cache debugging
-  console.log(`[WCWD] app.js version ${APP_VERSION}`);
-
   try {
-    // cache-bust to avoid any intermediate caching
-    const url = `/api/summary?ts=${Date.now()}`;
-    const r = await fetch(url, { cache: "no-store" });
+    const r = await fetch("/api/summary", { cache: "no-store" });
 
-    // Be robust: sometimes r.json() fails if edge returns HTML
+    // JSONじゃない/壊れてる時に備える
     const text = await r.text();
     let j = null;
-    try { j = JSON.parse(text); } catch { /* ignore */ }
+    try { j = JSON.parse(text); } catch { j = null; }
 
-    if (!r.ok) {
-      throw new Error(`HTTP ${r.status} ${r.statusText} :: ${text.slice(0, 200)}`);
+    if (!r.ok || !j) {
+      throw new Error(`HTTP ${r.status} / non-JSON body: ${text.slice(0, 200)}`);
     }
-    if (!j) throw new Error(`Non-JSON response :: ${text.slice(0, 200)}`);
 
-    setText("#status", j.ok ? "OK" : "PARTIAL");
+    // Status
+    const ok = !!j.ok && (!j.errors || j.errors.length === 0);
+    setText("#status", ok ? "OK" : "PARTIAL");
 
-    // Errors list
-    const errs = (j.errors && j.errors.length) ? j.errors.join("\n") : "—";
-    setText("#errors", errs);
+    // Errors
+    setText("#errors", (j.errors && j.errors.length) ? j.errors.join("\n") : "—");
 
-    // Raw/debug (truncate to avoid a 10km page)
-    const rawStr = JSON.stringify(j, null, 2);
-    const RAW_MAX = 18000;
-    setText("#raw", rawStr.length > RAW_MAX ? rawStr.slice(0, RAW_MAX) + "\n…(truncated)" : rawStr);
+    // Raw(debug) : でかすぎて固まるのを防ぐ
+    setText("#raw", safeJsonStringify(j, 25000));
 
-    // 1) Network Stats
+    // 1) Network
     const tps = j.rpc?.tps_estimate ?? null;
     setText("#tps", tps != null ? fmtNum(tps) : "—");
     setText("#tx24h", tps != null ? fmtNum(tps * 86400) : "—");
@@ -165,61 +154,50 @@ async function load() {
     const gasGwei = gasWei != null ? gasWei / 1e9 : null;
     setText("#gasPrice", gasGwei != null ? `${fmtNum(gasGwei)} gwei` : "—");
 
-    // Address metrics not available without an indexer -> show explicit N/A
+    // address系は現状データ源なし
     setText("#newAddr24h", "N/A");
-    setNote("#newAddrNote", "Address counts require an indexer API (not in this build).");
+    setNote("#newAddrNote", "No indexer API for address counts in current build.");
     setText("#totalAddr", "N/A");
-    setNote("#totalAddrNote", "Total address count requires an indexer API (not in this build).");
+    setNote("#totalAddrNote", "No indexer API for total address count in current build.");
 
-    // 2) WLD Market Stats (normalize both backend shapes)
-    const cgN = normalizeCoinGecko(j.coingecko);
-    if (cgN.ok) {
-      const s = cgN.simple || {};
-      setText("#wldUsd", s.usd != null ? `$${fmtNum(s.usd)}` : "—");
-      setText("#wldJpy", s.jpy != null ? `¥${fmtNum(s.jpy)}` : "—");
+    // 2) WLD Market (match backend coingecko.mode/data)
+    const cgParsed = parseCoinGecko(j.coingecko || {});
+    if (cgParsed.ok) {
+      setText("#wldUsd", cgParsed.usd != null ? `$${fmtNum(cgParsed.usd)}` : "—");
+      setText("#wldJpy", cgParsed.jpy != null ? `¥${fmtNum(cgParsed.jpy)}` : "—");
+      setText("#wldChg24h", cgParsed.usd_24h_change != null ? `${fmtNum(cgParsed.usd_24h_change)}%` : "—");
+      setText("#wldMc", cgParsed.usd_market_cap != null ? `$${fmtNum(cgParsed.usd_market_cap)}` : "—");
+      setText("#wldVol", cgParsed.usd_24h_vol != null ? `$${fmtNum(cgParsed.usd_24h_vol)}` : "—");
 
-      setText(
-        "#wldChg24h",
-        (s.usd_24h_change !== null && s.usd_24h_change !== undefined)
-          ? `${fmtNum(s.usd_24h_change)}%`
-          : "N/A"
-      );
+      if (cgParsed.spark7d) {
+        setText("#wldSpark7d", sparkline(cgParsed.spark7d));
+        setText("#chartWld7d", sparkline(cgParsed.spark7d, 40));
+      } else {
+        setText("#wldSpark7d", "—");
+        setText("#chartWld7d", "—");
+      }
 
-      setText("#wldMc", s.usd_market_cap != null ? `$${fmtNum(s.usd_market_cap)}` : "—");
-      setText("#wldVol", s.usd_24h_vol != null ? `$${fmtNum(s.usd_24h_vol)}` : "—");
-
-      const sp = cgN.spark_prices_7d;
-      setText("#wldSpark7d", sp ? sparkline(sp, 24) : "—");
-      setText("#chartWld7d", sp ? sparkline(sp, 40) : "—");
-
-      setNote("#cgNote", `CoinGecko mode: ${cgN.mode} / id: ${cgN.coin_id} / app.js: ${APP_VERSION}`);
+      const mode = cgParsed.mode || "?";
+      const id = cgParsed.coin_id || "?";
+      const extra = cgParsed.note ? ` / ${cgParsed.note}` : "";
+      setNote("#cgNote", `CoinGecko mode: ${mode} / id: ${id}${extra}`);
     } else {
-      setNote("#cgNote", "CoinGecko: unavailable (missing key / rate limited / backend error).");
+      setNote("#cgNote", `CoinGecko: unavailable. ${cgParsed.reason || ""} (Fix: use ids=worldcoin-wld)`);
     }
 
-    // 3) Activity Breakdown
-    const act = j.activity_sample || null;
-    if (act) {
-      setText("#pctNative", `${fmtNum(act.native_pct)}%`);
-      setText("#pctContract", `${fmtNum(act.contract_pct)}%`);
-      setText("#pctOther", `${fmtNum(act.other_pct)}%`);
-      setText("#pctToken", "N/A");
-      setNote("#pctTokenNote", "Token transfers need logs / indexer.");
-      setNote("#actNote", "Activity breakdown is computed from latest block tx input/value (sample).");
-    } else {
-      setText("#pctNative", "N/A");
-      setText("#pctContract", "N/A");
-      setText("#pctOther", "N/A");
-      setText("#pctToken", "N/A");
-      setNote("#pctTokenNote", "Not available in this build.");
-      setNote("#actNote", "Activity breakdown not implemented in /api/summary yet.");
-    }
+    // 3) Activity Breakdown : backendが activity_sample を返してないので N/A にする
+    setText("#pctNative", "N/A");
+    setText("#pctToken", "N/A");
+    setText("#pctContract", "N/A");
+    setText("#pctOther", "N/A");
+    setNote("#pctTokenNote", "Needs indexer/logs to count token transfers.");
+    setNote("#actNote", "Activity breakdown not implemented in API response yet.");
 
-    // 4) Trend Charts
+    // 4) TX 7d trend : データ源なし
     setText("#chartTx7d", "N/A");
-    setNote("#chartTxNote", "Needs daily tx-count API / indexer (not in this build).");
+    setNote("#chartTxNote", "Needs daily tx-count API / indexer.");
 
-    // 5) Alerts (local rolling average)
+    // 5) Alerts (local rolling avg)
     if (tps != null) {
       const samples = pushSample("tps", tps);
       const avg = avgSamples(samples);
@@ -241,7 +219,6 @@ async function load() {
   } catch (e) {
     setText("#status", "ERROR");
     setText("#errors", String(e && e.message ? e.message : e));
-    console.error(e);
   }
 }
 
