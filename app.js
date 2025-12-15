@@ -13,10 +13,7 @@ function setNote(sel, v) {
 }
 
 function hexToInt(h) {
-  if (h === null || h === undefined) return null;
-  if (typeof h !== "string") return null;
-  if (!h) return null;
-  // 0x... 以外も一応受ける
+  if (!h || typeof h !== "string") return null;
   if (!h.startsWith("0x")) {
     const n = Number(h);
     return Number.isFinite(n) ? n : null;
@@ -38,13 +35,12 @@ function fmtNum(n) {
 }
 
 function sparkline(nums, width = 24) {
-  const arr = (nums || []).filter((n) => typeof n === "number" && Number.isFinite(n));
+  const arr = (nums || []).filter(n => typeof n === "number" && Number.isFinite(n));
   if (arr.length < 2) return "—";
   const blocks = "▁▂▃▄▅▆▇█";
   const min = Math.min(...arr);
   const max = Math.max(...arr);
   const span = max - min || 1;
-
   const step = Math.max(1, Math.floor(arr.length / width));
   let out = "";
   for (let i = 0; i < arr.length; i += step) {
@@ -65,87 +61,91 @@ function pushSample(key, v, max = 20) {
 }
 
 function avgSamples(arr) {
-  const xs = (arr || []).map((o) => Number(o.v)).filter((n) => Number.isFinite(n));
+  const xs = (arr || []).map(o => Number(o.v)).filter(n => Number.isFinite(n));
   if (!xs.length) return null;
   return xs.reduce((a, b) => a + b, 0) / xs.length;
 }
 
-// CoinGecko: summary.js の coingecko.data を吸収（markets配列 or 文字列 or 他）
+function safeJsonStringify(obj, maxChars = 20000) {
+  let s;
+  try {
+    s = JSON.stringify(obj, null, 2);
+  } catch (e) {
+    s = String(obj);
+  }
+  if (s.length <= maxChars) return s;
+  return s.slice(0, maxChars) + `\n…(trimmed ${s.length - maxChars} chars)`;
+}
+
+/**
+ * `/api/summary` の coingecko は現状こう:
+ *   coingecko: { mode: "demo"|"pro"|..., data: <array|object|string>, http_status? }
+ *
+ * - data が配列: /coins/markets の結果（USD中心、sparkline_in_7dあり）
+ * - data がオブジェクト: /simple/price の結果（worldcoin.usd/jpy 等）
+ */
 function parseCoinGecko(cg) {
-  const res = {
-    ok: false,
-    note: "",
+  const out = {
+    mode: cg?.mode || null,
     usd: null,
     jpy: null,
-    usd_24h_change: null,
-    usd_market_cap: null,
-    usd_24h_vol: null,
+    chg24: null,
+    mc: null,
+    vol: null,
     spark7d: null,
+    note: ""
   };
 
   if (!cg) {
-    res.note = "CoinGecko: missing field";
-    return res;
+    out.note = "CoinGecko: missing in /api/summary";
+    return out;
+  }
+  if (cg.skipped) {
+    out.note = `CoinGecko: ${cg.skipped}`;
+    return out;
   }
 
-  const mode = cg.mode || "?";
-  const data = cg.data;
+  const d = cg.data;
 
-  if (!data) {
-    res.note = `CoinGecko: unavailable (mode=${mode})`;
-    return res;
-  }
-
-  // markets: 配列が基本
-  if (Array.isArray(data)) {
-    if (data.length === 0) {
-      res.note = `CoinGecko: empty data[] (mode=${mode})`;
-      return res;
+  // 1) /coins/markets 形式（配列）
+  if (Array.isArray(d)) {
+    if (!d.length) {
+      out.note = `CoinGecko: empty data (mode=${cg.mode || "?"}).`;
+      return out;
     }
-    const m = data[0] || {};
-    // /coins/markets の代表的フィールド
-    res.usd = (m.current_price ?? null);
-    res.usd_market_cap = (m.market_cap ?? null);
-    res.usd_24h_vol = (m.total_volume ?? null);
-    // 24h変化はこのどれかに入る（環境差があるので吸収）
-    res.usd_24h_change =
-      (m.price_change_percentage_24h ??
-        m.price_change_percentage_24h_in_currency ??
-        m.price_change_percentage_24h_in_usd ??
-        null);
+    const x = d[0] || {};
+    out.usd = (x.current_price ?? null);
+    out.chg24 = (x.price_change_percentage_24h ?? x.price_change_percentage_24h_in_currency ?? null);
+    out.mc = (x.market_cap ?? null);
+    out.vol = (x.total_volume ?? null);
+    out.spark7d = (x.sparkline_in_7d && Array.isArray(x.sparkline_in_7d.price)) ? x.sparkline_in_7d.price : null;
 
-    const sp = m.sparkline_in_7d && Array.isArray(m.sparkline_in_7d.price)
-      ? m.sparkline_in_7d.price
-      : null;
-    res.spark7d = sp;
-
-    // このビルドのsummary.jsは vs_currency=usd なのでJPYは出ない
-    res.jpy = null;
-
-    res.ok = true;
-    res.note = `CoinGecko mode: ${mode} / source: coins/markets`;
-    return res;
+    // このエンドポイントは vs_currency=usd の場合 JPY は出ない（サーバがUSD-onlyで取ってる限り）
+    out.note = `CoinGecko: markets endpoint (mode=${cg.mode || "?"}). JPY requires simple/price with vs_currencies=jpy.`;
+    return out;
   }
 
-  // もし将来 simple/price 形式の object が入ってきても壊れないように
-  if (typeof data === "object") {
-    // 例: { worldcoin: { usd, jpy, usd_market_cap, usd_24h_vol, usd_24h_change } }
-    const w = data.worldcoin || data;
-    res.usd = w.usd ?? w.current_price ?? null;
-    res.jpy = w.jpy ?? null;
-    res.usd_market_cap = w.usd_market_cap ?? w.market_cap ?? null;
-    res.usd_24h_vol = w.usd_24h_vol ?? w.total_volume ?? null;
-    res.usd_24h_change = w.usd_24h_change ?? w.price_change_percentage_24h ?? null;
-    // sparkline はこの形式では通常ない
-    res.spark7d = null;
-    res.ok = true;
-    res.note = `CoinGecko mode: ${mode} / source: object`;
-    return res;
+  // 2) /simple/price 形式（オブジェクト）
+  if (d && typeof d === "object") {
+    // 典型: { worldcoin: { usd, jpy, usd_market_cap, usd_24h_vol, usd_24h_change, ... } }
+    const wc = d.worldcoin || d.Worldcoin || null;
+    if (wc && typeof wc === "object") {
+      out.usd = (wc.usd ?? null);
+      out.jpy = (wc.jpy ?? null);
+      out.chg24 = (wc.usd_24h_change ?? null);
+      out.mc = (wc.usd_market_cap ?? null);
+      out.vol = (wc.usd_24h_vol ?? null);
+      out.note = `CoinGecko: simple/price endpoint (mode=${cg.mode || "?"}).`;
+      return out;
+    }
+
+    out.note = `CoinGecko: unrecognized object shape (mode=${cg.mode || "?"}).`;
+    return out;
   }
 
-  // 文字列（エラーメッセージ等）
-  res.note = `CoinGecko: non-JSON data (mode=${mode})`;
-  return res;
+  // 3) 文字列など（エラー本文が入ってる可能性）
+  out.note = `CoinGecko: non-json or unexpected (mode=${cg.mode || "?"}).`;
+  return out;
 }
 
 async function load() {
@@ -154,59 +154,63 @@ async function load() {
 
   try {
     const r = await fetch("/api/summary", { cache: "no-store" });
-    const j = await r.json().catch(() => null);
-    if (!r.ok || !j) throw new Error(`HTTP ${r.status}`);
+    const text = await r.text();
 
-    // Status 表示：サーバ側 out.ok は errors があると false になる仕様
-    setText("#status", j.ok ? "OK" : "PARTIAL");
+    let j = null;
+    try { j = JSON.parse(text); } catch { /* ignore */ }
 
-    // Raw/debug
-    setText("#raw", JSON.stringify(j, null, 2));
-    setText("#errors", (j.errors && j.errors.length) ? j.errors.join("\n") : "—");
+    if (!r.ok || !j) {
+      throw new Error(`HTTP ${r.status} (non-JSON or fetch failed)`);
+    }
 
-    // 1) Network
-    const tps = j.rpc?.tps_estimate ?? null;
+    // Status
+    const hasErr = Array.isArray(j.errors) && j.errors.length;
+    setText("#status", j.ok ? "OK" : (hasErr ? "PARTIAL" : "OK"));
+
+    // Errors + Raw
+    setText("#errors", hasErr ? j.errors.join("\n") : "—");
+    setText("#raw", safeJsonStringify(j, 25000));
+
+    // 1) Network Stats
+    const tps = (j.rpc && typeof j.rpc.tps_estimate === "number") ? j.rpc.tps_estimate : null;
     setText("#tps", tps != null ? fmtNum(tps) : "—");
     setText("#tx24h", tps != null ? fmtNum(tps * 86400) : "—");
 
     const gasWei = hexToInt(j.rpc?.gas_price);
-    const gasGwei = gasWei != null ? gasWei / 1e9 : null;
+    const gasGwei = (gasWei != null) ? gasWei / 1e9 : null;
     setText("#gasPrice", gasGwei != null ? `${fmtNum(gasGwei)} gwei` : "—");
 
-    // address系は indexer無しだと取れないので明示
+    // address系（現状 indexer がないので N/A）
     setText("#newAddr24h", "N/A");
     setNote("#newAddrNote", "No indexer API for address counts in current build.");
     setText("#totalAddr", "N/A");
     setNote("#totalAddrNote", "No indexer API for total address count in current build.");
 
-    // 2) WLD Market (coingecko.data を読む)
-    const cgParsed = parseCoinGecko(j.coingecko);
-    if (cgParsed.ok) {
-      setText("#wldUsd", cgParsed.usd != null ? `$${fmtNum(cgParsed.usd)}` : "—");
-      setText("#wldJpy", cgParsed.jpy != null ? `¥${fmtNum(cgParsed.jpy)}` : "N/A");
-      setText("#wldChg24h", cgParsed.usd_24h_change != null ? `${fmtNum(cgParsed.usd_24h_change)}%` : "—");
-      setText("#wldMc", cgParsed.usd_market_cap != null ? `$${fmtNum(cgParsed.usd_market_cap)}` : "—");
-      setText("#wldVol", cgParsed.usd_24h_vol != null ? `$${fmtNum(cgParsed.usd_24h_vol)}` : "—");
+    // 2) WLD Market Stats (CoinGecko)
+    const cg = parseCoinGecko(j.coingecko);
 
-      const sp = cgParsed.spark7d;
-      setText("#wldSpark7d", sp ? sparkline(sp) : "—");
-      setText("#chartWld7d", sp ? sparkline(sp, 40) : "—");
+    setText("#wldUsd", cg.usd != null ? `$${fmtNum(cg.usd)}` : "—");
+    setText("#wldJpy", cg.jpy != null ? `¥${fmtNum(cg.jpy)}` : "—");
+    setText("#wldChg24h", cg.chg24 != null ? `${fmtNum(cg.chg24)}%` : "—");
+    setText("#wldMc", cg.mc != null ? `$${fmtNum(cg.mc)}` : "—");
+    setText("#wldVol", cg.vol != null ? `$${fmtNum(cg.vol)}` : "—");
 
-      setNote("#cgNote", cgParsed.note + (cgParsed.jpy == null ? " / JPY not provided by current server query" : ""));
-    } else {
-      setNote("#cgNote", cgParsed.note || "CoinGecko: unavailable");
-    }
+    const sp = Array.isArray(cg.spark7d) ? cg.spark7d : null;
+    setText("#wldSpark7d", sp ? sparkline(sp, 24) : "—");
+    setText("#chartWld7d", sp ? sparkline(sp, 40) : "—");
+
+    setNote("#cgNote", cg.note || "");
 
     // 3) Activity Breakdown
-    // 現状 summary.js は activity_sample を返してないので N/A 扱いにする
+    // Functions が activity_sample を返してないので、現状は N/A を明示
     setText("#pctNative", "N/A");
     setText("#pctToken", "N/A");
     setText("#pctContract", "N/A");
     setText("#pctOther", "N/A");
-    setNote("#pctTokenNote", "Token/native/contract breakdown needs extra server-side computation or indexer.");
-    setNote("#actNote", "Activity breakdown is not implemented in current /api/summary.");
+    setNote("#pctTokenNote", "Needs tx logs/indexer or server-side classification.");
+    setNote("#actNote", "Activity breakdown is not included in /api/summary yet.");
 
-    // 4) Trend Charts
+    // 4) Trend Charts（TX 7d はデータ源が必要）
     setText("#chartTx7d", "N/A");
     setNote("#chartTxNote", "Needs daily tx-count API / indexer.");
 
@@ -232,6 +236,9 @@ async function load() {
   } catch (e) {
     setText("#status", "ERROR");
     setText("#errors", String(e && e.message ? e.message : e));
+    // 失敗時も raw を出せるなら出す（軽く）
+    try { setText("#raw", String(e)); } catch {}
+    console.error(e);
   }
 }
 
