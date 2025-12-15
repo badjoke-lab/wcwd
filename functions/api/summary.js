@@ -5,7 +5,10 @@ export async function onRequestGet({ env, request }) {
   const RPC = (env.RPC || env.RPC_URL || "").trim();
   const ETHERSCAN_KEY = (env.ETHERSCAN_KEY || "").trim();
   const CG_KEY = (env.CG_KEY || "").trim();
-  const WLD_WORLDCHAIN = (env.WLD_WORLDCHAIN || "").trim();
+
+  // WLD (World Chain) token contract (default if not provided)
+  const DEFAULT_WLD_WORLDCHAIN = "0x2cFc85d8E48F8EAB294be644d9E25C3030863003";
+  const WLD_WORLDCHAIN = (env.WLD_WORLDCHAIN || DEFAULT_WLD_WORLDCHAIN).trim();
 
   const out = {
     ok: true,
@@ -19,7 +22,16 @@ export async function onRequestGet({ env, request }) {
     },
     rpc: {},
     etherscan: {},
-    coingecko: {},
+    coingecko: {
+      ok: false,
+      mode: null,
+      coin_id: "worldcoin",
+      simple: null,          // <- app.js expects this
+      chart7d_usd: null,     // <- app.js expects this.prices (number[])
+      note: null,
+    },
+    activity_sample: null,   // <- app.js expects this
+    activity_note: null,
     world_status: {},
     worldscan: {},
     errors: [],
@@ -74,8 +86,22 @@ export async function onRequestGet({ env, request }) {
     return parseInt(h.startsWith("0x") ? h.slice(2) : h, 16);
   };
 
+  // small helper: CoinGecko try demo header then pro header
+  const cgFetchJson = async (url, timeoutMs = 8000) => {
+    if (!CG_KEY) return { ok: false, status: 0, json: null, mode: null, text: "CG_KEY not set" };
+
+    const demo = await fetchJson(url, { headers: { "x-cg-demo-api-key": CG_KEY } }, timeoutMs);
+    if (demo.ok) return { ...demo, mode: "demo" };
+
+    const pro = await fetchJson(url, { headers: { "x-cg-pro-api-key": CG_KEY } }, timeoutMs);
+    if (pro.ok) return { ...pro, mode: "pro" };
+
+    // return best effort (prefer pro response body)
+    return { ...pro, mode: "failed", text: pro.text || demo.text, json: pro.json || demo.json };
+  };
+
   // =========================
-  // 1) CORE RPC (1-5)
+  // 1) CORE RPC
   // =========================
   try {
     const chainIdHex = await rpcCall("eth_chainId");
@@ -96,9 +122,7 @@ export async function onRequestGet({ env, request }) {
       base_fee_per_gas: latestBlock?.baseFeePerGas ?? null,
     };
 
-    // Fee signals
     out.rpc.gas_price = await rpcCall("eth_gasPrice");
-    // maxPriorityFee may not exist on some chains; keep soft-fail
     try {
       out.rpc.max_priority_fee = await rpcCall("eth_maxPriorityFeePerGas");
     } catch (e) {
@@ -112,11 +136,10 @@ export async function onRequestGet({ env, request }) {
       out.errors.push(`rpc:eth_feeHistory:${e.message}`);
     }
 
-    // Avg block time + TPS estimate (last 10 intervals)
+    // Avg block time + TPS estimate
     const bn = out.rpc.latest_block_dec;
     if (typeof bn === "number" && bn > 12) {
       const nums = Array.from({ length: 11 }, (_, i) => bn - i);
-      // sequential (safe) to avoid burst limits
       const blocks = [];
       for (const n of nums) {
         const b = await rpcCall("eth_getBlockByNumber", ["0x" + n.toString(16), false]);
@@ -171,6 +194,58 @@ export async function onRequestGet({ env, request }) {
   }
 
   // =========================
+  // 3.5) Activity sample (REAL sample from latest block)
+  // =========================
+  try {
+    // keep it small to avoid timeouts
+    const SAMPLE_N = 12;
+
+    const blk = await rpcCall("eth_getBlockByNumber", ["latest", true], 12000);
+    const txs = Array.isArray(blk?.transactions) ? blk.transactions.slice(0, SAMPLE_N) : [];
+    if (!txs.length) {
+      out.activity_sample = null;
+      out.activity_note = "No tx objects available in latest block.";
+    } else {
+      const codeCache = new Map();
+      const isContract = async (addr) => {
+        if (!addr) return false;
+        const a = String(addr).toLowerCase();
+        if (codeCache.has(a)) return codeCache.get(a);
+        const code = await rpcCall("eth_getCode", [addr, "latest"], 8000);
+        const v = !!(code && code !== "0x");
+        codeCache.set(a, v);
+        return v;
+      };
+
+      let native = 0, contract = 0, other = 0;
+
+      // sequential to avoid bursts
+      for (const tx of txs) {
+        const to = tx?.to;
+        if (!to) { contract++; continue; } // contract creation
+        const c = await isContract(to);
+        if (c) contract++;
+        else native++;
+      }
+
+      const total = native + contract + other;
+      const pct = (x) => total ? (x * 100) / total : null;
+
+      out.activity_sample = {
+        sample_n: txs.length,
+        native_pct: pct(native),
+        contract_pct: pct(contract),
+        other_pct: pct(other),
+      };
+      out.activity_note = `Computed from latest block tx(to) classification with eth_getCode. sample_n=${txs.length}`;
+    }
+  } catch (e) {
+    out.activity_sample = null;
+    out.activity_note = null;
+    out.errors.push(`activity_sample:${e.message}`);
+  }
+
+  // =========================
   // 4) Etherscan v2 (KEYED; optional)
   // =========================
   try {
@@ -181,10 +256,10 @@ export async function onRequestGet({ env, request }) {
       out.etherscan.blockNumber = a.json || a.text;
       out.etherscan.gasPrice = g.json || g.text;
 
-      if (WLD_WORLDCHAIN) {
-        const s = await fetchJson(`${base}&module=stats&action=tokensupply&contractaddress=${encodeURIComponent(WLD_WORLDCHAIN)}&apikey=${encodeURIComponent(ETHERSCAN_KEY)}`);
-        out.etherscan.wld_token_supply = s.json || s.text;
-      }
+      // always attempt WLD supply (default address exists)
+      const s = await fetchJson(`${base}&module=stats&action=tokensupply&contractaddress=${encodeURIComponent(WLD_WORLDCHAIN)}&apikey=${encodeURIComponent(ETHERSCAN_KEY)}`);
+      out.etherscan.wld_token_supply = s.json || s.text;
+      out.etherscan.wld_contract = WLD_WORLDCHAIN;
     } else {
       out.etherscan.skipped = "ETHERSCAN_KEY not set";
     }
@@ -193,32 +268,77 @@ export async function onRequestGet({ env, request }) {
   }
 
   // =========================
-  // 5) CoinGecko (KEYED; optional)
+  // 5) CoinGecko (KEYED; optional) -> app.js friendly shape
   // =========================
   try {
-    if (CG_KEY) {
-      const url = "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&ids=worldcoin&sparkline=true&price_change_percentage=24h";
-      // try demo header first, then pro header
-      const demo = await fetchJson(url, { headers: { "x-cg-demo-api-key": CG_KEY } }, 8000);
-      if (demo.ok) {
-        out.coingecko.mode = "demo";
-        out.coingecko.data = demo.json || demo.text;
-      } else {
-        const pro = await fetchJson(url, { headers: { "x-cg-pro-api-key": CG_KEY } }, 8000);
-        out.coingecko.mode = pro.ok ? "pro" : "failed";
-        out.coingecko.data = pro.json || pro.text || demo.json || demo.text;
-        out.coingecko.http_status = pro.status;
-      }
+    if (!CG_KEY) {
+      out.coingecko.ok = false;
+      out.coingecko.note = "CG_KEY not set";
     } else {
-      out.coingecko.skipped = "CG_KEY not set";
+      // 1) simple/price (best for the exact fields app.js wants)
+      const simpleUrl =
+        "https://api.coingecko.com/api/v3/simple/price" +
+        "?ids=worldcoin&vs_currencies=usd,jpy" +
+        "&include_24hr_change=true&include_market_cap=true&include_24hr_vol=true";
+
+      const simpleRes = await cgFetchJson(simpleUrl, 8000);
+
+      // 2) markets (gives 24h change reliably + 7d sparkline)
+      const marketsUrl =
+        "https://api.coingecko.com/api/v3/coins/markets" +
+        "?vs_currency=usd&ids=worldcoin&sparkline=true&price_change_percentage=24h";
+
+      const marketsRes = await cgFetchJson(marketsUrl, 8000);
+
+      // choose mode (prefer the one that worked)
+      const mode = simpleRes.ok ? simpleRes.mode : (marketsRes.ok ? marketsRes.mode : "failed");
+      out.coingecko.mode = mode;
+
+      const simple = (simpleRes.json && simpleRes.json.worldcoin) ? simpleRes.json.worldcoin : null;
+      const markets = (Array.isArray(marketsRes.json) && marketsRes.json[0]) ? marketsRes.json[0] : null;
+
+      // Build app.js expected structure (NO dummy)
+      if (simple || markets) {
+        const s = {
+          usd: simple?.usd ?? (markets?.current_price ?? null),
+          jpy: simple?.jpy ?? null,
+          usd_market_cap: simple?.usd_market_cap ?? (markets?.market_cap ?? null),
+          usd_24h_vol: simple?.usd_24h_vol ?? (markets?.total_volume ?? null),
+          // CoinGecko simple sometimes returns null; if so, use markets change%
+          usd_24h_change: (simple?.usd_24h_change ?? null) ?? (markets?.price_change_percentage_24h ?? null),
+          jpy_market_cap: simple?.jpy_market_cap ?? null,
+          jpy_24h_vol: simple?.jpy_24h_vol ?? null,
+          jpy_24h_change: simple?.jpy_24h_change ?? null,
+        };
+
+        // 7d prices -> from markets sparkline_in_7d.price (array of numbers)
+        const prices = Array.isArray(markets?.sparkline_in_7d?.price) ? markets.sparkline_in_7d.price : null;
+
+        out.coingecko.ok = true;
+        out.coingecko.simple = s;
+        out.coingecko.chart7d_usd = prices ? { prices } : null;
+        out.coingecko.note = `CoinGecko ok. mode=${mode}. simple=${!!simple} markets=${!!markets}`;
+      } else {
+        out.coingecko.ok = false;
+        out.coingecko.note =
+          `CoinGecko failed. simple_http=${simpleRes.status} markets_http=${marketsRes.status}`;
+      }
+
+      // optional debug (small)
+      out.coingecko.http_status = {
+        simple: simpleRes.status || null,
+        markets: marketsRes.status || null,
+      };
     }
   } catch (e) {
+    out.coingecko.ok = false;
+    out.coingecko.note = null;
     out.errors.push(`coingecko:${e.message}`);
   }
 
   out.elapsed_ms = Date.now() - startedAt;
 
-  // IMPORTANT: return 200 even if partial failures (no more 500-blackout)
+  // IMPORTANT: return 200 even if partial failures
   if (out.errors.length) out.ok = false;
   return json(out, 200);
 }
