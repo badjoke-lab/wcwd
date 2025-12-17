@@ -6,7 +6,6 @@ export async function onRequestGet({ env, request }) {
   const ETHERSCAN_KEY = (env.ETHERSCAN_KEY || "").trim();
   const CG_KEY = (env.CG_KEY || "").trim();
 
-  // WLD (World Chain) token contract (default if not provided)
   const DEFAULT_WLD_WORLDCHAIN = "0x2cFc85d8E48F8EAB294be644d9E25C3030863003";
   const WLD_WORLDCHAIN = (env.WLD_WORLDCHAIN || DEFAULT_WLD_WORLDCHAIN).trim();
 
@@ -16,10 +15,6 @@ export async function onRequestGet({ env, request }) {
   // ERC-20 Transfer topic0
   const TRANSFER_TOPIC0 =
     "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
-
-  // Tunables (keep subrequests low)
-  const ACTIVITY_SAMPLE_N = 12;
-  const BLOCK_LAG_FOR_AVG = 10; // avg over last N blocks (2 RPC calls only)
 
   const out = {
     ok: true,
@@ -74,11 +69,7 @@ export async function onRequestGet({ env, request }) {
       const r = await fetch(url, { ...init, signal });
       const text = await r.text();
       let j = null;
-      try {
-        j = JSON.parse(text);
-      } catch {
-        /* ignore */
-      }
+      try { j = JSON.parse(text); } catch { /* ignore */ }
       return { status: r.status, ok: r.ok, text, json: j };
     }, timeoutMs, `fetch:${url}`);
   };
@@ -103,17 +94,12 @@ export async function onRequestGet({ env, request }) {
     return parseInt(h.startsWith("0x") ? h.slice(2) : h, 16);
   };
 
-  // CoinGecko: prefer demo header; only try pro if auth-type error
+  // CoinGecko: try demo header then pro header (2 tries max)
   const cgFetchJson = async (url, timeoutMs = 8000) => {
     if (!CG_KEY) return { ok: false, status: 0, json: null, mode: null, text: "CG_KEY not set" };
 
-    // Try demo key header first
     const demo = await fetchJson(url, { headers: { "x-cg-demo-api-key": CG_KEY } }, timeoutMs);
     if (demo.ok) return { ...demo, mode: "demo" };
-
-    // Only fallback to pro header on auth-ish failures
-    const authish = demo.status === 401 || demo.status === 403;
-    if (!authish) return { ...demo, mode: "demo_failed" };
 
     const pro = await fetchJson(url, { headers: { "x-cg-pro-api-key": CG_KEY } }, timeoutMs);
     if (pro.ok) return { ...pro, mode: "pro" };
@@ -122,10 +108,11 @@ export async function onRequestGet({ env, request }) {
   };
 
   // =========================
-  // 1) CORE RPC (critical)
+  // 1) CORE RPC (critical)  ※軽量化版
   // =========================
   let rpcHealthy = false;
   let latestBlockObj = null;
+
   try {
     const chainIdHex = await rpcCall("eth_chainId");
     out.rpc.chain_id_hex = chainIdHex;
@@ -135,9 +122,8 @@ export async function onRequestGet({ env, request }) {
     out.rpc.latest_block_hex = bnHex;
     out.rpc.latest_block_dec = hexToInt(bnHex);
 
-    // One call: latest block with FULL tx objects (we reuse it for activity_sample)
-    latestBlockObj = await rpcCall("eth_getBlockByNumber", ["latest", true], 12000);
-
+    // latest block (hash list)
+    latestBlockObj = await rpcCall("eth_getBlockByNumber", ["latest", false]);
     out.rpc.latest_block = {
       number: hexToInt(latestBlockObj?.number),
       timestamp: hexToInt(latestBlockObj?.timestamp),
@@ -148,12 +134,8 @@ export async function onRequestGet({ env, request }) {
     };
 
     out.rpc.gas_price = await rpcCall("eth_gasPrice");
-    try {
-      out.rpc.max_priority_fee = await rpcCall("eth_maxPriorityFeePerGas");
-    } catch (e) {
-      out.rpc.max_priority_fee = null;
-      out.warnings.push(`rpc:eth_maxPriorityFeePerGas:${e.message}`);
-    }
+
+    // feeHistory (optional)
     try {
       out.rpc.fee_history = await rpcCall("eth_feeHistory", ["0x5", "latest", [10, 50, 90]]);
     } catch (e) {
@@ -161,23 +143,24 @@ export async function onRequestGet({ env, request }) {
       out.warnings.push(`rpc:eth_feeHistory:${e.message}`);
     }
 
-    // Avg block time + TPS estimate (2 calls total: latest already have ts; fetch one older block)
-    const bn = out.rpc.latest_block_dec;
-    const tsLatest = out.rpc.latest_block?.timestamp;
-    if (typeof bn === "number" && bn > BLOCK_LAG_FOR_AVG && typeof tsLatest === "number") {
-      const olderN = bn - BLOCK_LAG_FOR_AVG;
-      const older = await rpcCall("eth_getBlockByNumber", ["0x" + olderN.toString(16), false], 8000);
-      const tsOlder = hexToInt(older?.timestamp);
-
-      if (typeof tsOlder === "number" && tsLatest > tsOlder) {
-        const avgDt = (tsLatest - tsOlder) / BLOCK_LAG_FOR_AVG;
-        const txc = out.rpc.latest_block?.tx_count ?? null;
-        const tps = avgDt && avgDt > 0 && typeof txc === "number" ? (txc / avgDt) : null;
-
-        out.rpc.block_time_avg_s = avgDt;
-        out.rpc.tx_per_block_avg = txc;
-        out.rpc.tps_estimate = tps;
+    // Avg block time (2 calls: latest vs N blocks ago)
+    try {
+      const bn = out.rpc.latest_block_dec;
+      const N = 50; // reduce calls
+      if (typeof bn === "number" && bn > N) {
+        const b0 = latestBlockObj;
+        const b1 = await rpcCall("eth_getBlockByNumber", ["0x" + (bn - N).toString(16), false], 12000);
+        const t0 = hexToInt(b0?.timestamp);
+        const t1 = hexToInt(b1?.timestamp);
+        if (t0 && t1 && t0 > t1) {
+          const avgDt = (t0 - t1) / N;
+          out.rpc.block_time_avg_s = avgDt;
+          const txc = out.rpc.latest_block?.tx_count;
+          out.rpc.tps_estimate = (avgDt && txc != null) ? (txc / avgDt) : null;
+        }
       }
+    } catch (e) {
+      out.warnings.push(`rpc:block_time_estimate:${e.message}`);
     }
 
     rpcHealthy = true;
@@ -211,87 +194,57 @@ export async function onRequestGet({ env, request }) {
   }
 
   // =========================
-  // 3.5) Activity sample (REAL)
-  // - Uses latest block tx objects (already fetched once)
-  // - Receipts only for sample txs
-  // - eth_getCode only for non-token txs
+  // 3.5) Activity sample (最重要: token_pct を出す)
+  //    - 最新ブロックの tx hash を先頭N件だけ
+  //    - receipt の logs topic0 が Transfer なら token 扱い
+  //    - subrequest を抑えるため getTransactionByHash / getCode はやらない
   // =========================
   try {
     if (!rpcHealthy) throw new Error("RPC not healthy");
-    if (!latestBlockObj || !Array.isArray(latestBlockObj.transactions)) {
-      throw new Error("Latest block tx objects not available");
-    }
 
-    const txs = latestBlockObj.transactions.slice(0, ACTIVITY_SAMPLE_N);
+    const SAMPLE_N = 12; // まだ重いなら 8 に下げる
+    const hashes = Array.isArray(latestBlockObj?.transactions)
+      ? latestBlockObj.transactions.slice(0, SAMPLE_N)
+      : [];
 
-    if (!txs.length) {
+    if (!hashes.length) {
       out.activity_sample = null;
-      out.activity_note = "No tx objects available in latest block.";
+      out.activity_note = "No tx hashes available in latest block.";
     } else {
-      const codeCache = new Map();
-      const isContract = async (addr) => {
-        if (!addr) return false;
-        const a = String(addr).toLowerCase();
-        if (codeCache.has(a)) return codeCache.get(a);
-        const code = await rpcCall("eth_getCode", [addr, "latest"], 8000);
-        const v = !!(code && code !== "0x");
-        codeCache.set(a, v);
-        return v;
-      };
-
-      let eoa = 0;             // tx to EOA
-      let contract_other = 0;   // tx to contract but NOT token transfer
-      let token = 0;            // tx that emitted ERC20 Transfer
-      let create = 0;           // contract creation (to=null)
+      let token = 0;
       let token_contract_sample = null;
 
-      for (const tx of txs) {
-        const h = tx?.hash;
-        if (!h) continue;
-
-        // receipt: detect ERC20 Transfer (topic0)
+      for (const h of hashes) {
         const receipt = await rpcCall("eth_getTransactionReceipt", [h], 8000);
         const logs = receipt?.logs || [];
-        const hasTransfer = logs.some((lg) => {
+        const hit = logs.find((lg) => {
           const t = lg?.topics || [];
           return t[0] && String(t[0]).toLowerCase() === TRANSFER_TOPIC0;
         });
-
-        if (hasTransfer) {
+        if (hit) {
           token++;
-          if (!token_contract_sample) {
-            const lg = logs.find((x) => (x?.topics || [])[0] && String(x.topics[0]).toLowerCase() === TRANSFER_TOPIC0);
-            token_contract_sample = lg?.address || null;
-          }
-          continue;
+          if (!token_contract_sample) token_contract_sample = hit.address || null;
         }
-
-        const to = tx?.to;
-        if (!to) {
-          create++;
-          continue;
-        }
-
-        const c = await isContract(to);
-        if (c) contract_other++;
-        else eoa++;
       }
 
-      const total = eoa + contract_other + token + create;
-      const pct = (x) => (total ? (x * 100) / total : null);
+      const total = hashes.length;
+      const pct = (x) => total ? (x * 100) / total : null;
 
+      // app.js 互換のため、最低限 token_pct を確実に入れる
       out.activity_sample = {
-        sample_n: txs.length,
-        native_pct: pct(eoa), // NOTE: tx-to-EOA (not strictly "native value transfer")
-        contract_pct: pct(contract_other + create),
+        sample_n: total,
         token_pct: pct(token),
-        other_pct: 0,
-        create_pct: pct(create),
+        // 既存UIが null を許容しない場合に備えて、残りは「非トークン」としてまとめる
+        native_pct: pct(total - token),   // ※意味は「non-token tx」になる（UI側の文言は後で直す）
+        contract_pct: null,
+        other_pct: null,
+        create_pct: null,
         token_contract_sample,
       };
+
       out.activity_note =
-        `Computed from latest block tx objects. token_pct uses receipts(logs topic0=Transfer). ` +
-        `native_pct is tx-to-EOA (not strictly value transfer). sample_n=${txs.length}`;
+        `token_pct computed from latest block receipts(logs topic0=Transfer). ` +
+        `native_pct is non-token share (temporary label). sample_n=${total}`;
     }
   } catch (e) {
     out.activity_sample = null;
@@ -306,49 +259,21 @@ export async function onRequestGet({ env, request }) {
     if (ETHERSCAN_KEY) {
       const base = "https://api.etherscan.io/v2/api?chainid=480";
 
-      const a = await fetchJson(`${base}&module=proxy&action=eth_blockNumber&apikey=${encodeURIComponent(ETHERSCAN_KEY)}`, {}, 8000);
-      const g = await fetchJson(`${base}&module=proxy&action=eth_gasPrice&apikey=${encodeURIComponent(ETHERSCAN_KEY)}`, {}, 8000);
+      const a = await fetchJson(`${base}&module=proxy&action=eth_blockNumber&apikey=${encodeURIComponent(ETHERSCAN_KEY)}`, {}, 12000);
+      const g = await fetchJson(`${base}&module=proxy&action=eth_gasPrice&apikey=${encodeURIComponent(ETHERSCAN_KEY)}`, {}, 12000);
       out.etherscan.blockNumber = a.json || a.text;
       out.etherscan.gasPrice = g.json || g.text;
 
       const s = await fetchJson(
         `${base}&module=stats&action=tokensupply&contractaddress=${encodeURIComponent(WLD_WORLDCHAIN)}&apikey=${encodeURIComponent(ETHERSCAN_KEY)}`,
         {},
-        10000
+        12000
       );
       out.etherscan.wld_token_supply = s.json || s.text;
       out.etherscan.wld_contract = WLD_WORLDCHAIN;
 
-      // Keep logs sample VERY light (smaller window to avoid huge response)
-      try {
-        const latestHex = a.json?.result || null;
-        const latestDec = hexToInt(latestHex);
-        if (typeof latestDec === "number" && latestDec > 100) {
-          const from = latestDec - 50;
-          const to = latestDec;
-
-          const logsUrl =
-            `${base}&module=logs&action=getLogs` +
-            `&fromBlock=${from}&toBlock=${to}` +
-            `&address=${encodeURIComponent(WLD_WORLDCHAIN)}` +
-            `&topic0=${TRANSFER_TOPIC0}` +
-            `&page=1&offset=1000` +
-            `&apikey=${encodeURIComponent(ETHERSCAN_KEY)}`;
-
-          const lr = await fetchJson(logsUrl, {}, 12000);
-          const r = lr.json?.result || [];
-          out.etherscan.wld_transfer_logs_recent = {
-            http_status: lr.status,
-            ok: lr.ok,
-            fromBlock: from,
-            toBlock: to,
-            logs: Array.isArray(r) ? r.length : null,
-            sample_txHash: Array.isArray(r) && r[0]?.transactionHash ? r[0].transactionHash : null,
-          };
-        }
-      } catch (e) {
-        out.warnings.push(`etherscan:logs_sample:${e.message}`);
-      }
+      // logs は subrequest/サイズ的に重くなりがちなので、まずは切る（必要なら後で復活）
+      // out.etherscan.wld_transfer_logs_recent = ...
     } else {
       out.etherscan.skipped = "ETHERSCAN_KEY not set";
     }
@@ -357,7 +282,7 @@ export async function onRequestGet({ env, request }) {
   }
 
   // =========================
-  // 5) CoinGecko (KEYED; optional) -> app.js friendly shape
+  // 5) CoinGecko (KEYED; optional)
   // =========================
   try {
     if (!CG_KEY) {
@@ -377,8 +302,8 @@ export async function onRequestGet({ env, request }) {
         `&ids=${encodeURIComponent(CG_COIN_ID)}` +
         "&sparkline=true&price_change_percentage=24h";
 
-      const simpleRes = await cgFetchJson(simpleUrl, 8000);
-      const marketsRes = await cgFetchJson(marketsUrl, 8000);
+      const simpleRes = await cgFetchJson(simpleUrl, 12000);
+      const marketsRes = await cgFetchJson(marketsUrl, 12000);
 
       const mode = simpleRes.ok ? simpleRes.mode : (marketsRes.ok ? marketsRes.mode : "failed");
       out.coingecko.mode = mode;
@@ -407,8 +332,7 @@ export async function onRequestGet({ env, request }) {
         out.coingecko.note = `CoinGecko ok. mode=${mode}. coin_id=${CG_COIN_ID}. simple=${!!simple} markets=${!!markets}`;
       } else {
         out.coingecko.ok = false;
-        out.coingecko.note =
-          `CoinGecko failed. simple_http=${simpleRes.status} markets_http=${marketsRes.status} coin_id=${CG_COIN_ID}`;
+        out.coingecko.note = `CoinGecko failed. simple_http=${simpleRes.status} markets_http=${marketsRes.status} coin_id=${CG_COIN_ID}`;
       }
 
       out.coingecko.http_status = {
@@ -424,7 +348,7 @@ export async function onRequestGet({ env, request }) {
 
   out.elapsed_ms = Date.now() - startedAt;
 
-  // Overall ok: RPCが死んでる時だけ false（warningsでは落とさない）
+  // Overall ok: RPCが死んでる時だけ false にする（warnings では落とさない）
   if (!rpcHealthy) out.ok = false;
 
   return json(out, 200);
