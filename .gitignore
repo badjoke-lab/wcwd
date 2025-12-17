@@ -1,0 +1,6 @@
+
+# local env
+.dev.vars
+.env
+.env.*
+*.local

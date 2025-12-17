@@ -15,15 +15,13 @@ function setNote(sel, v) {
 function hexToInt(h) {
   if (!h || typeof h !== "string") return null;
   if (!h.startsWith("0x")) return Number(h);
-  const n = parseInt(h, 16);
-  return Number.isFinite(n) ? n : null;
+  return parseInt(h, 16);
 }
 
 function fmtNum(n) {
   if (n === null || n === undefined || Number.isNaN(n)) return "—";
   const x = Number(n);
   if (!Number.isFinite(x)) return "—";
-  if (Math.abs(x) >= 1e12) return (x / 1e12).toFixed(2) + "T";
   if (Math.abs(x) >= 1e9) return (x / 1e9).toFixed(2) + "B";
   if (Math.abs(x) >= 1e6) return (x / 1e6).toFixed(2) + "M";
   if (Math.abs(x) >= 1e3) return (x / 1e3).toFixed(2) + "K";
@@ -48,7 +46,8 @@ function sparkline(nums, width = 24) {
   return out;
 }
 
-function pushSample(key, v, max = 20) {
+// ---- local samples (NOT dummy): stored in browser only ----
+function pushSample(key, v, max = 240) {
   const k = "wcwd_" + key;
   const arr = JSON.parse(localStorage.getItem(k) || "[]");
   arr.push({ t: Date.now(), v });
@@ -57,66 +56,25 @@ function pushSample(key, v, max = 20) {
   return arr;
 }
 
-function avgSamples(arr) {
+function filterWindow(arr, ms) {
+  const now = Date.now();
+  return (arr || []).filter(o => o && typeof o.t === "number" && (now - o.t) <= ms);
+}
+
+function avgOf(arr) {
   const xs = (arr || []).map(o => Number(o.v)).filter(n => Number.isFinite(n));
   if (!xs.length) return null;
   return xs.reduce((a, b) => a + b, 0) / xs.length;
 }
 
-function safeJsonStringify(obj, limitChars = 25000) {
-  let s = "";
-  try {
-    s = JSON.stringify(obj, null, 2);
-  } catch (e) {
-    return `<<stringify failed>> ${String(e?.message || e)}`;
-  }
-  if (s.length <= limitChars) return s;
-  return s.slice(0, limitChars) + "\n…(truncated)…";
+function lastOf(arr) {
+  if (!arr || !arr.length) return null;
+  const v = Number(arr[arr.length - 1].v);
+  return Number.isFinite(v) ? v : null;
 }
 
-// CoinGecko data parser (supports your current backend shape: {mode, data})
-function parseCoinGecko(cg) {
-  // backend: /coins/markets returns Array
-  if (cg && Array.isArray(cg.data)) {
-    if (cg.data.length === 0) return { ok: false, reason: "CoinGecko returned empty array. Likely wrong coin id (use worldcoin-wld)." };
-    const w = cg.data[0] || {};
-    const prices = w.sparkline_in_7d?.price;
-    return {
-      ok: true,
-      mode: cg.mode || "markets",
-      coin_id: w.id,
-      usd: w.current_price,
-      jpy: null, // not available in markets(usd) response
-      usd_24h_change: w.price_change_percentage_24h,
-      usd_market_cap: w.market_cap,
-      usd_24h_vol: w.total_volume,
-      spark7d: Array.isArray(prices) ? prices : null,
-      note: "markets endpoint (vs_currency=usd). JPY needs a second call or simple/price."
-    };
-  }
-
-  // backend might be changed later to return an object (simple/price style)
-  // e.g. { data: {"worldcoin-wld": {...}} } or direct { "worldcoin-wld": {...} }
-  const d = cg?.data || cg;
-  if (d && typeof d === "object" && !Array.isArray(d)) {
-    const key = d["worldcoin-wld"] ? "worldcoin-wld" : (d["worldcoin"] ? "worldcoin" : null);
-    if (!key) return { ok: false, reason: "CoinGecko object has no worldcoin-wld/worldcoin key." };
-    const s = d[key];
-    return {
-      ok: true,
-      mode: cg?.mode || "simple",
-      coin_id: key,
-      usd: s.usd,
-      jpy: s.jpy,
-      usd_24h_change: s.usd_24h_change,
-      usd_market_cap: s.usd_market_cap,
-      usd_24h_vol: s.usd_24h_vol,
-      spark7d: null,
-      note: "simple/price style response."
-    };
-  }
-
-  return { ok: false, reason: "CoinGecko data missing." };
+function decisionBadge(ok) {
+  return ok ? "YES" : "NO";
 }
 
 async function load() {
@@ -125,25 +83,14 @@ async function load() {
 
   try {
     const r = await fetch("/api/summary", { cache: "no-store" });
+    const j = await r.json().catch(() => null);
+    if (!r.ok || !j) throw new Error(`HTTP ${r.status}`);
 
-    // JSONじゃない/壊れてる時に備える
-    const text = await r.text();
-    let j = null;
-    try { j = JSON.parse(text); } catch { j = null; }
+    setText("#status", j.ok ? "OK" : "PARTIAL");
 
-    if (!r.ok || !j) {
-      throw new Error(`HTTP ${r.status} / non-JSON body: ${text.slice(0, 200)}`);
-    }
-
-    // Status
-    const ok = !!j.ok && (!j.errors || j.errors.length === 0);
-    setText("#status", ok ? "OK" : "PARTIAL");
-
-    // Errors
+    // Raw/debug
+    setText("#raw", JSON.stringify(j, null, 2));
     setText("#errors", (j.errors && j.errors.length) ? j.errors.join("\n") : "—");
-
-    // Raw(debug) : でかすぎて固まるのを防ぐ
-    setText("#raw", safeJsonStringify(j, 25000));
 
     // 1) Network
     const tps = j.rpc?.tps_estimate ?? null;
@@ -154,64 +101,99 @@ async function load() {
     const gasGwei = gasWei != null ? gasWei / 1e9 : null;
     setText("#gasPrice", gasGwei != null ? `${fmtNum(gasGwei)} gwei` : "—");
 
-    // address系は現状データ源なし
+    // Indexer無しだと取れないので N/A を明示（ここは仕様）
     setText("#newAddr24h", "N/A");
-    setNote("#newAddrNote", "No indexer API for address counts in current build.");
+    setNote("#newAddrNote", "Needs an indexer API (not available in this build).");
     setText("#totalAddr", "N/A");
-    setNote("#totalAddrNote", "No indexer API for total address count in current build.");
+    setNote("#totalAddrNote", "Needs an indexer API (not available in this build).");
 
-    // 2) WLD Market (match backend coingecko.mode/data)
-    const cgParsed = parseCoinGecko(j.coingecko || {});
-    if (cgParsed.ok) {
-      setText("#wldUsd", cgParsed.usd != null ? `$${fmtNum(cgParsed.usd)}` : "—");
-      setText("#wldJpy", cgParsed.jpy != null ? `¥${fmtNum(cgParsed.jpy)}` : "—");
-      setText("#wldChg24h", cgParsed.usd_24h_change != null ? `${fmtNum(cgParsed.usd_24h_change)}%` : "—");
-      setText("#wldMc", cgParsed.usd_market_cap != null ? `$${fmtNum(cgParsed.usd_market_cap)}` : "—");
-      setText("#wldVol", cgParsed.usd_24h_vol != null ? `$${fmtNum(cgParsed.usd_24h_vol)}` : "—");
-
-      if (cgParsed.spark7d) {
-        setText("#wldSpark7d", sparkline(cgParsed.spark7d));
-        setText("#chartWld7d", sparkline(cgParsed.spark7d, 40));
-      } else {
-        setText("#wldSpark7d", "—");
-        setText("#chartWld7d", "—");
-      }
-
-      const mode = cgParsed.mode || "?";
-      const id = cgParsed.coin_id || "?";
-      const extra = cgParsed.note ? ` / ${cgParsed.note}` : "";
-      setNote("#cgNote", `CoinGecko mode: ${mode} / id: ${id}${extra}`);
+    // 2) WLD Market
+    const cg = j.coingecko || {};
+    if (cg.ok && cg.simple) {
+      const s = cg.simple;
+      setText("#wldUsd", s.usd != null ? `$${fmtNum(s.usd)}` : "—");
+      setText("#wldJpy", s.jpy != null ? `¥${fmtNum(s.jpy)}` : "—");
+      setText("#wldChg24h", s.usd_24h_change != null ? `${fmtNum(s.usd_24h_change)}%` : "—");
+      setText("#wldMc", s.usd_market_cap != null ? `$${fmtNum(s.usd_market_cap)}` : "—");
+      setText("#wldVol", s.usd_24h_vol != null ? `$${fmtNum(s.usd_24h_vol)}` : "—");
+      setText("#wldSpark7d", cg.chart7d_usd?.prices ? sparkline(cg.chart7d_usd.prices) : "—");
+      setText("#chartWld7d", cg.chart7d_usd?.prices ? sparkline(cg.chart7d_usd.prices, 40) : "—");
+      setNote("#cgNote", `CoinGecko: ${cg.coin_id || "?"} / mode=${cg.mode || "?"}`);
     } else {
-      setNote("#cgNote", `CoinGecko: unavailable. ${cgParsed.reason || ""} (Fix: use ids=worldcoin-wld)`);
+      setNote("#cgNote", cg.note || "CoinGecko: unavailable");
     }
 
-    // 3) Activity Breakdown : backendが activity_sample を返してないので N/A にする
-    setText("#pctNative", "N/A");
-    setText("#pctToken", "N/A");
-    setText("#pctContract", "N/A");
-    setText("#pctOther", "N/A");
-    setNote("#pctTokenNote", "Needs indexer/logs to count token transfers.");
-    setNote("#actNote", "Activity breakdown not implemented in API response yet.");
+    // 3) Activity (latest block sample)
+    const act = j.activity_sample || null;
+    if (act) {
+      setText("#pctNative", act.native_pct != null ? `${fmtNum(act.native_pct)}%` : "—");
+      setText("#pctContract", act.contract_pct != null ? `${fmtNum(act.contract_pct)}%` : "—");
+      setText("#pctOther", act.other_pct != null ? `${fmtNum(act.other_pct)}%` : "—");
 
-    // 4) TX 7d trend : データ源なし
-    setText("#chartTx7d", "N/A");
-    setNote("#chartTxNote", "Needs daily tx-count API / indexer.");
+      // Token transfers are log-based (indexer needed) -> keep N/A
+      setText("#pctToken", "N/A");
+      setNote("#pctTokenNote", "Token transfers need logs/indexer in this build.");
+      setNote("#actNote", j.activity_note || "Activity breakdown computed from latest block tx sample.");
+    } else {
+      setText("#pctNative", "—");
+      setText("#pctContract", "—");
+      setText("#pctOther", "—");
+      setText("#pctToken", "N/A");
+      setNote("#pctTokenNote", "Token transfers need logs/indexer in this build.");
+      setNote("#actNote", "Activity sample unavailable.");
+    }
 
-    // 5) Alerts (local rolling avg)
+    // 4) Trend Charts
+    // WLD 7d is already from CoinGecko; TX 7d: show LOCAL OBSERVED trend (not global)
+    const SEVEN_DAYS = 7 * 24 * 3600 * 1000;
     if (tps != null) {
-      const samples = pushSample("tps", tps);
-      const avg = avgSamples(samples);
-      setText("#alertSpike", (avg && tps > avg * 1.4) ? "YES" : "—");
-      setText("#alertDrop", (avg && tps < avg * 0.7) ? "YES" : "—");
+      const tpsSamples = pushSample("tps", tps, 240);
+      const win = filterWindow(tpsSamples, SEVEN_DAYS);
+      const series = win.map(o => Number(o.v)).filter(n => Number.isFinite(n));
+      setText("#chartTx7d", series.length >= 2 ? sparkline(series, 40) : "—");
+      setNote("#chartTxNote", series.length >= 2
+        ? `Local observed TPS trend (samples=${series.length}).`
+        : "Local TX trend: need more samples (reload a few times).");
+    } else {
+      setText("#chartTx7d", "—");
+      setNote("#chartTxNote", "TX trend unavailable (TPS missing).");
+    }
+
+    // 5) Alerts (local rolling avg) — MUST show WAIT/NO instead of “—”
+    // Rule: compare CURRENT value against AVERAGE of PREVIOUS samples (exclude current)
+    const MIN_BASE = 3; // need at least 3 prior points to judge
+    if (tps != null) {
+      const all = JSON.parse(localStorage.getItem("wcwd_tps") || "[]");
+      const last = lastOf(all);
+      // Build "prior" array = all except last element (current)
+      const prior = all.slice(0, Math.max(0, all.length - 1));
+      const priorAvg = avgOf(prior);
+
+      if (prior.length < MIN_BASE || priorAvg == null || last == null) {
+        setText("#alertSpike", "WAIT");
+        setText("#alertDrop", "WAIT");
+      } else {
+        setText("#alertSpike", decisionBadge(last > priorAvg * 1.4));
+        setText("#alertDrop", decisionBadge(last < priorAvg * 0.7));
+      }
     } else {
       setText("#alertSpike", "—");
       setText("#alertDrop", "—");
     }
 
     if (gasGwei != null) {
-      const gs = pushSample("gas", gasGwei);
-      const gavg = avgSamples(gs);
-      setText("#alertHighGas", (gavg && gasGwei > gavg * 1.5) ? "YES" : "—");
+      const allg = JSON.parse(localStorage.getItem("wcwd_gas") || "[]");
+      // push gas AFTER reading old list, to keep symmetry
+      const updated = pushSample("gas", gasGwei, 240);
+      const last = lastOf(updated);
+      const prior = updated.slice(0, Math.max(0, updated.length - 1));
+      const priorAvg = avgOf(prior);
+
+      if (prior.length < MIN_BASE || priorAvg == null || last == null) {
+        setText("#alertHighGas", "WAIT");
+      } else {
+        setText("#alertHighGas", decisionBadge(last > priorAvg * 1.5));
+      }
     } else {
       setText("#alertHighGas", "—");
     }
