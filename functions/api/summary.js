@@ -10,16 +10,16 @@ export async function onRequestGet({ env, request }) {
   const DEFAULT_WLD_WORLDCHAIN = "0x2cFc85d8E48F8EAB294be644d9E25C3030863003";
   const WLD_WORLDCHAIN = (env.WLD_WORLDCHAIN || DEFAULT_WLD_WORLDCHAIN).trim();
 
-  // CoinGecko coin id candidates (fallback)
-  const CG_COIN_IDS = ["worldcoin-wld", "worldcoin"];
+  // CoinGecko coin id (current)
+  const CG_COIN_ID = "worldcoin-wld";
 
   // ERC-20 Transfer topic0
   const TRANSFER_TOPIC0 =
     "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
 
-  // subrequest budget (Cloudflare cap is ~50; keep buffer)
-  const SUBREQ_BUDGET = Number(env.SUBREQ_BUDGET || 40);
-  let subreqCount = 0;
+  // Tunables (keep subrequests low)
+  const ACTIVITY_SAMPLE_N = 12;
+  const BLOCK_LAG_FOR_AVG = 10; // avg over last N blocks (2 RPC calls only)
 
   const out = {
     ok: true,
@@ -29,18 +29,16 @@ export async function onRequestGet({ env, request }) {
       RPC: !!RPC,
       ETHERSCAN_KEY: !!ETHERSCAN_KEY,
       CG_KEY: !!CG_KEY,
-      // NOTE: default exists so this is always true; keep for UI but add override flag too
       WLD_WORLDCHAIN: !!WLD_WORLDCHAIN,
-      WLD_WORLDCHAIN_OVERRIDE: !!(env.WLD_WORLDCHAIN && String(env.WLD_WORLDCHAIN).trim()),
     },
     rpc: {},
     etherscan: {},
     coingecko: {
       ok: false,
       mode: null,
-      coin_id: null,
-      simple: null,       // app.js expects this
-      chart7d_usd: null,  // app.js expects this.prices (number[])
+      coin_id: CG_COIN_ID,
+      simple: null,      // app.js expects this
+      chart7d_usd: null, // app.js expects this.prices (number[])
       note: null,
       http_status: null,
     },
@@ -72,16 +70,15 @@ export async function onRequestGet({ env, request }) {
   };
 
   const fetchJson = async (url, init = {}, timeoutMs = 8000) => {
-    if (subreqCount >= SUBREQ_BUDGET) {
-      throw new Error(`Too many subrequests (budget=${SUBREQ_BUDGET})`);
-    }
-    subreqCount++;
-
     return withTimeout(async (signal) => {
       const r = await fetch(url, { ...init, signal });
       const text = await r.text();
       let j = null;
-      try { j = JSON.parse(text); } catch { /* ignore */ }
+      try {
+        j = JSON.parse(text);
+      } catch {
+        /* ignore */
+      }
       return { status: r.status, ok: r.ok, text, json: j };
     }, timeoutMs, `fetch:${url}`);
   };
@@ -106,12 +103,17 @@ export async function onRequestGet({ env, request }) {
     return parseInt(h.startsWith("0x") ? h.slice(2) : h, 16);
   };
 
-  // CoinGecko: try demo header then pro header
+  // CoinGecko: prefer demo header; only try pro if auth-type error
   const cgFetchJson = async (url, timeoutMs = 8000) => {
     if (!CG_KEY) return { ok: false, status: 0, json: null, mode: null, text: "CG_KEY not set" };
 
+    // Try demo key header first
     const demo = await fetchJson(url, { headers: { "x-cg-demo-api-key": CG_KEY } }, timeoutMs);
     if (demo.ok) return { ...demo, mode: "demo" };
+
+    // Only fallback to pro header on auth-ish failures
+    const authish = demo.status === 401 || demo.status === 403;
+    if (!authish) return { ...demo, mode: "demo_failed" };
 
     const pro = await fetchJson(url, { headers: { "x-cg-pro-api-key": CG_KEY } }, timeoutMs);
     if (pro.ok) return { ...pro, mode: "pro" };
@@ -124,8 +126,6 @@ export async function onRequestGet({ env, request }) {
   // =========================
   let rpcHealthy = false;
   let latestBlockObj = null;
-  let latestBlockHex = null;
-
   try {
     const chainIdHex = await rpcCall("eth_chainId");
     out.rpc.chain_id_hex = chainIdHex;
@@ -135,9 +135,8 @@ export async function onRequestGet({ env, request }) {
     out.rpc.latest_block_hex = bnHex;
     out.rpc.latest_block_dec = hexToInt(bnHex);
 
-    // keep this light: latest block summary only
-    latestBlockObj = await rpcCall("eth_getBlockByNumber", ["latest", false]);
-    latestBlockHex = latestBlockObj?.number || bnHex;
+    // One call: latest block with FULL tx objects (we reuse it for activity_sample)
+    latestBlockObj = await rpcCall("eth_getBlockByNumber", ["latest", true], 12000);
 
     out.rpc.latest_block = {
       number: hexToInt(latestBlockObj?.number),
@@ -149,15 +148,12 @@ export async function onRequestGet({ env, request }) {
     };
 
     out.rpc.gas_price = await rpcCall("eth_gasPrice");
-
-    // optional RPCs (may not exist)
     try {
       out.rpc.max_priority_fee = await rpcCall("eth_maxPriorityFeePerGas");
     } catch (e) {
       out.rpc.max_priority_fee = null;
       out.warnings.push(`rpc:eth_maxPriorityFeePerGas:${e.message}`);
     }
-
     try {
       out.rpc.fee_history = await rpcCall("eth_feeHistory", ["0x5", "latest", [10, 50, 90]]);
     } catch (e) {
@@ -165,7 +161,25 @@ export async function onRequestGet({ env, request }) {
       out.warnings.push(`rpc:eth_feeHistory:${e.message}`);
     }
 
-    // NOTE: TPS estimation via 11 blocks was removed to avoid subrequest explosion.
+    // Avg block time + TPS estimate (2 calls total: latest already have ts; fetch one older block)
+    const bn = out.rpc.latest_block_dec;
+    const tsLatest = out.rpc.latest_block?.timestamp;
+    if (typeof bn === "number" && bn > BLOCK_LAG_FOR_AVG && typeof tsLatest === "number") {
+      const olderN = bn - BLOCK_LAG_FOR_AVG;
+      const older = await rpcCall("eth_getBlockByNumber", ["0x" + olderN.toString(16), false], 8000);
+      const tsOlder = hexToInt(older?.timestamp);
+
+      if (typeof tsOlder === "number" && tsLatest > tsOlder) {
+        const avgDt = (tsLatest - tsOlder) / BLOCK_LAG_FOR_AVG;
+        const txc = out.rpc.latest_block?.tx_count ?? null;
+        const tps = avgDt && avgDt > 0 && typeof txc === "number" ? (txc / avgDt) : null;
+
+        out.rpc.block_time_avg_s = avgDt;
+        out.rpc.tx_per_block_avg = txc;
+        out.rpc.tps_estimate = tps;
+      }
+    }
+
     rpcHealthy = true;
   } catch (e) {
     out.errors.push(`rpc:${e.message}`);
@@ -188,8 +202,6 @@ export async function onRequestGet({ env, request }) {
   // =========================
   try {
     const r = await withTimeout(async (signal) => {
-      if (subreqCount >= SUBREQ_BUDGET) throw new Error(`Too many subrequests (budget=${SUBREQ_BUDGET})`);
-      subreqCount++;
       const res = await fetch("https://worldscan.org/", { method: "HEAD", signal });
       return { status: res.status, ok: res.ok };
     }, 8000, "worldscan_head");
@@ -199,21 +211,22 @@ export async function onRequestGet({ env, request }) {
   }
 
   // =========================
-  // 3.5) Activity sample (REAL: tx hashes -> receipt only)
+  // 3.5) Activity sample (REAL)
+  // - Uses latest block tx objects (already fetched once)
+  // - Receipts only for sample txs
+  // - eth_getCode only for non-token txs
   // =========================
   try {
     if (!rpcHealthy) throw new Error("RPC not healthy");
+    if (!latestBlockObj || !Array.isArray(latestBlockObj.transactions)) {
+      throw new Error("Latest block tx objects not available");
+    }
 
-    const url = new URL(request.url);
-    const SAMPLE_N = Math.max(3, Math.min(12, Number(url.searchParams.get("sample_n") || 12)));
+    const txs = latestBlockObj.transactions.slice(0, ACTIVITY_SAMPLE_N);
 
-    const hashes = Array.isArray(latestBlockObj?.transactions)
-      ? latestBlockObj.transactions.slice(0, SAMPLE_N)
-      : [];
-
-    if (!hashes.length) {
+    if (!txs.length) {
       out.activity_sample = null;
-      out.activity_note = "No tx hashes available in latest block.";
+      out.activity_note = "No tx objects available in latest block.";
     } else {
       const codeCache = new Map();
       const isContract = async (addr) => {
@@ -226,17 +239,20 @@ export async function onRequestGet({ env, request }) {
         return v;
       };
 
-      let eoa = 0;             // tx to EOA (receipt.to)
+      let eoa = 0;             // tx to EOA
       let contract_other = 0;   // tx to contract but NOT token transfer
       let token = 0;            // tx that emitted ERC20 Transfer
-      let create = 0;           // contract creation (receipt.to = null)
+      let create = 0;           // contract creation (to=null)
       let token_contract_sample = null;
 
-      for (const h of hashes) {
-        const receipt = await rpcCall("eth_getTransactionReceipt", [h], 10000);
+      for (const tx of txs) {
+        const h = tx?.hash;
+        if (!h) continue;
 
+        // receipt: detect ERC20 Transfer (topic0)
+        const receipt = await rpcCall("eth_getTransactionReceipt", [h], 8000);
         const logs = receipt?.logs || [];
-        const hasTransfer = Array.isArray(logs) && logs.some((lg) => {
+        const hasTransfer = logs.some((lg) => {
           const t = lg?.topics || [];
           return t[0] && String(t[0]).toLowerCase() === TRANSFER_TOPIC0;
         });
@@ -250,7 +266,7 @@ export async function onRequestGet({ env, request }) {
           continue;
         }
 
-        const to = receipt?.to;
+        const to = tx?.to;
         if (!to) {
           create++;
           continue;
@@ -262,31 +278,20 @@ export async function onRequestGet({ env, request }) {
       }
 
       const total = eoa + contract_other + token + create;
-      const pct = (x) => total ? (x * 100) / total : null;
-
-      // Provide multiple key names for UI compatibility
-      const tokenPct = pct(token);
+      const pct = (x) => (total ? (x * 100) / total : null);
 
       out.activity_sample = {
-        sample_n: hashes.length,
-
-        // old-ish keys
-        native_pct: pct(eoa),
+        sample_n: txs.length,
+        native_pct: pct(eoa), // NOTE: tx-to-EOA (not strictly "native value transfer")
         contract_pct: pct(contract_other + create),
+        token_pct: pct(token),
         other_pct: 0,
-
-        // NEW + alias keys for Token Transfers UI
-        token_pct: tokenPct,
-        token_transfer_pct: tokenPct,
-        token_transfers_pct: tokenPct,
-
         create_pct: pct(create),
         token_contract_sample,
       };
-
       out.activity_note =
-        `Computed from latest block tx receipts. token_% uses receipt.logs topic0=Transfer. ` +
-        `native_pct=tx-to-EOA(approx). sample_n=${hashes.length}`;
+        `Computed from latest block tx objects. token_pct uses receipts(logs topic0=Transfer). ` +
+        `native_pct is tx-to-EOA (not strictly value transfer). sample_n=${txs.length}`;
     }
   } catch (e) {
     out.activity_sample = null;
@@ -295,29 +300,33 @@ export async function onRequestGet({ env, request }) {
   }
 
   // =========================
-  // 4) Etherscan v2 (KEYED; optional) - keep it light
+  // 4) Etherscan v2 (KEYED; optional)
   // =========================
   try {
-    if (!ETHERSCAN_KEY) {
-      out.etherscan.skipped = "ETHERSCAN_KEY not set";
-    } else {
+    if (ETHERSCAN_KEY) {
       const base = "https://api.etherscan.io/v2/api?chainid=480";
 
-      // token supply only (RPC already has gas/block)
+      const a = await fetchJson(`${base}&module=proxy&action=eth_blockNumber&apikey=${encodeURIComponent(ETHERSCAN_KEY)}`, {}, 8000);
+      const g = await fetchJson(`${base}&module=proxy&action=eth_gasPrice&apikey=${encodeURIComponent(ETHERSCAN_KEY)}`, {}, 8000);
+      out.etherscan.blockNumber = a.json || a.text;
+      out.etherscan.gasPrice = g.json || g.text;
+
       const s = await fetchJson(
         `${base}&module=stats&action=tokensupply&contractaddress=${encodeURIComponent(WLD_WORLDCHAIN)}&apikey=${encodeURIComponent(ETHERSCAN_KEY)}`,
         {},
-        12000
+        10000
       );
       out.etherscan.wld_token_supply = s.json || s.text;
       out.etherscan.wld_contract = WLD_WORLDCHAIN;
 
-      // recent WLD transfer logs count (200 blocks window, max 1000 rows)
+      // Keep logs sample VERY light (smaller window to avoid huge response)
       try {
-        const latestDec = out.rpc.latest_block_dec;
-        if (typeof latestDec === "number" && latestDec > 300) {
-          const from = latestDec - 200;
+        const latestHex = a.json?.result || null;
+        const latestDec = hexToInt(latestHex);
+        if (typeof latestDec === "number" && latestDec > 100) {
+          const from = latestDec - 50;
           const to = latestDec;
+
           const logsUrl =
             `${base}&module=logs&action=getLogs` +
             `&fromBlock=${from}&toBlock=${to}` +
@@ -340,6 +349,8 @@ export async function onRequestGet({ env, request }) {
       } catch (e) {
         out.warnings.push(`etherscan:logs_sample:${e.message}`);
       }
+    } else {
+      out.etherscan.skipped = "ETHERSCAN_KEY not set";
     }
   } catch (e) {
     out.warnings.push(`etherscan:${e.message}`);
@@ -354,73 +365,56 @@ export async function onRequestGet({ env, request }) {
       out.coingecko.note = "CG_KEY not set";
       out.coingecko.http_status = { simple: null, markets: null };
     } else {
-      let pickedId = null;
-      let pickedMode = null;
+      const simpleUrl =
+        "https://api.coingecko.com/api/v3/simple/price" +
+        `?ids=${encodeURIComponent(CG_COIN_ID)}` +
+        "&vs_currencies=usd,jpy" +
+        "&include_24hr_change=true&include_market_cap=true&include_24hr_vol=true";
 
-      for (const id of CG_COIN_IDS) {
-        const simpleUrl =
-          "https://api.coingecko.com/api/v3/simple/price" +
-          `?ids=${encodeURIComponent(id)}` +
-          "&vs_currencies=usd,jpy" +
-          "&include_24hr_change=true&include_market_cap=true&include_24hr_vol=true";
+      const marketsUrl =
+        "https://api.coingecko.com/api/v3/coins/markets" +
+        "?vs_currency=usd" +
+        `&ids=${encodeURIComponent(CG_COIN_ID)}` +
+        "&sparkline=true&price_change_percentage=24h";
 
-        const marketsUrl =
-          "https://api.coingecko.com/api/v3/coins/markets" +
-          "?vs_currency=usd" +
-          `&ids=${encodeURIComponent(id)}` +
-          "&sparkline=true&price_change_percentage=24h";
+      const simpleRes = await cgFetchJson(simpleUrl, 8000);
+      const marketsRes = await cgFetchJson(marketsUrl, 8000);
 
-        const simpleRes = await cgFetchJson(simpleUrl, 10000);
-        const marketsRes = await cgFetchJson(marketsUrl, 10000);
+      const mode = simpleRes.ok ? simpleRes.mode : (marketsRes.ok ? marketsRes.mode : "failed");
+      out.coingecko.mode = mode;
 
-        const mode = simpleRes.ok ? simpleRes.mode : (marketsRes.ok ? marketsRes.mode : "failed");
+      const simpleRoot = simpleRes.json || null;
+      const simple = (simpleRoot && simpleRoot[CG_COIN_ID]) ? simpleRoot[CG_COIN_ID] : null;
+      const markets = (Array.isArray(marketsRes.json) && marketsRes.json[0]) ? marketsRes.json[0] : null;
 
-        const simpleRoot = simpleRes.json || null;
-        const simple = (simpleRoot && simpleRoot[id]) ? simpleRoot[id] : null;
-        const markets = (Array.isArray(marketsRes.json) && marketsRes.json[0]) ? marketsRes.json[0] : null;
+      if (simple || markets) {
+        const s = {
+          usd: simple?.usd ?? (markets?.current_price ?? null),
+          jpy: simple?.jpy ?? null,
+          usd_market_cap: simple?.usd_market_cap ?? (markets?.market_cap ?? null),
+          usd_24h_vol: simple?.usd_24h_vol ?? (markets?.total_volume ?? null),
+          usd_24h_change: (simple?.usd_24h_change ?? null) ?? (markets?.price_change_percentage_24h ?? null),
+          jpy_market_cap: simple?.jpy_market_cap ?? null,
+          jpy_24h_vol: simple?.jpy_24h_vol ?? null,
+          jpy_24h_change: simple?.jpy_24h_change ?? null,
+        };
 
-        if (simple || markets) {
-          pickedId = id;
-          pickedMode = mode;
+        const prices = Array.isArray(markets?.sparkline_in_7d?.price) ? markets.sparkline_in_7d.price : null;
 
-          const s = {
-            usd: simple?.usd ?? (markets?.current_price ?? null),
-            jpy: simple?.jpy ?? null,
-            usd_market_cap: simple?.usd_market_cap ?? (markets?.market_cap ?? null),
-            usd_24h_vol: simple?.usd_24h_vol ?? (markets?.total_volume ?? null),
-            usd_24h_change: (simple?.usd_24h_change ?? null) ?? (markets?.price_change_percentage_24h ?? null),
-            jpy_market_cap: simple?.jpy_market_cap ?? null,
-            jpy_24h_vol: simple?.jpy_24h_vol ?? null,
-            jpy_24h_change: simple?.jpy_24h_change ?? null,
-          };
-
-          const prices = Array.isArray(markets?.sparkline_in_7d?.price)
-            ? markets.sparkline_in_7d.price
-            : null;
-
-          out.coingecko.ok = true;
-          out.coingecko.coin_id = pickedId;
-          out.coingecko.mode = pickedMode;
-          out.coingecko.simple = s;
-          out.coingecko.chart7d_usd = prices ? { prices } : null;
-          out.coingecko.note = `CoinGecko ok. mode=${pickedMode}. coin_id=${pickedId}. simple=${!!simple} markets=${!!markets}`;
-          out.coingecko.http_status = {
-            simple: simpleRes.status || null,
-            markets: marketsRes.status || null,
-          };
-          break;
-        } else {
-          // try next id
-          out.coingecko.http_status = {
-            simple: simpleRes.status || null,
-            markets: marketsRes.status || null,
-          };
-        }
+        out.coingecko.ok = true;
+        out.coingecko.simple = s;
+        out.coingecko.chart7d_usd = prices ? { prices } : null;
+        out.coingecko.note = `CoinGecko ok. mode=${mode}. coin_id=${CG_COIN_ID}. simple=${!!simple} markets=${!!markets}`;
+      } else {
+        out.coingecko.ok = false;
+        out.coingecko.note =
+          `CoinGecko failed. simple_http=${simpleRes.status} markets_http=${marketsRes.status} coin_id=${CG_COIN_ID}`;
       }
 
-      if (!pickedId && !out.coingecko.ok) {
-        out.coingecko.note = `CoinGecko failed for ids=${CG_COIN_IDS.join(",")}.`;
-      }
+      out.coingecko.http_status = {
+        simple: simpleRes.status || null,
+        markets: marketsRes.status || null,
+      };
     }
   } catch (e) {
     out.coingecko.ok = false;
@@ -430,12 +424,8 @@ export async function onRequestGet({ env, request }) {
 
   out.elapsed_ms = Date.now() - startedAt;
 
-  // Overall ok: RPCが死んでる時だけ false にする（warnings では落とさない）
+  // Overall ok: RPCが死んでる時だけ false（warningsでは落とさない）
   if (!rpcHealthy) out.ok = false;
-
-  // debug
-  out.rpc._subreq_count = subreqCount;
-  out.rpc._subreq_budget = SUBREQ_BUDGET;
 
   return json(out, 200);
 }
