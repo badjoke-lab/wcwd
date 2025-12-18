@@ -1,85 +1,244 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>WCWD (Skeleton)</title>
-  <link rel="stylesheet" href="/style.css" />
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <title>WCWD — World Chain / WLD Dashboard (Phase 0) | NicheWorks</title>
+  <meta name="description" content="World Chain quick dashboard: gas, TPS, WLD price, and latest-block activity sample. Phase 0 (no indexer).">
+  <link rel="canonical" href="https://nicheworks.pages.dev/tools/wcwd/">
+
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="WCWD — World Chain / WLD Dashboard (Phase 0)">
+  <meta property="og:description" content="Gas, TPS, WLD price, and latest-block activity sample.">
+  <meta property="og:url" content="https://nicheworks.pages.dev/tools/wcwd/">
+
+  <link rel="icon" href="/assets/favicon.png">
+  <link rel="stylesheet" href="./style.css">
 </head>
+
 <body>
-  <header class="top">
-    <h1>WCWD Dashboard — Skeleton</h1>
-    <div class="row">
-      <button id="reload">Reload</button>
-      <div class="muted">Status: <b id="status">—</b></div>
+  <header class="nw-header">
+    <div class="nw-header__inner">
+      <a class="nw-brand" href="/">
+        <span class="nw-brand__name">NicheWorks</span>
+      </a>
+
+      <nav class="nw-nav">
+        <a class="nw-nav__link" href="/tools/">Tools</a>
+        <a class="nw-nav__link" href="/about/">About</a>
+      </nav>
     </div>
   </header>
 
-  <main class="wrap">
-    <section class="card">
-      <h2>1) Network Stats</h2>
-      <div class="grid2">
-        <div><b>TPS (est)</b><div id="tps">—</div></div>
-        <div><b>24h TX (est)</b><div id="tx24h">—</div></div>
-        <div><b>New Addresses (24h)</b><div id="newAddr24h">—</div><div class="note" id="newAddrNote"></div></div>
-        <div><b>Total Addresses</b><div id="totalAddr">—</div><div class="note" id="totalAddrNote"></div></div>
-        <div><b>Current Gas Price</b><div id="gasPrice">—</div></div>
+  <main class="nw-main">
+    <section class="nw-hero">
+      <h1 class="nw-h1">WCWD — World Chain / WLD Dashboard</h1>
+      <p class="nw-lead">
+        Phase 0: RPC + optional APIs (Etherscan / CoinGecko). No indexer. No wallet connect.
+      </p>
+
+      <div class="nw-actions">
+        <button id="reload" class="nw-btn">Reload</button>
+        <span class="nw-status">
+          Status: <strong id="status">—</strong>
+        </span>
+      </div>
+
+      <p class="nw-muted">
+        This dashboard provides “best-effort” signals. Some metrics are unavailable without an indexer.
+      </p>
+    </section>
+
+    <!-- ===== NETWORK ===== -->
+    <section class="nw-card">
+      <h2 class="nw-h2">Network</h2>
+
+      <div class="nw-grid">
+        <div class="nw-metric">
+          <div class="nw-metric__label">TPS (est.)</div>
+          <div class="nw-metric__value" id="tps">—</div>
+        </div>
+
+        <div class="nw-metric">
+          <div class="nw-metric__label">Tx/day (est.)</div>
+          <div class="nw-metric__value" id="tx24h">—</div>
+        </div>
+
+        <div class="nw-metric">
+          <div class="nw-metric__label">Gas Price</div>
+          <div class="nw-metric__value" id="gasPrice">—</div>
+        </div>
+
+        <div class="nw-metric">
+          <div class="nw-metric__label">New addresses (24h)</div>
+          <div class="nw-metric__value" id="newAddr24h">—</div>
+          <div class="nw-metric__note" id="newAddrNote"></div>
+        </div>
+
+        <div class="nw-metric">
+          <div class="nw-metric__label">Total addresses</div>
+          <div class="nw-metric__value" id="totalAddr">—</div>
+          <div class="nw-metric__note" id="totalAddrNote"></div>
+        </div>
       </div>
     </section>
 
-    <section class="card">
-      <h2>2) WLD Market Stats</h2>
-      <div class="grid2">
-        <div><b>WLD Price (USD)</b><div id="wldUsd">—</div></div>
-        <div><b>WLD Price (JPY)</b><div id="wldJpy">—</div></div>
-        <div><b>24h Price Change</b><div id="wldChg24h">—</div></div>
-        <div><b>Market Cap</b><div id="wldMc">—</div></div>
-        <div><b>24h Trading Volume</b><div id="wldVol">—</div></div>
-        <div><b>7d Price Trend</b><div id="wldSpark7d">—</div></div>
+    <!-- ===== WLD MARKET ===== -->
+    <section class="nw-card">
+      <h2 class="nw-h2">WLD Market (CoinGecko)</h2>
+
+      <div class="nw-grid">
+        <div class="nw-metric">
+          <div class="nw-metric__label">WLD (USD)</div>
+          <div class="nw-metric__value" id="wldUsd">—</div>
+        </div>
+
+        <div class="nw-metric">
+          <div class="nw-metric__label">WLD (JPY)</div>
+          <div class="nw-metric__value" id="wldJpy">—</div>
+        </div>
+
+        <div class="nw-metric">
+          <div class="nw-metric__label">24h change</div>
+          <div class="nw-metric__value" id="wldChg24h">—</div>
+        </div>
+
+        <div class="nw-metric">
+          <div class="nw-metric__label">Market cap</div>
+          <div class="nw-metric__value" id="wldMc">—</div>
+        </div>
+
+        <div class="nw-metric">
+          <div class="nw-metric__label">24h volume</div>
+          <div class="nw-metric__value" id="wldVol">—</div>
+        </div>
+
+        <div class="nw-metric">
+          <div class="nw-metric__label">Sparkline (7d)</div>
+          <div class="nw-metric__value mono" id="wldSpark7d">—</div>
+        </div>
       </div>
-      <div class="note" id="cgNote"></div>
-    </section>
 
-    <section class="card">
-      <h2>3) Activity Breakdown</h2>
-      <div class="grid2">
-        <div><b>Native Transfers (%)</b><div id="pctNative">—</div></div>
-        <div><b>Token Transfers (%)</b><div id="pctToken">—</div><div class="note" id="pctTokenNote"></div></div>
-        <div><b>Contract Calls (%)</b><div id="pctContract">—</div></div>
-        <div><b>Other Transactions (%)</b><div id="pctOther">—</div></div>
-      </div>
-      <div class="note" id="actNote"></div>
-    </section>
+      <div class="nw-note" id="cgNote"></div>
 
-    <section class="card">
-      <h2>4) Trend Charts</h2>
-      <div class="grid2">
-        <div><b>WLD 7d Price Trend</b><div id="chartWld7d">—</div></div>
-        <div><b>TX 7d Trend</b><div id="chartTx7d">—</div><div class="note" id="chartTxNote"></div></div>
+      <div class="nw-mini-chart">
+        <div class="nw-mini-chart__label">WLD 7d (sparkline)</div>
+        <div class="nw-mini-chart__value mono" id="chartWld7d">—</div>
       </div>
     </section>
 
-    <section class="card">
-      <h2>5) Alerts</h2>
-      <div class="grid2">
-        <div><b>Spike (TPS &gt; 1.4x avg)</b><div id="alertSpike">—</div></div>
-        <div><b>Drop (TPS &lt; 0.7x avg)</b><div id="alertDrop">—</div></div>
-        <div><b>High Gas Price</b><div id="alertHighGas">—</div></div>
+    <!-- ===== ACTIVITY SAMPLE ===== -->
+    <section class="nw-card">
+      <h2 class="nw-h2">Activity (latest block sample)</h2>
+
+      <p class="nw-muted">
+        Approximation based on latest block logs. Not a full-chain breakdown.
+      </p>
+
+      <div class="nw-grid">
+        <div class="nw-metric">
+          <div class="nw-metric__label">Token-tx share (approx)</div>
+          <div class="nw-metric__value" id="pctToken">—</div>
+          <div class="nw-metric__note" id="pctTokenNote"></div>
+        </div>
+
+        <div class="nw-metric">
+          <div class="nw-metric__label">Non-token share (approx)</div>
+          <div class="nw-metric__value" id="pctNative">—</div>
+        </div>
+
+        <div class="nw-metric">
+          <div class="nw-metric__label">Contract share</div>
+          <div class="nw-metric__value" id="pctContract">—</div>
+        </div>
+
+        <div class="nw-metric">
+          <div class="nw-metric__label">Other share</div>
+          <div class="nw-metric__value" id="pctOther">—</div>
+        </div>
       </div>
-      <div class="note">Alerts are computed locally from recent reload samples (no dummy).</div>
+
+      <div class="nw-note" id="actNote"></div>
     </section>
 
-    <section class="card">
-      <h2>Errors</h2>
-      <pre id="errors">—</pre>
+    <!-- ===== LOCAL TRENDS ===== -->
+    <section class="nw-card">
+      <h2 class="nw-h2">Trends (local observed)</h2>
+      <p class="nw-muted">
+        These are local samples stored in your browser (localStorage). Reload multiple times to build a trend.
+      </p>
+
+      <div class="nw-mini-chart">
+        <div class="nw-mini-chart__label">Tx 7d (local)</div>
+        <div class="nw-mini-chart__value mono" id="chartTx7d">—</div>
+        <div class="nw-mini-chart__note" id="chartTxNote"></div>
+      </div>
     </section>
 
-    <section class="card">
-      <h2>Raw (debug)</h2>
-      <pre id="raw">—</pre>
+    <!-- ===== ALERTS ===== -->
+    <section class="nw-card">
+      <h2 class="nw-h2">Alerts (local rolling average)</h2>
+      <p class="nw-muted">
+        Alerts compare the latest value vs the average of previous samples. Need a few samples first.
+      </p>
+
+      <div class="nw-grid">
+        <div class="nw-metric">
+          <div class="nw-metric__label">Spike (TPS)</div>
+          <div class="nw-metric__value" id="alertSpike">—</div>
+        </div>
+
+        <div class="nw-metric">
+          <div class="nw-metric__label">Drop (TPS)</div>
+          <div class="nw-metric__value" id="alertDrop">—</div>
+        </div>
+
+        <div class="nw-metric">
+          <div class="nw-metric__label">High Gas</div>
+          <div class="nw-metric__value" id="alertHighGas">—</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ===== DEBUG ===== -->
+    <section class="nw-card">
+      <h2 class="nw-h2">Debug</h2>
+
+      <details class="nw-details">
+        <summary>Show API response</summary>
+        <pre class="nw-pre" id="raw">—</pre>
+      </details>
+
+      <details class="nw-details">
+        <summary>Errors</summary>
+        <pre class="nw-pre" id="errors">—</pre>
+      </details>
+    </section>
+
+    <section class="nw-footer-note">
+      <p class="nw-muted">
+        Phase 0 limitations: no indexer, no historical chain-wide breakdown. Token share is “latest-block token-tx share (approx)”.
+      </p>
     </section>
   </main>
 
-  <script src="/app.js"></script>
+  <footer class="nw-footer">
+    <div class="nw-footer__inner">
+      <div class="nw-footer__links">
+        <a href="/tools/">Tools</a>
+        <a href="/about/">About</a>
+        <a href="/privacy/">Privacy</a>
+      </div>
+      <div class="nw-footer__copy">
+        © <span id="year"></span> NicheWorks
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    document.getElementById("year").textContent = new Date().getFullYear();
+  </script>
+  <script src="./app.js" defer></script>
 </body>
 </html>
