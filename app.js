@@ -126,20 +126,27 @@ async function load() {
     // 3) Activity (latest block sample)
     const act = j.activity_sample || null;
     if (act) {
+      // NOTE: native_pct is currently "non-token share" (temporary label)
       setText("#pctNative", act.native_pct != null ? `${fmtNum(act.native_pct)}%` : "—");
       setText("#pctContract", act.contract_pct != null ? `${fmtNum(act.contract_pct)}%` : "—");
       setText("#pctOther", act.other_pct != null ? `${fmtNum(act.other_pct)}%` : "—");
 
-      // Token transfers are log-based (indexer needed) -> keep N/A
-      setText("#pctToken", "N/A");
-      setNote("#pctTokenNote", "Token transfers need logs/indexer in this build.");
-      setNote("#actNote", j.activity_note || "Activity breakdown computed from latest block tx sample.");
+      // ✅ Show token_pct as APPROX (log-based)
+      setText("#pctToken", act.token_pct != null ? `${fmtNum(act.token_pct)}%` : "—");
+      setNote(
+        "#pctTokenNote",
+        act.token_pct != null
+          ? "Approx. share of txs that emitted ERC-20 Transfer logs in the latest block."
+          : "Token share unavailable."
+      );
+
+      setNote("#actNote", j.activity_note || "Activity breakdown computed from latest block logs.");
     } else {
       setText("#pctNative", "—");
       setText("#pctContract", "—");
       setText("#pctOther", "—");
-      setText("#pctToken", "N/A");
-      setNote("#pctTokenNote", "Token transfers need logs/indexer in this build.");
+      setText("#pctToken", "—");
+      setNote("#pctTokenNote", "Activity sample unavailable.");
       setNote("#actNote", "Activity sample unavailable.");
     }
 
