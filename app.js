@@ -77,6 +77,25 @@ function decisionBadge(ok) {
   return ok ? "YES" : "NO";
 }
 
+function formatIssue(x) {
+  if (!x) return "";
+  if (typeof x === "string") return x;
+  // expected shapes: {src, where, reason} or {src, reason} etc.
+  const src = x.src ? String(x.src) : "unknown";
+  const where = x.where ? String(x.where) : "";
+  const reason = x.reason ? String(x.reason) : (x.message ? String(x.message) : "");
+  const parts = [];
+  parts.push(src + (where ? `:${where}` : ""));
+  if (reason) parts.push(reason);
+  return parts.join(" ");
+}
+
+function formatIssues(title, arr) {
+  if (!Array.isArray(arr) || !arr.length) return "";
+  const lines = arr.map(formatIssue).filter(Boolean);
+  return `${title} (${lines.length})\n` + lines.join("\n");
+}
+
 async function load() {
   setText("#status", "loading...");
   setText("#errors", "—");
@@ -86,11 +105,21 @@ async function load() {
     const j = await r.json().catch(() => null);
     if (!r.ok || !j) throw new Error(`HTTP ${r.status}`);
 
-    setText("#status", j.ok ? "OK" : "PARTIAL");
+    // Status: OK / PARTIAL / ERROR
+    const hasErr = Array.isArray(j.errors) && j.errors.length > 0;
+    const hasWarn = Array.isArray(j.warnings) && j.warnings.length > 0;
+    const okFlag = !!j.ok;
+
+    setText("#status", (okFlag && !hasErr) ? "OK" : "PARTIAL");
 
     // Raw/debug
     setText("#raw", JSON.stringify(j, null, 2));
-    setText("#errors", (j.errors && j.errors.length) ? j.errors.join("\n") : "—");
+
+    // Errors+Warnings panel (no [object Object])
+    const errText = formatIssues("errors", j.errors);
+    const warnText = formatIssues("warnings", j.warnings);
+    const combined = [errText, warnText].filter(Boolean).join("\n\n");
+    setText("#errors", combined || "—");
 
     // 1) Network
     const tps = j.rpc?.tps_estimate ?? null;
@@ -101,7 +130,7 @@ async function load() {
     const gasGwei = gasWei != null ? gasWei / 1e9 : null;
     setText("#gasPrice", gasGwei != null ? `${fmtNum(gasGwei)} gwei` : "—");
 
-    // Indexer無しだと取れないので N/A を明示（ここは仕様）
+    // Indexer無しだと取れないので N/A を明示（仕様）
     setText("#newAddr24h", "N/A");
     setNote("#newAddrNote", "Needs an indexer API (not available in this build).");
     setText("#totalAddr", "N/A");
@@ -116,23 +145,30 @@ async function load() {
       setText("#wldChg24h", s.usd_24h_change != null ? `${fmtNum(s.usd_24h_change)}%` : "—");
       setText("#wldMc", s.usd_market_cap != null ? `$${fmtNum(s.usd_market_cap)}` : "—");
       setText("#wldVol", s.usd_24h_vol != null ? `$${fmtNum(s.usd_24h_vol)}` : "—");
-      setText("#wldSpark7d", cg.chart7d_usd?.prices ? sparkline(cg.chart7d_usd.prices) : "—");
-      setText("#chartWld7d", cg.chart7d_usd?.prices ? sparkline(cg.chart7d_usd.prices, 40) : "—");
+
+      const prices = cg.chart7d_usd?.prices || [];
+      setText("#wldSpark7d", prices.length ? sparkline(prices) : "—");
+      setText("#chartWld7d", prices.length ? sparkline(prices, 40) : "—");
+
       setNote("#cgNote", `CoinGecko: ${cg.coin_id || "?"} / mode=${cg.mode || "?"}`);
     } else {
+      setText("#wldUsd", "—");
+      setText("#wldJpy", "—");
+      setText("#wldChg24h", "—");
+      setText("#wldMc", "—");
+      setText("#wldVol", "—");
+      setText("#wldSpark7d", "—");
+      setText("#chartWld7d", "—");
       setNote("#cgNote", cg.note || "CoinGecko: unavailable");
     }
 
     // 3) Activity (latest block approx)
     const act = j.activity_sample || null;
     if (act) {
-      // IMPORTANT:
-      // native_pct is "non-token share" (temporary label in backend)
       setText("#pctNative", act.native_pct != null ? `${fmtNum(act.native_pct)}%` : "—");
       setText("#pctContract", act.contract_pct != null ? `${fmtNum(act.contract_pct)}%` : "—");
       setText("#pctOther", act.other_pct != null ? `${fmtNum(act.other_pct)}%` : "—");
 
-      // SHOW token_pct (was incorrectly hardcoded to N/A)
       setText("#pctToken", act.token_pct != null ? `${fmtNum(act.token_pct)}%` : "—");
       setNote(
         "#pctTokenNote",
@@ -152,24 +188,27 @@ async function load() {
     }
 
     // 4) Trend Charts
-    // WLD 7d is already from CoinGecko; TX 7d: show LOCAL OBSERVED trend (not global)
+    // WLD 7d is from CoinGecko; TX 7d: LOCAL OBSERVED trend (not global)
     const SEVEN_DAYS = 7 * 24 * 3600 * 1000;
     if (tps != null) {
       const tpsSamples = pushSample("tps", tps, 240);
       const win = filterWindow(tpsSamples, SEVEN_DAYS);
       const series = win.map(o => Number(o.v)).filter(n => Number.isFinite(n));
       setText("#chartTx7d", series.length >= 2 ? sparkline(series, 40) : "—");
-      setNote("#chartTxNote", series.length >= 2
-        ? `Local observed TPS trend (samples=${series.length}).`
-        : "Local TX trend: need more samples (reload a few times).");
+      setNote(
+        "#chartTxNote",
+        series.length >= 2
+          ? `Local observed TPS trend (samples=${series.length}).`
+          : "Local TX trend: need more samples (reload a few times)."
+      );
     } else {
       setText("#chartTx7d", "—");
       setNote("#chartTxNote", "TX trend unavailable (TPS missing).");
     }
 
-    // 5) Alerts (local rolling avg) — MUST show WAIT/NO instead of “—”
-    // Rule: compare CURRENT value against AVERAGE of PREVIOUS samples (exclude current)
+    // 5) Alerts (local rolling avg)
     const MIN_BASE = 3; // need at least 3 prior points to judge
+
     if (tps != null) {
       const all = JSON.parse(localStorage.getItem("wcwd_tps") || "[]");
       const last = lastOf(all);
