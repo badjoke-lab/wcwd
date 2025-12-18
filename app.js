@@ -123,24 +123,25 @@ async function load() {
       setNote("#cgNote", cg.note || "CoinGecko: unavailable");
     }
 
-    // 3) Activity (latest block sample)
+    // 3) Activity (latest block approx)
     const act = j.activity_sample || null;
     if (act) {
-      // NOTE: native_pct is currently "non-token share" (temporary label)
+      // IMPORTANT:
+      // native_pct is "non-token share" (temporary label in backend)
       setText("#pctNative", act.native_pct != null ? `${fmtNum(act.native_pct)}%` : "—");
       setText("#pctContract", act.contract_pct != null ? `${fmtNum(act.contract_pct)}%` : "—");
       setText("#pctOther", act.other_pct != null ? `${fmtNum(act.other_pct)}%` : "—");
 
-      // ✅ Show token_pct as APPROX (log-based)
+      // SHOW token_pct (was incorrectly hardcoded to N/A)
       setText("#pctToken", act.token_pct != null ? `${fmtNum(act.token_pct)}%` : "—");
       setNote(
         "#pctTokenNote",
         act.token_pct != null
-          ? "Approx. share of txs that emitted ERC-20 Transfer logs in the latest block."
-          : "Token share unavailable."
+          ? "Approx: latest-block token-tx share (unique tx with ERC-20 Transfer logs / block tx_count)."
+          : "Token share unavailable in this build."
       );
 
-      setNote("#actNote", j.activity_note || "Activity breakdown computed from latest block logs.");
+      setNote("#actNote", j.activity_note || "Activity computed from latest block (approx).");
     } else {
       setText("#pctNative", "—");
       setText("#pctContract", "—");
@@ -172,7 +173,6 @@ async function load() {
     if (tps != null) {
       const all = JSON.parse(localStorage.getItem("wcwd_tps") || "[]");
       const last = lastOf(all);
-      // Build "prior" array = all except last element (current)
       const prior = all.slice(0, Math.max(0, all.length - 1));
       const priorAvg = avgOf(prior);
 
@@ -189,8 +189,6 @@ async function load() {
     }
 
     if (gasGwei != null) {
-      const allg = JSON.parse(localStorage.getItem("wcwd_gas") || "[]");
-      // push gas AFTER reading old list, to keep symmetry
       const updated = pushSample("gas", gasGwei, 240);
       const last = lastOf(updated);
       const prior = updated.slice(0, Math.max(0, updated.length - 1));
