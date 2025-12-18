@@ -94,6 +94,12 @@ export async function onRequestGet({ env, request }) {
     return parseInt(h.startsWith("0x") ? h.slice(2) : h, 16);
   };
 
+  // ✅ 追加：int -> hex
+  const intToHex = (n) => {
+    if (typeof n !== "number" || !Number.isFinite(n) || n < 0) return null;
+    return "0x" + Math.floor(n).toString(16);
+  };
+
   // CoinGecko: try demo header then pro header (2 tries max)
   const cgFetchJson = async (url, timeoutMs = 8000) => {
     if (!CG_KEY) return { ok: false, status: 0, json: null, mode: null, text: "CG_KEY not set" };
@@ -195,56 +201,55 @@ export async function onRequestGet({ env, request }) {
 
   // =========================
   // 3.5) Activity sample (最重要: token_pct を出す)
-  //    - 最新ブロックの tx hash を先頭N件だけ
-  //    - receipt の logs topic0 が Transfer なら token 扱い
-  //    - subrequest を抑えるため getTransactionByHash / getCode はやらない
+  //    - 最新ブロックの tx_count を分母にする
+  //    - eth_getLogs で Transfer(topic0) を1回で取得
+  //    - token_pct = (Transferログを出した tx の割合) ※近似
   // =========================
   try {
     if (!rpcHealthy) throw new Error("RPC not healthy");
 
-    const SAMPLE_N = 12; // まだ重いなら 8 に下げる
-    const hashes = Array.isArray(latestBlockObj?.transactions)
-      ? latestBlockObj.transactions.slice(0, SAMPLE_N)
-      : [];
+    const txCount = out.rpc?.latest_block?.tx_count;
+    const bnDec = out.rpc?.latest_block_dec;
+    const bnHex = out.rpc?.latest_block_hex;
 
-    if (!hashes.length) {
+    if (!txCount || !bnHex) {
       out.activity_sample = null;
-      out.activity_note = "No tx hashes available in latest block.";
+      out.activity_note = "Latest block tx_count or blockNumber missing.";
     } else {
-      let token = 0;
+      // 1 RPC call: logs in latest block only
+      const logs = await rpcCall("eth_getLogs", [{
+        fromBlock: bnHex,
+        toBlock: bnHex,
+        topics: [TRANSFER_TOPIC0],
+        // address: WLD_WORLDCHAIN, // ← WLD限定にするならON（意味が変わる）
+      }], 12000);
+
+      const arr = Array.isArray(logs) ? logs : [];
+      const txSet = new Set();
       let token_contract_sample = null;
 
-      for (const h of hashes) {
-        const receipt = await rpcCall("eth_getTransactionReceipt", [h], 8000);
-        const logs = receipt?.logs || [];
-        const hit = logs.find((lg) => {
-          const t = lg?.topics || [];
-          return t[0] && String(t[0]).toLowerCase() === TRANSFER_TOPIC0;
-        });
-        if (hit) {
-          token++;
-          if (!token_contract_sample) token_contract_sample = hit.address || null;
-        }
+      for (const lg of arr) {
+        const txh = lg?.transactionHash;
+        if (txh) txSet.add(String(txh).toLowerCase());
+        if (!token_contract_sample && lg?.address) token_contract_sample = lg.address;
       }
 
-      const total = hashes.length;
-      const pct = (x) => total ? (x * 100) / total : null;
+      const tokenTx = txSet.size;
+      const pct = (x) => txCount ? (x * 100) / txCount : null;
 
-      // app.js 互換のため、最低限 token_pct を確実に入れる
       out.activity_sample = {
-        sample_n: total,
-        token_pct: pct(token),
-        // 既存UIが null を許容しない場合に備えて、残りは「非トークン」としてまとめる
-        native_pct: pct(total - token),   // ※意味は「non-token tx」になる（UI側の文言は後で直す）
+        sample_n: txCount,                   // 分母（最新ブロックの tx 数）
+        token_pct: pct(tokenTx),             // Transferログを出した tx の割合（近似）
+        native_pct: pct(txCount - tokenTx),  // ※「non-token share」（暫定ラベル）
         contract_pct: null,
         other_pct: null,
         create_pct: null,
-        token_contract_sample,
+        token_contract_sample: token_contract_sample || null,
       };
 
       out.activity_note =
-        `token_pct computed from latest block receipts(logs topic0=Transfer). ` +
-        `native_pct is non-token share (temporary label). sample_n=${total}`;
+        `token_pct approx = unique tx with ERC20 Transfer logs / latest block tx_count. ` +
+        `logs=${arr.length} unique_token_txs=${tokenTx} block=${bnDec}`;
     }
   } catch (e) {
     out.activity_sample = null;
