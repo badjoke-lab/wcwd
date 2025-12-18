@@ -50,7 +50,8 @@ export async function onRequestGet({ env, request }) {
       status,
       headers: {
         "content-type": "application/json; charset=utf-8",
-        "cache-control": "no-store",
+        // Phase0: 短期キャッシュ（落ちない公開優先）
+        "cache-control": "public, max-age=0, s-maxage=30",
       },
     });
 
@@ -94,12 +95,6 @@ export async function onRequestGet({ env, request }) {
     return parseInt(h.startsWith("0x") ? h.slice(2) : h, 16);
   };
 
-  // ✅ 追加：int -> hex
-  const intToHex = (n) => {
-    if (typeof n !== "number" || !Number.isFinite(n) || n < 0) return null;
-    return "0x" + Math.floor(n).toString(16);
-  };
-
   // CoinGecko: try demo header then pro header (2 tries max)
   const cgFetchJson = async (url, timeoutMs = 8000) => {
     if (!CG_KEY) return { ok: false, status: 0, json: null, mode: null, text: "CG_KEY not set" };
@@ -114,7 +109,7 @@ export async function onRequestGet({ env, request }) {
   };
 
   // =========================
-  // 1) CORE RPC (critical)  ※軽量化版
+  // 1) CORE RPC (critical)
   // =========================
   let rpcHealthy = false;
   let latestBlockObj = null;
@@ -128,7 +123,7 @@ export async function onRequestGet({ env, request }) {
     out.rpc.latest_block_hex = bnHex;
     out.rpc.latest_block_dec = hexToInt(bnHex);
 
-    // latest block (hash list)
+    // latest block
     latestBlockObj = await rpcCall("eth_getBlockByNumber", ["latest", false]);
     out.rpc.latest_block = {
       number: hexToInt(latestBlockObj?.number),
@@ -152,7 +147,7 @@ export async function onRequestGet({ env, request }) {
     // Avg block time (2 calls: latest vs N blocks ago)
     try {
       const bn = out.rpc.latest_block_dec;
-      const N = 50; // reduce calls
+      const N = 50;
       if (typeof bn === "number" && bn > N) {
         const b0 = latestBlockObj;
         const b1 = await rpcCall("eth_getBlockByNumber", ["0x" + (bn - N).toString(16), false], 12000);
@@ -200,56 +195,104 @@ export async function onRequestGet({ env, request }) {
   }
 
   // =========================
-  // 3.5) Activity sample (最重要: token_pct を出す)
-  //    - 最新ブロックの tx_count を分母にする
-  //    - eth_getLogs で Transfer(topic0) を1回で取得
-  //    - token_pct = (Transferログを出した tx の割合) ※近似
+  // 3.5) Activity sample (最重要: token_pct を安定して出す)
+  //  - receipt連打をやめる（subrequests削減）
+  //  - 最新ブロックの Transfer logs を eth_getLogs で1発
+  //  - token_pct = (unique tx with Transfer logs) / (block tx_count)
   // =========================
   try {
     if (!rpcHealthy) throw new Error("RPC not healthy");
 
-    const txCount = out.rpc?.latest_block?.tx_count;
-    const bnDec = out.rpc?.latest_block_dec;
-    const bnHex = out.rpc?.latest_block_hex;
+    const blockHex = out.rpc.latest_block_hex;
+    const txCount = out.rpc.latest_block?.tx_count;
 
-    if (!txCount || !bnHex) {
+    if (!blockHex || typeof txCount !== "number" || txCount <= 0) {
       out.activity_sample = null;
-      out.activity_note = "Latest block tx_count or blockNumber missing.";
+      out.activity_note = "Activity unavailable (missing latest block or tx_count).";
     } else {
-      // 1 RPC call: logs in latest block only
-      const logs = await rpcCall("eth_getLogs", [{
-        fromBlock: bnHex,
-        toBlock: bnHex,
-        topics: [TRANSFER_TOPIC0],
-        // address: WLD_WORLDCHAIN, // ← WLD限定にするならON（意味が変わる）
-      }], 12000);
+      let logs = [];
+      try {
+        logs = await rpcCall(
+          "eth_getLogs",
+          [{
+            fromBlock: blockHex,
+            toBlock: blockHex,
+            topics: [TRANSFER_TOPIC0],
+          }],
+          12000
+        );
+      } catch (e) {
+        // fallback: 最低限だけ receipt サンプル（重いので小さく）
+        out.warnings.push(`activity_sample:getLogs_failed:${e.message}`);
+        const SAMPLE_N = 8;
+        const hashes = Array.isArray(latestBlockObj?.transactions)
+          ? latestBlockObj.transactions.slice(0, SAMPLE_N)
+          : [];
 
-      const arr = Array.isArray(logs) ? logs : [];
-      const txSet = new Set();
-      let token_contract_sample = null;
+        if (!hashes.length) {
+          out.activity_sample = null;
+          out.activity_note = "Activity unavailable (no tx hashes for fallback).";
+          logs = null;
+        } else {
+          const uniq = new Set();
+          let tokenContract = null;
+          for (const h of hashes) {
+            const receipt = await rpcCall("eth_getTransactionReceipt", [h], 8000);
+            const rlogs = receipt?.logs || [];
+            const hit = rlogs.find((lg) => {
+              const t = lg?.topics || [];
+              return t[0] && String(t[0]).toLowerCase() === TRANSFER_TOPIC0;
+            });
+            if (hit) {
+              uniq.add(h);
+              if (!tokenContract) tokenContract = hit.address || null;
+            }
+          }
+          const uniqueTokenTxs = uniq.size;
+          const pct = (x) => txCount ? (x * 100) / txCount : null;
 
-      for (const lg of arr) {
-        const txh = lg?.transactionHash;
-        if (txh) txSet.add(String(txh).toLowerCase());
-        if (!token_contract_sample && lg?.address) token_contract_sample = lg.address;
+          out.activity_sample = {
+            sample_n: txCount,
+            token_pct: pct(uniqueTokenTxs),
+            native_pct: pct(txCount - uniqueTokenTxs), // UI側は「Non-token share」に寄せる
+            contract_pct: null,
+            other_pct: null,
+            create_pct: null,
+            token_contract_sample: tokenContract,
+          };
+
+          out.activity_note =
+            `token_pct approx = unique tx with ERC20 Transfer logs / latest block tx_count. ` +
+            `fallback_receipts_sample_n=${hashes.length} block=${hexToInt(blockHex)}`;
+          logs = null;
+        }
       }
 
-      const tokenTx = txSet.size;
-      const pct = (x) => txCount ? (x * 100) / txCount : null;
+      if (Array.isArray(logs)) {
+        const uniqTx = new Set();
+        let tokenContract = null;
+        for (const lg of logs) {
+          const th = lg?.transactionHash;
+          if (th) uniqTx.add(String(th).toLowerCase());
+          if (!tokenContract && lg?.address) tokenContract = lg.address;
+        }
+        const uniqueTokenTxs = uniqTx.size;
+        const pct = (x) => txCount ? (x * 100) / txCount : null;
 
-      out.activity_sample = {
-        sample_n: txCount,                   // 分母（最新ブロックの tx 数）
-        token_pct: pct(tokenTx),             // Transferログを出した tx の割合（近似）
-        native_pct: pct(txCount - tokenTx),  // ※「non-token share」（暫定ラベル）
-        contract_pct: null,
-        other_pct: null,
-        create_pct: null,
-        token_contract_sample: token_contract_sample || null,
-      };
+        out.activity_sample = {
+          sample_n: txCount,
+          token_pct: pct(uniqueTokenTxs),
+          native_pct: pct(txCount - uniqueTokenTxs), // ※非トークン割合（ラベルはUIで安全側へ）
+          contract_pct: null,
+          other_pct: null,
+          create_pct: null,
+          token_contract_sample: tokenContract,
+        };
 
-      out.activity_note =
-        `token_pct approx = unique tx with ERC20 Transfer logs / latest block tx_count. ` +
-        `logs=${arr.length} unique_token_txs=${tokenTx} block=${bnDec}`;
+        out.activity_note =
+          `token_pct approx = unique tx with ERC20 Transfer logs / latest block tx_count. ` +
+          `logs=${logs.length} unique_token_txs=${uniqueTokenTxs} block=${hexToInt(blockHex)}`;
+      }
     }
   } catch (e) {
     out.activity_sample = null;
@@ -276,9 +319,6 @@ export async function onRequestGet({ env, request }) {
       );
       out.etherscan.wld_token_supply = s.json || s.text;
       out.etherscan.wld_contract = WLD_WORLDCHAIN;
-
-      // logs は subrequest/サイズ的に重くなりがちなので、まずは切る（必要なら後で復活）
-      // out.etherscan.wld_transfer_logs_recent = ...
     } else {
       out.etherscan.skipped = "ETHERSCAN_KEY not set";
     }
