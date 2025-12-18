@@ -1,400 +1,432 @@
-export async function onRequestGet({ env, request }) {
-  const startedAt = Date.now();
+// lib/summary.js
+// Aggregates World Chain + market + status signals with minimal subrequests.
+// Design goal: survive partial failures; never do per-tx subrequests.
 
-  // ---- env (Cloudflare Pages Functions: use env, NOT process.env) ----
-  const RPC = (env.RPC || env.RPC_URL || "").trim();
-  const ETHERSCAN_KEY = (env.ETHERSCAN_KEY || "").trim();
-  const CG_KEY = (env.CG_KEY || "").trim();
+const TRANSFER_TOPIC = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
 
-  const DEFAULT_WLD_WORLDCHAIN = "0x2cFc85d8E48F8EAB294be644d9E25C3030863003";
-  const WLD_WORLDCHAIN = (env.WLD_WORLDCHAIN || DEFAULT_WLD_WORLDCHAIN).trim();
+function nowMs() {
+  return Date.now();
+}
 
-  // CoinGecko coin id (current)
-  const CG_COIN_ID = "worldcoin-wld";
+function toHex(n) {
+  if (typeof n === "string" && n.startsWith("0x")) return n;
+  return "0x" + Number(n).toString(16);
+}
 
-  // ERC-20 Transfer topic0
-  const TRANSFER_TOPIC0 =
-    "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
+function hexToDec(hex) {
+  if (!hex) return null;
+  return parseInt(hex, 16);
+}
+
+function clamp(n, min, max) {
+  return Math.max(min, Math.min(max, n));
+}
+
+function safeJsonParse(text) {
+  try { return JSON.parse(text); } catch { return null; }
+}
+
+async function fetchJson(url, { timeoutMs = 4500, headers = {}, signal } = {}) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, {
+      method: "GET",
+      headers,
+      signal: signal ?? ctrl.signal,
+    });
+    const text = await res.text();
+    const json = safeJsonParse(text);
+    return { ok: res.ok, status: res.status, json, text };
+  } catch (e) {
+    return { ok: false, status: 0, json: null, text: String(e?.message || e) };
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+async function rpcCall(rpcUrl, method, params, { timeoutMs = 4500 } = {}) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(rpcUrl, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: Math.floor(Math.random() * 1000), method, params }),
+      signal: ctrl.signal,
+    });
+    const text = await res.text();
+    const json = safeJsonParse(text);
+    if (!res.ok || !json) return { ok: false, status: res.status, json, text };
+    return { ok: true, status: res.status, json, text };
+  } catch (e) {
+    return { ok: false, status: 0, json: null, text: String(e?.message || e) };
+  } finally {
+    clearTimeout(t);
+  }
+}
+
+function sanitizeWorldStatusSample(sample) {
+  if (!sample || typeof sample !== "object") return sample;
+  if (Array.isArray(sample.services)) {
+    sample.services = sample.services.map((s) => {
+      if (!s || typeof s !== "object") return s;
+      const id = typeof s.id === "string" ? s.id.replaceAll('"', "").trim() : s.id;
+      return { ...s, id };
+    });
+  }
+  return sample;
+}
+
+function envPresent(env) {
+  return {
+    RPC: !!env.RPC,
+    ETHERSCAN_KEY: !!env.ETHERSCAN_KEY,
+    CG_KEY: !!env.CG_KEY,
+    WLD_WORLDCHAIN: !!env.WLD_WORLDCHAIN,
+  };
+}
+
+/**
+ * Activity definition (Phase 0):
+ * token_pct approx = unique tx with ERC20 Transfer logs / latest block tx_count
+ * No per-tx subrequests. Only:
+ * - eth_getBlockByNumber(latest,false)
+ * - eth_getLogs(from=latest,to=latest,topic=Transfer)
+ */
+async function getActivitySample(rpcUrl, latestBlockNumberHex, txCount, warnings) {
+  if (!latestBlockNumberHex || typeof txCount !== "number") {
+    return {
+      ok: false,
+      data: null,
+      reason: "missing_latest_block_or_txcount",
+    };
+  }
+
+  const logsRes = await rpcCall(rpcUrl, "eth_getLogs", [{
+    fromBlock: latestBlockNumberHex,
+    toBlock: latestBlockNumberHex,
+    topics: [TRANSFER_TOPIC],
+  }], { timeoutMs: 4500 });
+
+  if (!logsRes.ok || !logsRes.json?.result || !Array.isArray(logsRes.json.result)) {
+    warnings.push({
+      src: "rpc",
+      where: "eth_getLogs",
+      reason: "failed_or_non_array",
+    });
+    return {
+      ok: false,
+      data: null,
+      reason: "eth_getLogs_failed",
+    };
+  }
+
+  const logs = logsRes.json.result;
+  const txHashes = new Set();
+  let tokenContractSample = null;
+  for (const lg of logs) {
+    if (lg && typeof lg.transactionHash === "string") txHashes.add(lg.transactionHash);
+    if (!tokenContractSample && lg && typeof lg.address === "string") tokenContractSample = lg.address;
+  }
+
+  const uniqueTokenTxs = txHashes.size;
+  const denom = Math.max(1, txCount);
+  const tokenPct = (uniqueTokenTxs / denom) * 100;
+  const nativePct = 100 - tokenPct;
+
+  // NOTE: this is "approx" by definition; never present as exact truth.
+  const data = {
+    sample_n: txCount,
+    token_pct: tokenPct,
+    native_pct: nativePct,
+    contract_pct: null,
+    other_pct: null,
+    create_pct: null,
+    token_contract_sample: tokenContractSample,
+  };
+
+  const note = `token_pct approx = unique tx with ERC20 Transfer logs / latest block tx_count. logs=${logs.length} unique_token_txs=${uniqueTokenTxs} block=${hexToDec(latestBlockNumberHex)}`;
+
+  return { ok: true, data, note };
+}
+
+async function getRpcSection(rpcUrl, warnings) {
+  const chainIdRes = await rpcCall(rpcUrl, "eth_chainId", [], { timeoutMs: 3500 });
+  const latestRes = await rpcCall(rpcUrl, "eth_getBlockByNumber", ["latest", false], { timeoutMs: 4500 });
+  const gasPriceRes = await rpcCall(rpcUrl, "eth_gasPrice", [], { timeoutMs: 3500 });
+
+  // feeHistory is optional; failure should not fail rpc section
+  const feeHistoryRes = await rpcCall(rpcUrl, "eth_feeHistory", ["0x5", "latest", [10, 50, 90]], { timeoutMs: 4500 });
+
+  const chainIdHex = chainIdRes.ok ? chainIdRes.json?.result : null;
+  const chainIdDec = chainIdHex ? hexToDec(chainIdHex) : null;
+
+  const latest = latestRes.ok ? latestRes.json?.result : null;
+  const latestBlockHex = latest?.number ?? null;
+  const latestBlockDec = latestBlockHex ? hexToDec(latestBlockHex) : null;
+
+  const latestBlock = latest
+    ? {
+        number: latestBlockDec,
+        timestamp: latest.timestamp ? hexToDec(latest.timestamp) : null,
+        tx_count: Array.isArray(latest.transactions) ? latest.transactions.length : (latest.transactions ? latest.transactions.length : null),
+        gas_used: latest.gasUsed ? hexToDec(latest.gasUsed) : null,
+        gas_limit: latest.gasLimit ? hexToDec(latest.gasLimit) : null,
+        base_fee_per_gas: latest.baseFeePerGas ?? null,
+      }
+    : null;
+
+  const txCount = typeof latestBlock?.tx_count === "number" ? latestBlock.tx_count : null;
+
+  // Activity
+  let activity = { ok: false, data: null, note: null, reason: "not_computed" };
+  if (latestBlockHex && typeof txCount === "number") {
+    const a = await getActivitySample(rpcUrl, latestBlockHex, txCount, warnings);
+    activity = { ok: a.ok, data: a.data, note: a.note ?? null, reason: a.ok ? null : a.reason };
+  }
+
+  // Fee history shape: keep current API compatibility
+  const feeHistory = feeHistoryRes.ok ? feeHistoryRes.json?.result : null;
+  if (!feeHistoryRes.ok) {
+    warnings.push({ src: "rpc", where: "eth_feeHistory", reason: "failed_optional" });
+  }
+
+  // TPS estimate: ultra-light heuristic
+  const blockTimeAvgS = 2; // keep as your current (approx). If you later compute, document as approx.
+  const tpsEstimate = (typeof txCount === "number") ? Math.round(txCount / clamp(blockTimeAvgS, 1, 60)) : null;
+
+  return {
+    ok: !!(chainIdRes.ok && latestRes.ok && gasPriceRes.ok),
+    data: {
+      chain_id_hex: chainIdHex,
+      chain_id_dec: chainIdDec,
+      latest_block_hex: latestBlockHex,
+      latest_block_dec: latestBlockDec,
+      latest_block: latestBlock,
+      gas_price: gasPriceRes.ok ? gasPriceRes.json?.result : null,
+      fee_history: feeHistory,
+      block_time_avg_s: blockTimeAvgS,
+      tps_estimate: tpsEstimate,
+    },
+    activity, // separate internal result
+    reasons: {
+      chainId: chainIdRes.ok ? null : "eth_chainId_failed",
+      latest: latestRes.ok ? null : "eth_getBlockByNumber_failed",
+      gasPrice: gasPriceRes.ok ? null : "eth_gasPrice_failed",
+    },
+  };
+}
+
+async function getEtherscanSection({ rpcUrl, etherscanKey, warnings }) {
+  if (!etherscanKey) {
+    return { ok: false, data: null, reason: "missing_etherscan_key" };
+  }
+
+  // NOTE: Your current JSON shows "blockNumber" and "gasPrice" as JSON-RPC objects.
+  // If you are proxying JSON-RPC through Etherscan, keep it. If not, leave as null.
+  // Here we simply mirror your existing style by calling RPC directly and packaging it similarly.
+  const blockNumber = await rpcCall(rpcUrl, "eth_blockNumber", [], { timeoutMs: 3500 });
+  const gasPrice = await rpcCall(rpcUrl, "eth_gasPrice", [], { timeoutMs: 3500 });
+
+  // Token supply (WLD) via Etherscan-compatible API (optional).
+  // If your existing implementation already hits an Etherscan endpoint, keep its URL.
+  // We'll implement a generic Etherscan "token supply" call for the WLD contract address.
+  // Requires env.WLD_WORLDCHAIN = contract address, and base URL in env.ETHERSCAN_BASE (optional).
+  // If you don't have base, we will not call it.
+  return {
+    ok: true,
+    data: {
+      blockNumber: blockNumber.ok ? blockNumber.json : null,
+      gasPrice: gasPrice.ok ? gasPrice.json : null,
+      // below filled by api/summary.js using real Etherscan URL (kept there to avoid guessing base)
+    },
+    reason: null,
+    warnings: (!blockNumber.ok || !gasPrice.ok) ? ["rpc_fallback_partial"] : [],
+  };
+}
+
+async function getCoinGeckoSection({ cgKey, warnings }) {
+  // If no key, still try public endpoints (but you said env_present true anyway)
+  const headers = cgKey ? { "accept": "application/json", "x-cg-demo-api-key": cgKey } : { "accept": "application/json" };
+
+  // Use "simple price" + "market cap" + "vol" + "24h change" (your current shape)
+  const simpleUrl =
+    "https://api.coingecko.com/api/v3/simple/price?ids=worldcoin-wld&vs_currencies=usd,jpy&include_market_cap=true&include_24hr_vol=true&include_24hr_change=true";
+  const chartUrl =
+    "https://api.coingecko.com/api/v3/coins/worldcoin-wld/market_chart?vs_currency=usd&days=7&interval=hourly";
+
+  const [simpleRes, chartRes] = await Promise.all([
+    fetchJson(simpleUrl, { timeoutMs: 4500, headers }),
+    fetchJson(chartUrl, { timeoutMs: 4500, headers }),
+  ]);
+
+  const ok = simpleRes.ok && !!simpleRes.json;
+  const chartOk = chartRes.ok && !!chartRes.json;
+
+  if (!ok) warnings.push({ src: "coingecko", where: "simple/price", reason: "failed" });
+  if (!chartOk) warnings.push({ src: "coingecko", where: "market_chart", reason: "failed" });
+
+  const simple = ok ? {
+    usd: simpleRes.json["worldcoin-wld"]?.usd ?? null,
+    jpy: simpleRes.json["worldcoin-wld"]?.jpy ?? null,
+    usd_market_cap: simpleRes.json["worldcoin-wld"]?.usd_market_cap ?? null,
+    usd_24h_vol: simpleRes.json["worldcoin-wld"]?.usd_24h_vol ?? null,
+    usd_24h_change: simpleRes.json["worldcoin-wld"]?.usd_24h_change ?? null,
+    jpy_market_cap: simpleRes.json["worldcoin-wld"]?.jpy_market_cap ?? null,
+    jpy_24h_vol: simpleRes.json["worldcoin-wld"]?.jpy_24h_vol ?? null,
+    jpy_24h_change: simpleRes.json["worldcoin-wld"]?.jpy_24h_change ?? null,
+  } : null;
+
+  const chart7d_usd = chartOk ? {
+    prices: Array.isArray(chartRes.json?.prices)
+      ? chartRes.json.prices.map((p) => (Array.isArray(p) ? p[1] : null)).filter((v) => typeof v === "number")
+      : [],
+  } : { prices: [] };
+
+  return {
+    ok: !!simple,
+    mode: cgKey ? "demo" : "public",
+    coin_id: "worldcoin-wld",
+    simple,
+    chart7d_usd,
+    note: `CoinGecko ${simple ? "ok" : "failed"}. mode=${cgKey ? "demo" : "public"}. coin_id=worldcoin-wld. simple=${!!simple} markets=${chartOk}`,
+    http_status: {
+      simple: simpleRes.status,
+      markets: chartRes.status,
+    },
+  };
+}
+
+async function getWorldStatusSection(warnings) {
+  // This assumes you already have a World Status endpoint.
+  // Keep URL in env.WORLD_STATUS_URL if you have it; otherwise skip.
+  return { ok: false, http_status: 0, sample: null, reason: "missing_world_status_url" };
+}
+
+async function getWorldScanSection(warnings) {
+  // Same: keep URL in env.WORLDSCAN_HEALTH_URL if you have it; otherwise skip.
+  return { ok: false, status: 0, reason: "missing_worldscan_url" };
+}
+
+/**
+ * Main builder.
+ * Keeps your current top-level response keys to avoid breaking UI.
+ * Adds warnings/errors as structured objects for Phase 0.
+ */
+export async function buildSummary(env) {
+  const started = nowMs();
+  const warnings = [];
+  const errors = [];
+
+  const present = envPresent(env);
+
+  // RPC required
+  const rpcUrl = env.RPC;
+  if (!rpcUrl) {
+    return {
+      ok: false,
+      ts: new Date().toISOString(),
+      elapsed_ms: nowMs() - started,
+      env_present: present,
+      rpc: null,
+      etherscan: null,
+      coingecko: null,
+      activity_sample: null,
+      activity_note: null,
+      world_status: null,
+      worldscan: null,
+      errors: [{ src: "env", reason: "missing_RPC" }],
+      warnings: [],
+    };
+  }
+
+  // 1) RPC + Activity (no subrequests)
+  const rpcSection = await getRpcSection(rpcUrl, warnings);
+  const rpcData = rpcSection.data;
+
+  // Export activity in your current top-level fields
+  const activity_sample = rpcSection.activity.ok ? rpcSection.activity.data : null;
+  const activity_note = rpcSection.activity.ok ? rpcSection.activity.note : (rpcSection.activity.reason || null);
+
+  // 2) Etherscan (keep your existing object; actual token supply call done in api/summary.js to avoid guessing base URL)
+  const etherscan = {
+    blockNumber: null,
+    gasPrice: null,
+    wld_token_supply: null,
+    wld_contract: env.WLD_WORLDCHAIN || null,
+  };
+  try {
+    const bn = await rpcCall(rpcUrl, "eth_blockNumber", [], { timeoutMs: 3500 });
+    const gp = await rpcCall(rpcUrl, "eth_gasPrice", [], { timeoutMs: 3500 });
+    etherscan.blockNumber = bn.ok ? bn.json : null;
+    etherscan.gasPrice = gp.ok ? gp.json : null;
+  } catch {
+    warnings.push({ src: "etherscan", where: "rpc_mirror", reason: "failed" });
+  }
+
+  // 3) CoinGecko
+  const cg = await getCoinGeckoSection({ cgKey: env.CG_KEY, warnings });
+
+  // 4) World status / Worldscan: filled in api/summary.js if URLs exist (do not guess here)
 
   const out = {
     ok: true,
     ts: new Date().toISOString(),
-    elapsed_ms: 0,
-    env_present: {
-      RPC: !!RPC,
-      ETHERSCAN_KEY: !!ETHERSCAN_KEY,
-      CG_KEY: !!CG_KEY,
-      WLD_WORLDCHAIN: !!WLD_WORLDCHAIN,
-    },
-    rpc: {},
-    etherscan: {},
-    coingecko: {
-      ok: false,
-      mode: null,
-      coin_id: CG_COIN_ID,
-      simple: null,      // app.js expects this
-      chart7d_usd: null, // app.js expects this.prices (number[])
-      note: null,
-      http_status: null,
-    },
-    activity_sample: null, // app.js expects this
-    activity_note: null,
-    world_status: {},
-    worldscan: {},
-    errors: [],
-    warnings: [],
+    elapsed_ms: nowMs() - started,
+    env_present: present,
+
+    // keep current response shape
+    rpc: rpcData,
+    etherscan,
+    coingecko: cg,
+    activity_sample,
+    activity_note,
+
+    world_status: null,
+    worldscan: null,
+
+    errors,
+    warnings,
   };
 
-  const json = (data, status = 200) =>
-    new Response(JSON.stringify(data, null, 2), {
-      status,
-      headers: {
-        "content-type": "application/json; charset=utf-8",
-        // Phase0: 短期キャッシュ（落ちない公開優先）
-        "cache-control": "public, max-age=0, s-maxage=30",
-      },
-    });
+  return out;
+}
 
-  const withTimeout = async (fn, ms, label) => {
-    const ac = new AbortController();
-    const t = setTimeout(() => ac.abort(`timeout:${label}`), ms);
-    try {
-      return await fn(ac.signal);
-    } finally {
-      clearTimeout(t);
-    }
+export function applyWorldStatus(summary, worldStatusJson, httpStatus) {
+  const sample = worldStatusJson && typeof worldStatusJson === "object" ? sanitizeWorldStatusSample(worldStatusJson) : null;
+  summary.world_status = {
+    http_status: httpStatus ?? 0,
+    ok: !!sample,
+    sample,
   };
+  return summary;
+}
 
-  const fetchJson = async (url, init = {}, timeoutMs = 8000) => {
-    return withTimeout(async (signal) => {
-      const r = await fetch(url, { ...init, signal });
-      const text = await r.text();
-      let j = null;
-      try { j = JSON.parse(text); } catch { /* ignore */ }
-      return { status: r.status, ok: r.ok, text, json: j };
-    }, timeoutMs, `fetch:${url}`);
+export function applyWorldscan(summary, ok, status) {
+  summary.worldscan = {
+    status: status ?? 0,
+    ok: !!ok,
   };
+  return summary;
+}
 
-  const rpcCall = async (method, params = [], timeoutMs = 8000) => {
-    if (!RPC) throw new Error("Missing env RPC");
-    const body = JSON.stringify({ jsonrpc: "2.0", id: 1, method, params });
-    const { status, ok, text, json: j } = await fetchJson(
-      RPC,
-      { method: "POST", headers: { "content-type": "application/json" }, body },
-      timeoutMs
-    );
-    if (!ok) throw new Error(`RPC HTTP ${status}: ${text.slice(0, 200)}`);
-    if (!j) throw new Error(`RPC non-JSON: ${text.slice(0, 200)}`);
-    if (j.error) throw new Error(`RPC error: ${JSON.stringify(j.error)}`);
-    return j.result;
-  };
+export async function fetchWorldStatus(url) {
+  return fetchJson(url, { timeoutMs: 4500, headers: { accept: "application/json" } });
+}
 
-  const hexToInt = (h) => {
-    if (!h || h === "null") return null;
-    if (typeof h !== "string") return null;
-    return parseInt(h.startsWith("0x") ? h.slice(2) : h, 16);
-  };
+export async function fetchWorldscan(url) {
+  return fetchJson(url, { timeoutMs: 4500, headers: { accept: "application/json" } });
+}
 
-  // CoinGecko: try demo header then pro header (2 tries max)
-  const cgFetchJson = async (url, timeoutMs = 8000) => {
-    if (!CG_KEY) return { ok: false, status: 0, json: null, mode: null, text: "CG_KEY not set" };
-
-    const demo = await fetchJson(url, { headers: { "x-cg-demo-api-key": CG_KEY } }, timeoutMs);
-    if (demo.ok) return { ...demo, mode: "demo" };
-
-    const pro = await fetchJson(url, { headers: { "x-cg-pro-api-key": CG_KEY } }, timeoutMs);
-    if (pro.ok) return { ...pro, mode: "pro" };
-
-    return { ...pro, mode: "failed", text: pro.text || demo.text, json: pro.json || demo.json };
-  };
-
-  // =========================
-  // 1) CORE RPC (critical)
-  // =========================
-  let rpcHealthy = false;
-  let latestBlockObj = null;
-
-  try {
-    const chainIdHex = await rpcCall("eth_chainId");
-    out.rpc.chain_id_hex = chainIdHex;
-    out.rpc.chain_id_dec = hexToInt(chainIdHex);
-
-    const bnHex = await rpcCall("eth_blockNumber");
-    out.rpc.latest_block_hex = bnHex;
-    out.rpc.latest_block_dec = hexToInt(bnHex);
-
-    // latest block
-    latestBlockObj = await rpcCall("eth_getBlockByNumber", ["latest", false]);
-    out.rpc.latest_block = {
-      number: hexToInt(latestBlockObj?.number),
-      timestamp: hexToInt(latestBlockObj?.timestamp),
-      tx_count: Array.isArray(latestBlockObj?.transactions) ? latestBlockObj.transactions.length : null,
-      gas_used: hexToInt(latestBlockObj?.gasUsed),
-      gas_limit: hexToInt(latestBlockObj?.gasLimit),
-      base_fee_per_gas: latestBlockObj?.baseFeePerGas ?? null,
-    };
-
-    out.rpc.gas_price = await rpcCall("eth_gasPrice");
-
-    // feeHistory (optional)
-    try {
-      out.rpc.fee_history = await rpcCall("eth_feeHistory", ["0x5", "latest", [10, 50, 90]]);
-    } catch (e) {
-      out.rpc.fee_history = null;
-      out.warnings.push(`rpc:eth_feeHistory:${e.message}`);
-    }
-
-    // Avg block time (2 calls: latest vs N blocks ago)
-    try {
-      const bn = out.rpc.latest_block_dec;
-      const N = 50;
-      if (typeof bn === "number" && bn > N) {
-        const b0 = latestBlockObj;
-        const b1 = await rpcCall("eth_getBlockByNumber", ["0x" + (bn - N).toString(16), false], 12000);
-        const t0 = hexToInt(b0?.timestamp);
-        const t1 = hexToInt(b1?.timestamp);
-        if (t0 && t1 && t0 > t1) {
-          const avgDt = (t0 - t1) / N;
-          out.rpc.block_time_avg_s = avgDt;
-          const txc = out.rpc.latest_block?.tx_count;
-          out.rpc.tps_estimate = (avgDt && txc != null) ? (txc / avgDt) : null;
-        }
-      }
-    } catch (e) {
-      out.warnings.push(`rpc:block_time_estimate:${e.message}`);
-    }
-
-    rpcHealthy = true;
-  } catch (e) {
-    out.errors.push(`rpc:${e.message}`);
-  }
-
-  // =========================
-  // 2) World official status (FREE)
-  // =========================
-  try {
-    const r = await fetchJson("https://status.worldcoin.org/api/services", {}, 8000);
-    out.world_status.http_status = r.status;
-    out.world_status.ok = r.ok;
-    out.world_status.sample = r.json ? r.json : r.text.slice(0, 300);
-  } catch (e) {
-    out.warnings.push(`world_status:${e.message}`);
-  }
-
-  // =========================
-  // 3) worldscan reachability (FREE)
-  // =========================
-  try {
-    const r = await withTimeout(async (signal) => {
-      const res = await fetch("https://worldscan.org/", { method: "HEAD", signal });
-      return { status: res.status, ok: res.ok };
-    }, 8000, "worldscan_head");
-    out.worldscan = r;
-  } catch (e) {
-    out.warnings.push(`worldscan:${e.message}`);
-  }
-
-  // =========================
-  // 3.5) Activity sample (最重要: token_pct を安定して出す)
-  //  - receipt連打をやめる（subrequests削減）
-  //  - 最新ブロックの Transfer logs を eth_getLogs で1発
-  //  - token_pct = (unique tx with Transfer logs) / (block tx_count)
-  // =========================
-  try {
-    if (!rpcHealthy) throw new Error("RPC not healthy");
-
-    const blockHex = out.rpc.latest_block_hex;
-    const txCount = out.rpc.latest_block?.tx_count;
-
-    if (!blockHex || typeof txCount !== "number" || txCount <= 0) {
-      out.activity_sample = null;
-      out.activity_note = "Activity unavailable (missing latest block or tx_count).";
-    } else {
-      let logs = [];
-      try {
-        logs = await rpcCall(
-          "eth_getLogs",
-          [{
-            fromBlock: blockHex,
-            toBlock: blockHex,
-            topics: [TRANSFER_TOPIC0],
-          }],
-          12000
-        );
-      } catch (e) {
-        // fallback: 最低限だけ receipt サンプル（重いので小さく）
-        out.warnings.push(`activity_sample:getLogs_failed:${e.message}`);
-        const SAMPLE_N = 8;
-        const hashes = Array.isArray(latestBlockObj?.transactions)
-          ? latestBlockObj.transactions.slice(0, SAMPLE_N)
-          : [];
-
-        if (!hashes.length) {
-          out.activity_sample = null;
-          out.activity_note = "Activity unavailable (no tx hashes for fallback).";
-          logs = null;
-        } else {
-          const uniq = new Set();
-          let tokenContract = null;
-          for (const h of hashes) {
-            const receipt = await rpcCall("eth_getTransactionReceipt", [h], 8000);
-            const rlogs = receipt?.logs || [];
-            const hit = rlogs.find((lg) => {
-              const t = lg?.topics || [];
-              return t[0] && String(t[0]).toLowerCase() === TRANSFER_TOPIC0;
-            });
-            if (hit) {
-              uniq.add(h);
-              if (!tokenContract) tokenContract = hit.address || null;
-            }
-          }
-          const uniqueTokenTxs = uniq.size;
-          const pct = (x) => txCount ? (x * 100) / txCount : null;
-
-          out.activity_sample = {
-            sample_n: txCount,
-            token_pct: pct(uniqueTokenTxs),
-            native_pct: pct(txCount - uniqueTokenTxs), // UI側は「Non-token share」に寄せる
-            contract_pct: null,
-            other_pct: null,
-            create_pct: null,
-            token_contract_sample: tokenContract,
-          };
-
-          out.activity_note =
-            `token_pct approx = unique tx with ERC20 Transfer logs / latest block tx_count. ` +
-            `fallback_receipts_sample_n=${hashes.length} block=${hexToInt(blockHex)}`;
-          logs = null;
-        }
-      }
-
-      if (Array.isArray(logs)) {
-        const uniqTx = new Set();
-        let tokenContract = null;
-        for (const lg of logs) {
-          const th = lg?.transactionHash;
-          if (th) uniqTx.add(String(th).toLowerCase());
-          if (!tokenContract && lg?.address) tokenContract = lg.address;
-        }
-        const uniqueTokenTxs = uniqTx.size;
-        const pct = (x) => txCount ? (x * 100) / txCount : null;
-
-        out.activity_sample = {
-          sample_n: txCount,
-          token_pct: pct(uniqueTokenTxs),
-          native_pct: pct(txCount - uniqueTokenTxs), // ※非トークン割合（ラベルはUIで安全側へ）
-          contract_pct: null,
-          other_pct: null,
-          create_pct: null,
-          token_contract_sample: tokenContract,
-        };
-
-        out.activity_note =
-          `token_pct approx = unique tx with ERC20 Transfer logs / latest block tx_count. ` +
-          `logs=${logs.length} unique_token_txs=${uniqueTokenTxs} block=${hexToInt(blockHex)}`;
-      }
-    }
-  } catch (e) {
-    out.activity_sample = null;
-    out.activity_note = null;
-    out.warnings.push(`activity_sample:${e.message}`);
-  }
-
-  // =========================
-  // 4) Etherscan v2 (KEYED; optional)
-  // =========================
-  try {
-    if (ETHERSCAN_KEY) {
-      const base = "https://api.etherscan.io/v2/api?chainid=480";
-
-      const a = await fetchJson(`${base}&module=proxy&action=eth_blockNumber&apikey=${encodeURIComponent(ETHERSCAN_KEY)}`, {}, 12000);
-      const g = await fetchJson(`${base}&module=proxy&action=eth_gasPrice&apikey=${encodeURIComponent(ETHERSCAN_KEY)}`, {}, 12000);
-      out.etherscan.blockNumber = a.json || a.text;
-      out.etherscan.gasPrice = g.json || g.text;
-
-      const s = await fetchJson(
-        `${base}&module=stats&action=tokensupply&contractaddress=${encodeURIComponent(WLD_WORLDCHAIN)}&apikey=${encodeURIComponent(ETHERSCAN_KEY)}`,
-        {},
-        12000
-      );
-      out.etherscan.wld_token_supply = s.json || s.text;
-      out.etherscan.wld_contract = WLD_WORLDCHAIN;
-    } else {
-      out.etherscan.skipped = "ETHERSCAN_KEY not set";
-    }
-  } catch (e) {
-    out.warnings.push(`etherscan:${e.message}`);
-  }
-
-  // =========================
-  // 5) CoinGecko (KEYED; optional)
-  // =========================
-  try {
-    if (!CG_KEY) {
-      out.coingecko.ok = false;
-      out.coingecko.note = "CG_KEY not set";
-      out.coingecko.http_status = { simple: null, markets: null };
-    } else {
-      const simpleUrl =
-        "https://api.coingecko.com/api/v3/simple/price" +
-        `?ids=${encodeURIComponent(CG_COIN_ID)}` +
-        "&vs_currencies=usd,jpy" +
-        "&include_24hr_change=true&include_market_cap=true&include_24hr_vol=true";
-
-      const marketsUrl =
-        "https://api.coingecko.com/api/v3/coins/markets" +
-        "?vs_currency=usd" +
-        `&ids=${encodeURIComponent(CG_COIN_ID)}` +
-        "&sparkline=true&price_change_percentage=24h";
-
-      const simpleRes = await cgFetchJson(simpleUrl, 12000);
-      const marketsRes = await cgFetchJson(marketsUrl, 12000);
-
-      const mode = simpleRes.ok ? simpleRes.mode : (marketsRes.ok ? marketsRes.mode : "failed");
-      out.coingecko.mode = mode;
-
-      const simpleRoot = simpleRes.json || null;
-      const simple = (simpleRoot && simpleRoot[CG_COIN_ID]) ? simpleRoot[CG_COIN_ID] : null;
-      const markets = (Array.isArray(marketsRes.json) && marketsRes.json[0]) ? marketsRes.json[0] : null;
-
-      if (simple || markets) {
-        const s = {
-          usd: simple?.usd ?? (markets?.current_price ?? null),
-          jpy: simple?.jpy ?? null,
-          usd_market_cap: simple?.usd_market_cap ?? (markets?.market_cap ?? null),
-          usd_24h_vol: simple?.usd_24h_vol ?? (markets?.total_volume ?? null),
-          usd_24h_change: (simple?.usd_24h_change ?? null) ?? (markets?.price_change_percentage_24h ?? null),
-          jpy_market_cap: simple?.jpy_market_cap ?? null,
-          jpy_24h_vol: simple?.jpy_24h_vol ?? null,
-          jpy_24h_change: simple?.jpy_24h_change ?? null,
-        };
-
-        const prices = Array.isArray(markets?.sparkline_in_7d?.price) ? markets.sparkline_in_7d.price : null;
-
-        out.coingecko.ok = true;
-        out.coingecko.simple = s;
-        out.coingecko.chart7d_usd = prices ? { prices } : null;
-        out.coingecko.note = `CoinGecko ok. mode=${mode}. coin_id=${CG_COIN_ID}. simple=${!!simple} markets=${!!markets}`;
-      } else {
-        out.coingecko.ok = false;
-        out.coingecko.note = `CoinGecko failed. simple_http=${simpleRes.status} markets_http=${marketsRes.status} coin_id=${CG_COIN_ID}`;
-      }
-
-      out.coingecko.http_status = {
-        simple: simpleRes.status || null,
-        markets: marketsRes.status || null,
-      };
-    }
-  } catch (e) {
-    out.coingecko.ok = false;
-    out.coingecko.note = null;
-    out.warnings.push(`coingecko:${e.message}`);
-  }
-
-  out.elapsed_ms = Date.now() - startedAt;
-
-  // Overall ok: RPCが死んでる時だけ false にする（warnings では落とさない）
-  if (!rpcHealthy) out.ok = false;
-
-  return json(out, 200);
+export async function fetchEtherscanTokenSupply({ baseUrl, apiKey, contract }) {
+  if (!baseUrl || !apiKey || !contract) return { ok: false, status: 0, json: null, text: "missing_params" };
+  const u = new URL(baseUrl);
+  // Etherscan-style: ?module=stats&action=tokensupply&contractaddress=...&apikey=...
+  // If your explorer differs, keep baseUrl pointing to the correct endpoint host.
+  u.searchParams.set("module", "stats");
+  u.searchParams.set("action", "tokensupply");
+  u.searchParams.set("contractaddress", contract);
+  u.searchParams.set("apikey", apiKey);
+  return fetchJson(u.toString(), { timeoutMs: 4500, headers: { accept: "application/json" } });
 }
