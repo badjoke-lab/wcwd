@@ -6,16 +6,12 @@ import {
   fetchWorldStatus,
   fetchWorldscan,
   fetchEtherscanTokenSupply,
-  finalizeOk, // ★追加：ok再計算
+  finalizeStatus, // ★ ok/partial/error を最終確定
 } from "../../lib/summary.js";
 
 export async function onRequestGet({ env }) {
   const summary = await buildSummary(env);
 
-  // --- Optional: World Status / Worldscan (only if URLs exist) ---
-  // Set these env vars if you want them enabled without code changes:
-  // - WORLD_STATUS_URL
-  // - WORLDSCAN_HEALTH_URL
   const tasks = [];
 
   if (env.WORLD_STATUS_URL) {
@@ -30,7 +26,6 @@ export async function onRequestGet({ env }) {
       })()
     );
   } else {
-    // keep predictable shape
     summary.world_status = { http_status: 0, ok: false, sample: null };
   }
 
@@ -46,11 +41,6 @@ export async function onRequestGet({ env }) {
     summary.worldscan = { status: 0, ok: false };
   }
 
-  // --- Optional: Token supply via Etherscan-style API ---
-  // To enable, set:
-  // - ETHERSCAN_BASE_URL (full base URL like https://api.<explorer>/api)
-  // - ETHERSCAN_KEY
-  // - WLD_WORLDCHAIN (contract address)
   if (env.ETHERSCAN_BASE_URL && env.ETHERSCAN_KEY && env.WLD_WORLDCHAIN) {
     tasks.push(
       (async () => {
@@ -71,13 +61,11 @@ export async function onRequestGet({ env }) {
     if (summary.etherscan) summary.etherscan.wld_token_supply = summary.etherscan.wld_token_supply ?? null;
   }
 
-  // Run optional fetches concurrently, but never fail the whole response
   await Promise.allSettled(tasks);
 
-  // ★ここが最重要：warnings/errorsが増えた後に ok を再計算する
-  finalizeOk(summary);
+  // ★ warnings で ok=false にしない。status/degraded を確定する。
+  finalizeStatus(summary);
 
-  // Phase 0 cache (CDN-side)
   const headers = new Headers();
   headers.set("content-type", "application/json; charset=utf-8");
   headers.set("cache-control", "public, max-age=0, s-maxage=30, stale-while-revalidate=60");
