@@ -6,6 +6,7 @@ import {
   fetchWorldStatus,
   fetchWorldscan,
   fetchEtherscanTokenSupply,
+  finalizeOk, // ★追加：ok再計算
 } from "../../lib/summary.js";
 
 export async function onRequestGet({ env }) {
@@ -67,12 +68,14 @@ export async function onRequestGet({ env }) {
       })()
     );
   } else {
-    // keep existing key but null
     if (summary.etherscan) summary.etherscan.wld_token_supply = summary.etherscan.wld_token_supply ?? null;
   }
 
   // Run optional fetches concurrently, but never fail the whole response
   await Promise.allSettled(tasks);
+
+  // ★ここが最重要：warnings/errorsが増えた後に ok を再計算する
+  finalizeOk(summary);
 
   // Phase 0 cache (CDN-side)
   const headers = new Headers();
