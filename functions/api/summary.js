@@ -11,32 +11,34 @@ import {
 export async function onRequestGet({ env }) {
   const summary = await buildSummary(env);
 
-  // Optional fetches must NEVER break the whole response
+  // --- Optional: World Status / Worldscan (only if URLs exist) ---
+  // Enable by setting env vars:
+  // - WORLD_STATUS_URL
+  // - WORLDSCAN_HEALTH_URL
   const tasks = [];
 
-  // --- Optional: World Status ---
   if (env.WORLD_STATUS_URL) {
     tasks.push(
       (async () => {
         const r = await fetchWorldStatus(env.WORLD_STATUS_URL);
         if (r.ok && r.json) applyWorldStatus(summary, r.json, r.status);
         else {
-          summary.warnings.push({ src: "world_status", where: "fetch", reason: r.text || "failed" });
+          summary.warnings.push({ src: "world_status", where: "fetch", reason: r.text || `failed (status=${r.status ?? 0})` });
           summary.world_status = { http_status: r.status ?? 0, ok: false, sample: null };
         }
       })()
     );
   } else {
+    // keep predictable shape
     summary.world_status = { http_status: 0, ok: false, sample: null };
   }
 
-  // --- Optional: Worldscan Health ---
   if (env.WORLDSCAN_HEALTH_URL) {
     tasks.push(
       (async () => {
         const r = await fetchWorldscan(env.WORLDSCAN_HEALTH_URL);
         applyWorldscan(summary, r.ok, r.status);
-        if (!r.ok) summary.warnings.push({ src: "worldscan", where: "fetch", reason: r.text || "failed" });
+        if (!r.ok) summary.warnings.push({ src: "worldscan", where: "fetch", reason: r.text || `failed (status=${r.status ?? 0})` });
       })()
     );
   } else {
@@ -44,6 +46,10 @@ export async function onRequestGet({ env }) {
   }
 
   // --- Optional: Token supply via Etherscan-style API ---
+  // To enable, set:
+  // - ETHERSCAN_BASE_URL (full base URL like https://api.<explorer>/api)
+  // - ETHERSCAN_KEY
+  // - WLD_WORLDCHAIN (contract address)
   if (env.ETHERSCAN_BASE_URL && env.ETHERSCAN_KEY && env.WLD_WORLDCHAIN) {
     tasks.push(
       (async () => {
@@ -55,7 +61,7 @@ export async function onRequestGet({ env }) {
         if (r.ok && r.json) {
           summary.etherscan.wld_token_supply = r.json;
         } else {
-          summary.warnings.push({ src: "etherscan", where: "tokensupply", reason: r.text || "failed" });
+          summary.warnings.push({ src: "etherscan", where: "tokensupply", reason: r.text || `failed (status=${r.status ?? 0})` });
           summary.etherscan.wld_token_supply = null;
         }
       })()
@@ -64,6 +70,7 @@ export async function onRequestGet({ env }) {
     if (summary.etherscan) summary.etherscan.wld_token_supply = summary.etherscan.wld_token_supply ?? null;
   }
 
+  // Run optional fetches concurrently, but never fail the whole response
   await Promise.allSettled(tasks);
 
   // Phase 0 cache (CDN-side)
