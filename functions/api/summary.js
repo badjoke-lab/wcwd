@@ -12,7 +12,7 @@ export async function onRequestGet({ env }) {
   const summary = await buildSummary(env);
 
   // --- Optional: World Status / Worldscan (only if URLs exist) ---
-  // Enable by setting env vars:
+  // Set these env vars if you want them enabled without code changes:
   // - WORLD_STATUS_URL
   // - WORLDSCAN_HEALTH_URL
   const tasks = [];
@@ -23,10 +23,10 @@ export async function onRequestGet({ env }) {
         const r = await fetchWorldStatus(env.WORLD_STATUS_URL);
         if (r.ok && r.json) applyWorldStatus(summary, r.json, r.status);
         else {
-          summary.warnings.push({ src: "world_status", where: "fetch", reason: r.text || `failed (status=${r.status ?? 0})` });
+          summary.warnings.push({ src: "world_status", where: "fetch", reason: r.text || "failed" });
           summary.world_status = { http_status: r.status ?? 0, ok: false, sample: null };
         }
-      })()
+      })(),
     );
   } else {
     // keep predictable shape
@@ -38,8 +38,8 @@ export async function onRequestGet({ env }) {
       (async () => {
         const r = await fetchWorldscan(env.WORLDSCAN_HEALTH_URL);
         applyWorldscan(summary, r.ok, r.status);
-        if (!r.ok) summary.warnings.push({ src: "worldscan", where: "fetch", reason: r.text || `failed (status=${r.status ?? 0})` });
-      })()
+        if (!r.ok) summary.warnings.push({ src: "worldscan", where: "fetch", reason: r.text || "failed" });
+      })(),
     );
   } else {
     summary.worldscan = { status: 0, ok: false };
@@ -61,10 +61,14 @@ export async function onRequestGet({ env }) {
         if (r.ok && r.json) {
           summary.etherscan.wld_token_supply = r.json;
         } else {
-          summary.warnings.push({ src: "etherscan", where: "tokensupply", reason: r.text || `failed (status=${r.status ?? 0})` });
+          summary.warnings.push({
+            src: "etherscan",
+            where: "tokensupply",
+            reason: `${r.text || "failed"} (status=${r.status ?? 0})`,
+          });
           summary.etherscan.wld_token_supply = null;
         }
-      })()
+      })(),
     );
   } else {
     if (summary.etherscan) summary.etherscan.wld_token_supply = summary.etherscan.wld_token_supply ?? null;
@@ -73,7 +77,16 @@ export async function onRequestGet({ env }) {
   // Run optional fetches concurrently, but never fail the whole response
   await Promise.allSettled(tasks);
 
-  // Phase 0 cache (CDN-side)
+  // IMPORTANT: recompute status flags after optional tasks
+  const degraded = (summary.errors && summary.errors.length) || (summary.warnings && summary.warnings.length);
+  const status = summary.ok
+    ? (degraded ? "partial" : "ok")
+    : "error";
+
+  summary.status = status;
+  summary.degraded = !!degraded;
+
+  // Cache (CDN-side)
   const headers = new Headers();
   headers.set("content-type", "application/json; charset=utf-8");
   headers.set("cache-control", "public, max-age=0, s-maxage=30, stale-while-revalidate=60");
