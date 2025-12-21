@@ -1,0 +1,11 @@
+name = "wcwd-history"
+main = "src/worker.js"
+compatibility_date = "2025-12-20"
+
+# Cron: 5 minutes
+[triggers]
+crons = ["*/5 * * * *"]
+
+[[kv_namespaces]]
+binding = "HIST"
+id = "REPLACE_WITH_YOUR_KV_NAMESPACE_ID"
