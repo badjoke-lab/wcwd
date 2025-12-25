@@ -1,252 +1,287 @@
-const $ = (sel) => document.querySelector(sel);
+/* WCWD frontend (static) — uses History Worker /api/latest and /api/list */
 
-function setText(sel, v) {
-  const el = $(sel);
-  if (!el) return;
-  el.textContent = (v === undefined || v === null || v === "") ? "—" : String(v);
+const HISTORY_BASE = (() => {
+  const meta = document.querySelector('meta[name="wcwd-history-base"]');
+  const v = meta?.getAttribute("content")?.trim();
+  return v || "https://wcwd-history.badjoke-lab.workers.dev";
+})();
+
+// 15min cron => 24h ~= 96 points
+const DAY_POINTS_DEFAULT = 96;
+const HISTORY_LIMIT = DAY_POINTS_DEFAULT;
+
+const UI = {
+  status: document.getElementById("status"),
+  reload: document.getElementById("reload"),
+
+  tps: document.getElementById("tps"),
+  tx24h: document.getElementById("tx24h"),
+  gasPrice: document.getElementById("gasPrice"),
+
+  wldUsd: document.getElementById("wldUsd"),
+  wldJpy: document.getElementById("wldJpy"),
+  wldChg24h: document.getElementById("wldChg24h"),
+  wldMc: document.getElementById("wldMc"),
+  wldVol: document.getElementById("wldVol"),
+  wldSpark7d: document.getElementById("wldSpark7d"),
+  chartWld7d: document.getElementById("chartWld7d"),
+
+  pctToken: document.getElementById("pctToken"),
+  pctNative: document.getElementById("pctNative"),
+  pctContract: document.getElementById("pctContract"),
+  pctOther: document.getElementById("pctOther"),
+  actNote: document.getElementById("actNote"),
+
+  sparkTps: document.getElementById("sparkTps"),
+  sparkGas: document.getElementById("sparkGas"),
+  sparkWld: document.getElementById("sparkWld"),
+  sparkToken: document.getElementById("sparkToken"),
+  noteHistory: document.getElementById("noteHistory"),
+
+  alertSpike: document.getElementById("alertSpike"),
+  alertDrop: document.getElementById("alertDrop"),
+  alertHighGas: document.getElementById("alertHighGas"),
+
+  raw: document.getElementById("raw"),
+  errors: document.getElementById("errors"),
+};
+
+function isLocalMode() {
+  const h = location.hostname;
+  return h === "localhost" || h === "127.0.0.1" || h === "" || location.protocol === "file:";
 }
 
-function setNote(sel, v) {
-  const el = $(sel);
-  if (!el) return;
-  el.textContent = v ? String(v) : "";
-}
-
-function hexToInt(h) {
-  if (!h || typeof h !== "string") return null;
-  if (!h.startsWith("0x")) return Number(h);
-  return parseInt(h, 16);
-}
-
-function fmtNum(n) {
+function fmtNum(n, digits = 0) {
   if (n === null || n === undefined || Number.isNaN(n)) return "—";
-  const x = Number(n);
-  if (!Number.isFinite(x)) return "—";
-  if (Math.abs(x) >= 1e9) return (x / 1e9).toFixed(2) + "B";
-  if (Math.abs(x) >= 1e6) return (x / 1e6).toFixed(2) + "M";
-  if (Math.abs(x) >= 1e3) return (x / 1e3).toFixed(2) + "K";
-  if (Math.abs(x) < 1) return x.toPrecision(4);
-  return x.toLocaleString(undefined, { maximumFractionDigits: 4 });
+  return new Intl.NumberFormat(undefined, { maximumFractionDigits: digits }).format(n);
 }
 
-function sparkline(nums, width = 24) {
-  const arr = (nums || []).filter(n => typeof n === "number" && Number.isFinite(n));
-  if (arr.length < 2) return "—";
-  const blocks = "▁▂▃▄▅▆▇█";
-  const min = Math.min(...arr);
-  const max = Math.max(...arr);
-  const span = max - min || 1;
-  const step = Math.max(1, Math.floor(arr.length / width));
-  let out = "";
-  for (let i = 0; i < arr.length; i += step) {
-    const v = arr[i];
-    const idx = Math.max(0, Math.min(7, Math.floor(((v - min) / span) * 7)));
-    out += blocks[idx];
+function fmtUsd(n, digits = 6) {
+  if (n === null || n === undefined || Number.isNaN(n)) return "—";
+  return `$${Number(n).toFixed(digits)}`;
+}
+
+function fmtJpy(n, digits = 2) {
+  if (n === null || n === undefined || Number.isNaN(n)) return "—";
+  return `¥${Number(n).toFixed(digits)}`;
+}
+
+function pct(n, digits = 2) {
+  if (n === null || n === undefined || Number.isNaN(n)) return "—";
+  return `${Number(n).toFixed(digits)}%`;
+}
+
+async function fetchJson(url, { timeoutMs = 8000 } = {}) {
+  const ctrl = new AbortController();
+  const t = setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { signal: ctrl.signal, headers: { accept: "application/json" } });
+    if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
+    return await res.json();
+  } finally {
+    clearTimeout(t);
   }
-  return out;
 }
 
-// ---- local samples (NOT dummy): stored in browser only ----
-function pushSample(key, v, max = 240) {
-  const k = "wcwd_" + key;
-  const arr = JSON.parse(localStorage.getItem(k) || "[]");
-  arr.push({ t: Date.now(), v });
-  while (arr.length > max) arr.shift();
-  localStorage.setItem(k, JSON.stringify(arr));
-  return arr;
+function setError(err) {
+  const msg = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+  UI.errors.textContent = msg;
 }
 
-function filterWindow(arr, ms) {
-  const now = Date.now();
-  return (arr || []).filter(o => o && typeof o.t === "number" && (now - o.t) <= ms);
+function clearError() {
+  UI.errors.textContent = "—";
 }
 
-function avgOf(arr) {
-  const xs = (arr || []).map(o => Number(o.v)).filter(n => Number.isFinite(n));
-  if (!xs.length) return null;
-  return xs.reduce((a, b) => a + b, 0) / xs.length;
+function drawSparkline(canvas, series) {
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return;
+
+  const w = canvas.width;
+  const h = canvas.height;
+
+  ctx.clearRect(0, 0, w, h);
+
+  const arr = (series || []).filter((v) => typeof v === "number" && Number.isFinite(v));
+  if (arr.length < 2) {
+    ctx.globalAlpha = 0.35;
+    ctx.fillText("—", 8, Math.floor(h / 2));
+    ctx.globalAlpha = 1.0;
+    return;
+  }
+
+  let min = Math.min(...arr);
+  let max = Math.max(...arr);
+  if (min === max) {
+    min = min - 1;
+    max = max + 1;
+  }
+
+  const padX = 2;
+  const padY = 6;
+  const xStep = (w - padX * 2) / (arr.length - 1);
+
+  const yOf = (v) => {
+    const t = (v - min) / (max - min);
+    return h - padY - t * (h - padY * 2);
+  };
+
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = "#111";
+  ctx.beginPath();
+  for (let i = 0; i < arr.length; i++) {
+    const x = padX + i * xStep;
+    const y = yOf(arr[i]);
+    if (i === 0) ctx.moveTo(x, y);
+    else ctx.lineTo(x, y);
+  }
+  ctx.stroke();
 }
 
-function lastOf(arr) {
-  if (!arr || !arr.length) return null;
-  const v = Number(arr[arr.length - 1].v);
-  return Number.isFinite(v) ? v : null;
+function avg(nums) {
+  const a = (nums || []).filter((v) => typeof v === "number" && Number.isFinite(v));
+  if (!a.length) return null;
+  return a.reduce((s, v) => s + v, 0) / a.length;
 }
 
-function decisionBadge(ok) {
-  return ok ? "YES" : "NO";
+function median(nums) {
+  const a = (nums || []).filter((v) => typeof v === "number" && Number.isFinite(v)).sort((x, y) => x - y);
+  if (!a.length) return null;
+  const mid = Math.floor(a.length / 2);
+  return a.length % 2 ? a[mid] : (a[mid - 1] + a[mid]) / 2;
 }
 
-function formatIssue(x) {
-  if (!x) return "";
-  if (typeof x === "string") return x;
-  // expected shapes: {src, where, reason} or {src, reason} etc.
-  const src = x.src ? String(x.src) : "unknown";
-  const where = x.where ? String(x.where) : "";
-  const reason = x.reason ? String(x.reason) : (x.message ? String(x.message) : "");
-  const parts = [];
-  parts.push(src + (where ? `:${where}` : ""));
-  if (reason) parts.push(reason);
-  return parts.join(" ");
+function estimateIntervalMinutes(hist) {
+  // Use last up to 20 gaps, median
+  if (!Array.isArray(hist) || hist.length < 3) return 15;
+
+  const tail = hist.slice(Math.max(0, hist.length - 25));
+  const diffs = [];
+  for (let i = 1; i < tail.length; i++) {
+    const a = Date.parse(tail[i - 1]?.ts);
+    const b = Date.parse(tail[i]?.ts);
+    if (Number.isFinite(a) && Number.isFinite(b) && b > a) {
+      diffs.push((b - a) / 60000);
+    }
+  }
+
+  const m = median(diffs);
+  if (!m) return 15;
+
+  // clamp (just in case)
+  return Math.max(1, Math.min(120, m));
 }
 
-function formatIssues(title, arr) {
-  if (!Array.isArray(arr) || !arr.length) return "";
-  const lines = arr.map(formatIssue).filter(Boolean);
-  return `${title} (${lines.length})\n` + lines.join("\n");
+function renderAlerts(latest, hist) {
+  // Compare latest vs avg of recent history (excluding latest)
+  const intervalMin = estimateIntervalMinutes(hist);
+  const pointsFor3h = Math.max(4, Math.round((3 * 60) / intervalMin)); // keep some minimum
+
+  const seriesTps = hist.map((x) => x.tps).filter(Number.isFinite);
+  const seriesGas = hist.map((x) => x.gas_gwei).filter(Number.isFinite);
+
+  const baseTps = avg(seriesTps.slice(Math.max(0, seriesTps.length - pointsFor3h - 1), Math.max(0, seriesTps.length - 1)));
+  const baseGas = avg(seriesGas.slice(Math.max(0, seriesGas.length - pointsFor3h - 1), Math.max(0, seriesGas.length - 1)));
+
+  const curTps = latest?.tps;
+  const curGas = latest?.gas_gwei;
+
+  if (baseTps && Number.isFinite(curTps)) {
+    const ratio = curTps / baseTps;
+    UI.alertSpike.textContent = ratio >= 1.25 ? `⚠︎ ${fmtNum(curTps, 0)} (avg ${fmtNum(baseTps, 0)})` : "—";
+    UI.alertDrop.textContent = ratio <= 0.75 ? `⚠︎ ${fmtNum(curTps, 0)} (avg ${fmtNum(baseTps, 0)})` : "—";
+  } else {
+    UI.alertSpike.textContent = "—";
+    UI.alertDrop.textContent = "—";
+  }
+
+  if (baseGas && Number.isFinite(curGas)) {
+    UI.alertHighGas.textContent = curGas >= baseGas * 1.5 ? `⚠︎ ${fmtNum(curGas, 6)} (avg ${fmtNum(baseGas, 6)})` : "—";
+  } else {
+    UI.alertHighGas.textContent = "—";
+  }
 }
 
-async function load() {
-  setText("#status", "loading...");
-  setText("#errors", "—");
+function setStatusText(histOk) {
+  if (isLocalMode()) UI.status.textContent = histOk ? "LOCAL (history-only)" : "LOCAL (no history)";
+  else UI.status.textContent = histOk ? "OK" : "DEGRADED";
+}
+
+async function loadAll() {
+  clearError();
+  UI.raw.textContent = "—";
+  setStatusText(false);
+
+  const errors = [];
+
+  // History (server observed)
+  let hist = [];
+  let latest = null;
 
   try {
-    const r = await fetch("/api/summary", { cache: "no-store" });
-    const j = await r.json().catch(() => null);
-    if (!r.ok || !j) throw new Error(`HTTP ${r.status}`);
+    hist = await fetchJson(`${HISTORY_BASE}/api/list?limit=${encodeURIComponent(String(HISTORY_LIMIT))}`, { timeoutMs: 8000 });
+    latest = await fetchJson(`${HISTORY_BASE}/api/latest`, { timeoutMs: 8000 });
+    setStatusText(true);
 
-    // Status: OK / PARTIAL / ERROR
-    const hasErr = Array.isArray(j.errors) && j.errors.length > 0;
-    const hasWarn = Array.isArray(j.warnings) && j.warnings.length > 0;
-    const okFlag = !!j.ok;
-
-    setText("#status", (okFlag && !hasErr) ? "OK" : "PARTIAL");
-
-    // Raw/debug
-    setText("#raw", JSON.stringify(j, null, 2));
-
-    // Errors+Warnings panel (no [object Object])
-    const errText = formatIssues("errors", j.errors);
-    const warnText = formatIssues("warnings", j.warnings);
-    const combined = [errText, warnText].filter(Boolean).join("\n\n");
-    setText("#errors", combined || "—");
-
-    // 1) Network
-    const tps = j.rpc?.tps_estimate ?? null;
-    setText("#tps", tps != null ? fmtNum(tps) : "—");
-    setText("#tx24h", tps != null ? fmtNum(tps * 86400) : "—");
-
-    const gasWei = hexToInt(j.rpc?.gas_price);
-    const gasGwei = gasWei != null ? gasWei / 1e9 : null;
-    setText("#gasPrice", gasGwei != null ? `${fmtNum(gasGwei)} gwei` : "—");
-
-    // Indexer無しだと取れないので N/A を明示（仕様）
-    setText("#newAddr24h", "N/A");
-    setNote("#newAddrNote", "Needs an indexer API (not available in this build).");
-    setText("#totalAddr", "N/A");
-    setNote("#totalAddrNote", "Needs an indexer API (not available in this build).");
-
-    // 2) WLD Market
-    const cg = j.coingecko || {};
-    if (cg.ok && cg.simple) {
-      const s = cg.simple;
-      setText("#wldUsd", s.usd != null ? `$${fmtNum(s.usd)}` : "—");
-      setText("#wldJpy", s.jpy != null ? `¥${fmtNum(s.jpy)}` : "—");
-      setText("#wldChg24h", s.usd_24h_change != null ? `${fmtNum(s.usd_24h_change)}%` : "—");
-      setText("#wldMc", s.usd_market_cap != null ? `$${fmtNum(s.usd_market_cap)}` : "—");
-      setText("#wldVol", s.usd_24h_vol != null ? `$${fmtNum(s.usd_24h_vol)}` : "—");
-
-      const prices = cg.chart7d_usd?.prices || [];
-      setText("#wldSpark7d", prices.length ? sparkline(prices) : "—");
-      setText("#chartWld7d", prices.length ? sparkline(prices, 40) : "—");
-
-      setNote("#cgNote", `CoinGecko: ${cg.coin_id || "?"} / mode=${cg.mode || "?"}`);
-    } else {
-      setText("#wldUsd", "—");
-      setText("#wldJpy", "—");
-      setText("#wldChg24h", "—");
-      setText("#wldMc", "—");
-      setText("#wldVol", "—");
-      setText("#wldSpark7d", "—");
-      setText("#chartWld7d", "—");
-      setNote("#cgNote", cg.note || "CoinGecko: unavailable");
-    }
-
-    // 3) Activity (latest block approx)
-    const act = j.activity_sample || null;
-    if (act) {
-      setText("#pctNative", act.native_pct != null ? `${fmtNum(act.native_pct)}%` : "—");
-      setText("#pctContract", act.contract_pct != null ? `${fmtNum(act.contract_pct)}%` : "—");
-      setText("#pctOther", act.other_pct != null ? `${fmtNum(act.other_pct)}%` : "—");
-
-      setText("#pctToken", act.token_pct != null ? `${fmtNum(act.token_pct)}%` : "—");
-      setNote(
-        "#pctTokenNote",
-        act.token_pct != null
-          ? "Approx: latest-block token-tx share (unique tx with ERC-20 Transfer logs / block tx_count)."
-          : "Token share unavailable in this build."
-      );
-
-      setNote("#actNote", j.activity_note || "Activity computed from latest block (approx).");
-    } else {
-      setText("#pctNative", "—");
-      setText("#pctContract", "—");
-      setText("#pctOther", "—");
-      setText("#pctToken", "—");
-      setNote("#pctTokenNote", "Activity sample unavailable.");
-      setNote("#actNote", "Activity sample unavailable.");
-    }
-
-    // 4) Trend Charts
-    // WLD 7d is from CoinGecko; TX 7d: LOCAL OBSERVED trend (not global)
-    const SEVEN_DAYS = 7 * 24 * 3600 * 1000;
-    if (tps != null) {
-      const tpsSamples = pushSample("tps", tps, 240);
-      const win = filterWindow(tpsSamples, SEVEN_DAYS);
-      const series = win.map(o => Number(o.v)).filter(n => Number.isFinite(n));
-      setText("#chartTx7d", series.length >= 2 ? sparkline(series, 40) : "—");
-      setNote(
-        "#chartTxNote",
-        series.length >= 2
-          ? `Local observed TPS trend (samples=${series.length}).`
-          : "Local TX trend: need more samples (reload a few times)."
-      );
-    } else {
-      setText("#chartTx7d", "—");
-      setNote("#chartTxNote", "TX trend unavailable (TPS missing).");
-    }
-
-    // 5) Alerts (local rolling avg)
-    const MIN_BASE = 3; // need at least 3 prior points to judge
-
-    if (tps != null) {
-      const all = JSON.parse(localStorage.getItem("wcwd_tps") || "[]");
-      const last = lastOf(all);
-      const prior = all.slice(0, Math.max(0, all.length - 1));
-      const priorAvg = avgOf(prior);
-
-      if (prior.length < MIN_BASE || priorAvg == null || last == null) {
-        setText("#alertSpike", "WAIT");
-        setText("#alertDrop", "WAIT");
-      } else {
-        setText("#alertSpike", decisionBadge(last > priorAvg * 1.4));
-        setText("#alertDrop", decisionBadge(last < priorAvg * 0.7));
-      }
-    } else {
-      setText("#alertSpike", "—");
-      setText("#alertDrop", "—");
-    }
-
-    if (gasGwei != null) {
-      const updated = pushSample("gas", gasGwei, 240);
-      const last = lastOf(updated);
-      const prior = updated.slice(0, Math.max(0, updated.length - 1));
-      const priorAvg = avgOf(prior);
-
-      if (prior.length < MIN_BASE || priorAvg == null || last == null) {
-        setText("#alertHighGas", "WAIT");
-      } else {
-        setText("#alertHighGas", decisionBadge(last > priorAvg * 1.5));
-      }
-    } else {
-      setText("#alertHighGas", "—");
-    }
-
+    const intervalMin = estimateIntervalMinutes(hist);
+    UI.noteHistory.textContent = `History OK. points=${hist.length} (~${fmtNum(intervalMin, 0)} min interval) source=${HISTORY_BASE}`;
   } catch (e) {
-    setText("#status", "ERROR");
-    setText("#errors", String(e && e.message ? e.message : e));
+    errors.push(`History fetch failed: ${(e && e.message) ? e.message : String(e)}`);
+    UI.noteHistory.textContent = `History fetch failed. source=${HISTORY_BASE}`;
+    setStatusText(false);
   }
+
+  // Render from history latest
+  try {
+    if (latest) {
+      UI.tps.textContent = fmtNum(latest.tps, 0);
+      UI.tx24h.textContent = latest.tps ? fmtNum(latest.tps * 86400, 0) : "—";
+
+      // gas_gwei is usually tiny (0.00x). Keep high precision.
+      UI.gasPrice.textContent = fmtNum(latest.gas_gwei, 9);
+
+      UI.wldUsd.textContent = latest.wld_usd != null ? fmtUsd(latest.wld_usd, 6) : "—";
+      UI.wldJpy.textContent = latest.wld_jpy != null ? fmtJpy(latest.wld_jpy, 2) : "—";
+
+      // change/mcap/vol/sparkline are not in history snapshot -> leave as "—"
+      UI.wldChg24h.textContent = "—";
+      UI.wldMc.textContent = "—";
+      UI.wldVol.textContent = "—";
+      UI.wldSpark7d.textContent = "—";
+      UI.chartWld7d.textContent = "—";
+
+      // Activity (approx from snapshot)
+      const tokenPct = latest.token_pct;
+      const nativePct = latest.native_pct;
+      UI.pctToken.textContent = tokenPct != null ? pct(tokenPct, 3) : "—";
+      UI.pctNative.textContent = nativePct != null ? pct(nativePct, 3) : "—";
+
+      // contract/other not available in history snapshots
+      UI.pctContract.textContent = "—";
+      UI.pctOther.textContent = "—";
+
+      UI.raw.textContent = JSON.stringify({ latest, hist_head: hist.slice(0, 3) }, null, 2);
+    }
+  } catch (e) {
+    errors.push(`Render failed: ${(e && e.message) ? e.message : String(e)}`);
+  }
+
+  // Trends charts + alerts
+  try {
+    if (hist && hist.length) {
+      drawSparkline(UI.sparkTps, hist.map((x) => x.tps));
+      drawSparkline(UI.sparkGas, hist.map((x) => x.gas_gwei));
+      drawSparkline(UI.sparkWld, hist.map((x) => x.wld_usd));
+      drawSparkline(UI.sparkToken, hist.map((x) => x.token_pct));
+      renderAlerts(latest, hist);
+    }
+  } catch (e) {
+    errors.push(`Sparkline failed: ${(e && e.message) ? e.message : String(e)}`);
+  }
+
+  if (errors.length) setError(new Error(errors.join("\n")));
 }
 
-$("#reload")?.addEventListener("click", load);
-load();
+UI.reload?.addEventListener("click", () => loadAll());
+
+loadAll();

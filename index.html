@@ -1,11 +1,14 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
   <title>WCWD — World Chain / WLD Dashboard</title>
-  <meta name="description" content="World Chain quick dashboard: gas, TPS, WLD price, and latest-block activity sample (Phase 0)." />
+  <meta name="description" content="World Chain quick dashboard: server-observed history (Workers Cron + KV) + Phase 0 best-effort metrics." />
+
+  <!-- ✅ History Worker base (frontend fetches from here) -->
+  <meta name="wcwd-history-base" content="https://wcwd-history.badjoke-lab.workers.dev" />
 
   <link rel="stylesheet" href="./style.css" />
 </head>
@@ -14,7 +17,9 @@
   <main class="wrap">
     <header class="hero">
       <h1>WCWD — World Chain / WLD Dashboard</h1>
+
       <p class="lead">Phase 0: RPC + optional APIs (Etherscan / CoinGecko). No indexer. No wallet connect.</p>
+      <p class="lead">✅ History: Cloudflare Workers Cron + KV (server-side sampling, every 15 min).</p>
 
       <div class="actions">
         <button id="reload" type="button">Reload</button>
@@ -40,20 +45,20 @@
         </div>
 
         <div class="metric">
-          <div class="k">Gas Price</div>
+          <div class="k">Gas Price (gwei)</div>
           <div class="v" id="gasPrice">—</div>
         </div>
 
         <div class="metric">
           <div class="k">New addresses (24h)</div>
-          <div class="v" id="newAddr24h">—</div>
-          <div class="n" id="newAddrNote"></div>
+          <div class="v" id="newAddr24h">N/A</div>
+          <div class="n" id="newAddrNote">History-only: no indexer.</div>
         </div>
 
         <div class="metric">
           <div class="k">Total addresses</div>
-          <div class="v" id="totalAddr">—</div>
-          <div class="n" id="totalAddrNote"></div>
+          <div class="v" id="totalAddr">N/A</div>
+          <div class="n" id="totalAddrNote">History-only: no indexer.</div>
         </div>
       </div>
     </section>
@@ -74,6 +79,7 @@
         <div class="metric">
           <div class="k">24h change</div>
           <div class="v" id="wldChg24h">—</div>
+          <div class="n" id="cgNote">Local mode: /api/summary unavailable (static). Showing history-only signals.</div>
         </div>
 
         <div class="metric">
@@ -92,8 +98,6 @@
         </div>
       </div>
 
-      <div class="note" id="cgNote"></div>
-
       <div class="mini">
         <div class="k">WLD 7d (sparkline)</div>
         <div class="v mono" id="chartWld7d">—</div>
@@ -102,13 +106,12 @@
 
     <section class="card">
       <h2>Activity (latest block sample)</h2>
-      <p class="muted">Approximation based on latest block logs. Not a full-chain breakdown.</p>
+      <p class="muted">Approximation based on server sampling (no indexer).</p>
 
       <div class="grid">
         <div class="metric">
           <div class="k">Token-tx share (approx)</div>
           <div class="v" id="pctToken">—</div>
-          <div class="n" id="pctTokenNote"></div>
         </div>
 
         <div class="metric">
@@ -127,23 +130,42 @@
         </div>
       </div>
 
-      <div class="note" id="actNote"></div>
+      <div class="note" id="actNote">Local mode: activity sample is from server history only.</div>
     </section>
 
     <section class="card">
-      <h2>Trends (local observed)</h2>
-      <p class="muted">These are local samples stored in your browser (localStorage). Reload multiple times to build a trend.</p>
+      <h2>Trends (server observed)</h2>
+      <p class="muted">
+        These trends come from Workers Cron sampling and KV storage (not “who viewed the page”).
+        Default: every 15 minutes. (1 day ≈ 96 points)
+      </p>
 
       <div class="mini">
-        <div class="k">Tx 7d (local)</div>
-        <div class="v mono" id="chartTx7d">—</div>
-        <div class="n" id="chartTxNote"></div>
+        <div class="k">TPS (24h)</div>
+        <canvas id="sparkTps" width="720" height="48" style="width:100%;height:48px;border-radius:10px;background:#fff;"></canvas>
       </div>
+
+      <div class="mini">
+        <div class="k">Gas (24h, gwei)</div>
+        <canvas id="sparkGas" width="720" height="48" style="width:100%;height:48px;border-radius:10px;background:#fff;"></canvas>
+      </div>
+
+      <div class="mini">
+        <div class="k">WLD USD (24h)</div>
+        <canvas id="sparkWld" width="720" height="48" style="width:100%;height:48px;border-radius:10px;background:#fff;"></canvas>
+      </div>
+
+      <div class="mini">
+        <div class="k">Token-tx share (24h, approx)</div>
+        <canvas id="sparkToken" width="720" height="48" style="width:100%;height:48px;border-radius:10px;background:#fff;"></canvas>
+      </div>
+
+      <div class="note" id="noteHistory">—</div>
     </section>
 
     <section class="card">
-      <h2>Alerts (local rolling average)</h2>
-      <p class="muted">Alerts compare the latest value vs the average of previous samples. Need a few samples first.</p>
+      <h2>Alerts (vs recent average)</h2>
+      <p class="muted">Alerts compare the latest value vs the average of recent history points (server-side KV samples).</p>
 
       <div class="grid">
         <div class="metric">
@@ -175,7 +197,7 @@
       </details>
 
       <p class="muted">
-        Phase 0 limitations: no indexer, no historical chain-wide breakdown. Token share is “latest-block token-tx share (approx)”.
+        Phase 0 limitations: no indexer, no historical chain-wide breakdown. Token share is “sample-based token-tx share (approx)”.
       </p>
     </section>
   </main>

@@ -2,10 +2,10 @@ name = "wcwd-history"
 main = "src/worker.js"
 compatibility_date = "2025-12-20"
 
-# Cron: 5 minutes
+# Cron: every 15 minutes
 [triggers]
-crons = ["*/5 * * * *"]
+crons = ["*/15 * * * *"]
 
 [[kv_namespaces]]
 binding = "HIST"
-id = "REPLACE_WITH_YOUR_KV_NAMESPACE_ID"
+id = "a1a3ac7eaf344ae7b4f6c989d4249033"

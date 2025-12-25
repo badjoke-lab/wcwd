@@ -1,248 +1,250 @@
-// wcwd-history Worker
-// - Cron: fetch summary JSON from your Pages endpoint (or any URL)
-// - Store compact samples into KV (daily bucket)
-// - Expose HTTP API for history read: /history?days=7
+/**
+ * WCWD History Worker (KV saver edition)
+ *
+ * KV keys:
+ * - snap:latest                 -> latest snapshot (json object)
+ * - snap:day:YYYY-MM-DD          -> snapshots for that UTC day (json array)
+ *
+ * API:
+ * - GET  /api/latest
+ * - GET  /api/list?limit=96
+ * - POST /run        (manual run)
+ * - GET  /health
+ */
 
-export default {
-  async fetch(request, env, ctx) {
-    const url = new URL(request.url);
+const DEFAULT_LIMIT = 96;          // 15min * 24h = 96 points
+const MAX_LIMIT = 2000;            // safety
+const DAY_BUCKET_MAX = 3000;       // per-day cap to avoid unbounded growth
+const FETCH_TIMEOUT_MS = 9000;
 
-    if (url.pathname === "/health") {
-      return json({ ok: true, ts: new Date().toISOString() });
-    }
-
-    if (url.pathname === "/history") {
-      // GET /history?days=7
-      const days = clampInt(url.searchParams.get("days"), 1, 30, 7);
-      const out = await readHistory(env, days);
-      return json(out, {
-        "cache-control": "public, max-age=0, s-maxage=30, stale-while-revalidate=60",
-      });
-    }
-
-    return json({ ok: false, error: "Not found" }, {}, 404);
-  },
-
-  async scheduled(event, env, ctx) {
-    ctx.waitUntil(runCron(env));
-  },
-};
-
-function json(obj, headers = {}, status = 200) {
-  return new Response(JSON.stringify(obj, null, 2), {
-    status,
-    headers: {
-      "content-type": "application/json; charset=utf-8",
-      ...headers,
-    },
-  });
-}
-
-function clampInt(v, min, max, fallback) {
-  const n = Number(v);
-  if (!Number.isFinite(n)) return fallback;
-  return Math.max(min, Math.min(max, Math.floor(n)));
-}
-
-function dayKeyUTC(ms) {
-  const d = new Date(ms);
-  // YYYY-MM-DD in UTC
-  const y = d.getUTCFullYear();
-  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
-  const dd = String(d.getUTCDate()).padStart(2, "0");
-  return `${y}-${m}-${dd}`;
-}
-
-function round(n, digits = 6) {
-  const x = Number(n);
-  if (!Number.isFinite(x)) return null;
-  const p = Math.pow(10, digits);
-  return Math.round(x * p) / p;
-}
-
-function pickWarnFlags(summary) {
-  const wf = [];
-  const w = Array.isArray(summary?.warnings) ? summary.warnings : [];
-  for (const item of w) {
-    const src = item?.src;
-    const where = item?.where;
-    const reason = String(item?.reason || "");
-    // coingecko
-    if (src === "coingecko" && where === "simple/price") wf.push("cg_simple_failed");
-    if (src === "coingecko" && where === "market_chart") {
-      // try to extract status code
-      if (reason.includes("401")) wf.push("cg_chart_401");
-      else if (reason.includes("400")) wf.push("cg_chart_400");
-      else wf.push("cg_chart_failed");
-    }
-  }
-  return wf;
-}
-
-function deriveStatus(summary) {
-  // Your API sometimes returns:
-  // - ok:boolean (old)
-  // - ok:true + status:"partial" + degraded:true (new)
-  // normalize:
-  if (!summary) return "error";
-  if (summary.ok === false) return "error";
-  const st = typeof summary.status === "string" ? summary.status : null;
-  if (st === "partial") return "partial";
-  return "ok";
-}
-
-async function runCron(env) {
-  // IMPORTANT: set SUMMARY_URL to your Pages endpoint /api/summary
-  // Example: https://<your-site>.pages.dev/api/summary
-  const summaryUrl = env.SUMMARY_URL;
-  if (!summaryUrl) {
-    // no env => can't do cron
-    await env.HIST.put("last_cron_error", JSON.stringify({
-      ts: new Date().toISOString(),
-      error: "missing SUMMARY_URL",
-    }));
-    return;
-  }
-
-  const started = Date.now();
-  let summary = null;
-  let fetchError = null;
-
-  try {
-    const r = await fetch(summaryUrl, { cf: { cacheTtl: 0, cacheEverything: false } });
-    const j = await r.json().catch(() => null);
-    if (!r.ok || !j) throw new Error(`summary fetch failed: HTTP ${r.status}`);
-    summary = j;
-  } catch (e) {
-    fetchError = String(e?.message || e);
-  }
-
-  const now = Date.now();
-  const key = `hist:${dayKeyUTC(now)}`;
-
-  if (!summary) {
-    // record a tiny failure sample so gaps are visible
-    const sample = {
-      t: now,
-      st: "error",
-      blk: null,
-      tps: null,
-      gas: null,
-      wld: null,
-      mc: null,
-      vol: null,
-      tok: null,
-      wf: ["cron_fetch_failed"],
-    };
-    await appendSample(env, key, sample);
-    await env.HIST.put("last_cron_error", JSON.stringify({
-      ts: new Date().toISOString(),
-      error: fetchError || "unknown",
-      elapsed_ms: Date.now() - started,
-    }));
-    return;
-  }
-
-  // --- Build compact sample ---
-  const st = deriveStatus(summary);
-
-  const blk = summary?.rpc?.latest_block_dec ?? null;
-  const tps = summary?.rpc?.tps_estimate ?? null;
-
-  const gasWeiHex = summary?.rpc?.gas_price ?? null;
-  const gasWei = hexToInt(gasWeiHex);
-  const gasGwei = gasWei != null ? gasWei / 1e9 : null;
-
-  const cg = summary?.coingecko || {};
-  const wldUsd = cg?.simple?.usd ?? null;
-  const mcUsd = cg?.simple?.usd_market_cap ?? null;
-  const volUsd = cg?.simple?.usd_24h_vol ?? null;
-
-  const tokPct = summary?.activity_sample?.token_pct ?? null;
-
-  const sample = {
-    t: now,
-    st,
-    blk: (typeof blk === "number" ? blk : null),
-    tps: (typeof tps === "number" ? tps : null),
-    gas: (gasGwei != null ? round(gasGwei, 6) : null),
-    wld: (wldUsd != null ? round(wldUsd, 8) : null),
-    mc: (mcUsd != null ? round(mcUsd, 2) : null),
-    vol: (volUsd != null ? round(volUsd, 2) : null),
-    tok: (tokPct != null ? round(tokPct, 4) : null),
-    wf: pickWarnFlags(summary),
+function corsHeaders(origin = "*") {
+  return {
+    "access-control-allow-origin": origin,
+    "access-control-allow-headers": "content-type,authorization",
+    "access-control-allow-methods": "GET,POST,OPTIONS",
+    "access-control-max-age": "86400",
+    "vary": "Origin",
   };
-
-  await appendSample(env, key, sample);
-
-  // helpful meta
-  await env.HIST.put("last_cron_ok", JSON.stringify({
-    ts: new Date().toISOString(),
-    key,
-    st,
-    elapsed_ms: Date.now() - started,
-  }));
 }
 
-function hexToInt(h) {
-  if (!h || typeof h !== "string") return null;
-  if (h.startsWith("0x")) {
-    const n = parseInt(h, 16);
-    return Number.isFinite(n) ? n : null;
+function json(data, init = {}) {
+  const headers = new Headers(init.headers || {});
+  headers.set("content-type", "application/json; charset=utf-8");
+  headers.set("cache-control", "no-store");
+  const ch = corsHeaders(headers.get("origin") || "*");
+  for (const [k, v] of Object.entries(ch)) headers.set(k, v);
+  return new Response(JSON.stringify(data, null, 2), { ...init, headers });
+}
+
+function text(s, init = {}) {
+  const headers = new Headers(init.headers || {});
+  headers.set("content-type", "text/plain; charset=utf-8");
+  headers.set("cache-control", "no-store");
+  const ch = corsHeaders(headers.get("origin") || "*");
+  for (const [k, v] of Object.entries(ch)) headers.set(k, v);
+  return new Response(s, { ...init, headers });
+}
+
+function clampInt(n, min, max, fallback) {
+  const x = Number(n);
+  if (!Number.isFinite(x)) return fallback;
+  return Math.max(min, Math.min(max, Math.floor(x)));
+}
+
+function utcDayKeyFromIso(isoTs) {
+  // isoTs example: 2025-12-23T16:15:18.866Z
+  const day = String(isoTs).slice(0, 10); // UTC day
+  return `snap:day:${day}`;
+}
+
+async function fetchWithTimeout(url, init = {}, timeoutMs = FETCH_TIMEOUT_MS) {
+  const controller = new AbortController();
+  const t = setTimeout(() => controller.abort("timeout"), timeoutMs);
+  try {
+    const res = await fetch(url, { ...init, signal: controller.signal });
+    return res;
+  } finally {
+    clearTimeout(t);
   }
-  const n = Number(h);
+}
+
+function hexToInt(hex) {
+  if (hex == null) return null;
+  if (typeof hex !== "string") return null;
+  if (!hex.startsWith("0x")) return null;
+  const n = parseInt(hex, 16);
   return Number.isFinite(n) ? n : null;
 }
 
-async function appendSample(env, dayKey, sample) {
-  const raw = await env.HIST.get(dayKey);
-  let arr = [];
-  if (raw) {
-    try { arr = JSON.parse(raw); } catch { arr = []; }
+async function safeJson(res) {
+  try {
+    return await res.json();
+  } catch {
+    return null;
   }
-  if (!Array.isArray(arr)) arr = [];
-
-  arr.push(sample);
-
-  // retention inside the day bucket: cap to avoid KV object blow-up
-  // 5-min interval => 288/day. keep 400 just in case.
-  while (arr.length > 400) arr.shift();
-
-  await env.HIST.put(dayKey, JSON.stringify(arr));
 }
 
-async function readHistory(env, days) {
-  const now = Date.now();
-  const dayKeys = [];
-  for (let i = 0; i < days; i++) {
-    const ms = now - i * 24 * 3600 * 1000;
-    dayKeys.push(`hist:${dayKeyUTC(ms)}`);
-  }
+function buildSnapshot(j, httpStatus) {
+  const ok = !!j && typeof j === "object" ? (j.ok ?? null) : null;
 
-  const buckets = await Promise.all(dayKeys.map(async (k) => {
-    const raw = await env.HIST.get(k);
-    if (!raw) return { key: k, samples: [] };
-    try {
-      const arr = JSON.parse(raw);
-      return { key: k, samples: Array.isArray(arr) ? arr : [] };
-    } catch {
-      return { key: k, samples: [] };
-    }
-  }));
+  const tps = j?.rpc?.tps_estimate ?? null;
 
-  // flatten and sort by time
-  const samples = buckets.flatMap(b => b.samples).filter(s => s && typeof s.t === "number");
-  samples.sort((a, b) => a.t - b.t);
+  const gasHex = j?.rpc?.gas_price ?? null;
+  const gasWei = hexToInt(gasHex);
+  const gasGwei = gasWei != null ? gasWei / 1e9 : null;
 
-  // quick summary for UI
-  const last = samples.length ? samples[samples.length - 1] : null;
+  const tokenPct = j?.activity_sample?.token_pct ?? null;
+  const nativePct = j?.activity_sample?.native_pct ?? null;
+
+  const wldUsd = j?.coingecko?.simple?.usd ?? null;
+  const wldJpy = j?.coingecko?.simple?.jpy ?? null;
 
   return {
-    ok: true,
-    ts: new Date().toISOString(),
-    days,
-    sample_count: samples.length,
-    last,
-    samples,
+    summary_http_status: httpStatus,
+    summary_ok: ok,
+    tps,
+    gas_gwei: gasGwei,
+    token_pct: tokenPct,
+    native_pct: nativePct,
+    wld_usd: wldUsd,
+    wld_jpy: wldJpy,
   };
 }
+
+async function runOnce(env) {
+  const ts = new Date().toISOString();
+
+  let httpStatus = 0;
+  let j = null;
+
+  try {
+    const res = await fetchWithTimeout(env.SUMMARY_URL, { method: "GET" }, FETCH_TIMEOUT_MS);
+    httpStatus = res.status;
+    j = await safeJson(res);
+  } catch (e) {
+    httpStatus = 0;
+    j = null;
+  }
+
+  const snap = { ts, ...buildSnapshot(j, httpStatus) };
+
+  // --- KV saver: only 2 writes per run ---
+  const dayKey = utcDayKeyFromIso(ts);
+
+  // read current day bucket (1 read), append, cap, write back (1 write)
+  let dayArr = [];
+  try {
+    const raw = await env.HIST.get(dayKey);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) dayArr = parsed;
+    }
+  } catch {
+    dayArr = [];
+  }
+
+  dayArr.push(snap);
+
+  // keep last DAY_BUCKET_MAX points
+  if (dayArr.length > DAY_BUCKET_MAX) {
+    dayArr = dayArr.slice(dayArr.length - DAY_BUCKET_MAX);
+  }
+
+  // write day bucket + latest
+  await env.HIST.put(dayKey, JSON.stringify(dayArr));
+  await env.HIST.put("snap:latest", JSON.stringify(snap));
+
+  return snap;
+}
+
+async function getLatest(env) {
+  const raw = await env.HIST.get("snap:latest");
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+async function getDay(env, dayKey) {
+  const raw = await env.HIST.get(dayKey);
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function utcDayKey(offsetDays = 0) {
+  const d = new Date();
+  d.setUTCDate(d.getUTCDate() + offsetDays);
+  const day = d.toISOString().slice(0, 10);
+  return `snap:day:${day}`;
+}
+
+async function getRecentList(env, limit) {
+  // Combine today + yesterday to cover last 24h even if interval is coarse
+  const [today, yday] = await Promise.all([
+    getDay(env, utcDayKey(0)),
+    getDay(env, utcDayKey(-1)),
+  ]);
+
+  const merged = yday.concat(today);
+
+  // sort by ts ascending (safe even if out-of-order)
+  merged.sort((a, b) => String(a.ts).localeCompare(String(b.ts)));
+
+  // return last N
+  if (merged.length <= limit) return merged;
+  return merged.slice(merged.length - limit);
+}
+
+export default {
+  async fetch(request, env) {
+    const url = new URL(request.url);
+    const { pathname } = url;
+
+    // CORS preflight
+    if (request.method === "OPTIONS") {
+      return new Response(null, { status: 204, headers: corsHeaders("*") });
+    }
+
+    if (pathname === "/health") {
+      return json({ ok: true, ts: new Date().toISOString() });
+    }
+
+    if (pathname === "/run") {
+      if (request.method !== "POST") return text("Method Not Allowed", { status: 405 });
+      const snap = await runOnce(env);
+      return json({ ok: true, snap });
+    }
+
+    if (pathname === "/api/latest") {
+      if (request.method !== "GET") return text("Method Not Allowed", { status: 405 });
+      const latest = await getLatest(env);
+      if (!latest) return json({ error: "not_found" }, { status: 404 });
+      return json(latest);
+    }
+
+    if (pathname === "/api/list") {
+      if (request.method !== "GET") return text("Method Not Allowed", { status: 405 });
+
+      const limit = clampInt(url.searchParams.get("limit"), 1, MAX_LIMIT, DEFAULT_LIMIT);
+      const list = await getRecentList(env, limit);
+      return json(list);
+    }
+
+    return text("Not Found", { status: 404 });
+  },
+
+  async scheduled(_event, env, ctx) {
+    ctx.waitUntil(
+      (async () => {
+        await runOnce(env);
+      })()
+    );
+  },
+};
