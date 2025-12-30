@@ -130,55 +130,80 @@ async function runOnce(env) {
   if (httpStatus === 0) return null;
 
   const snap = buildSnapshot(j, httpStatus);
+  let list = await safeLoadList(env);
+  const seed = await safeLoadLatest(env);
 
-  let list = [];
-  try {
-    const raw = await env.HIST.get("snap:list");
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) list = parsed;
-    }
-  } catch {
-    list = [];
+  if (list.length === 0 && seed && shouldAppendSnapshot(list, seed)) {
+    list.push(seed);
   }
 
-  list.push(snap);
+  if (shouldAppendSnapshot(list, snap)) {
+    list.push(snap);
+  }
 
   if (list.length > MAX_POINTS) {
     list = list.slice(list.length - MAX_POINTS);
   }
 
   await env.HIST.put("snap:list", JSON.stringify(list));
+  await env.HIST.put("snap:latest", JSON.stringify(snap));
 
   return snap;
 }
 
-async function getList(env) {
-  const raw = await env.HIST.get("snap:list");
+function shouldAppendSnapshot(list, snap) {
+  if (!snap || typeof snap !== "object") return false;
+  const last = list[list.length - 1];
+  if (last?.ts && snap.ts && last.ts === snap.ts) return false;
+  return true;
+}
+
+async function safeLoadList(env) {
+  let raw = null;
+  try {
+    raw = await env.HIST.get("snap:list");
+  } catch (error) {
+    console.error("Failed to read snap:list from KV", error);
+    return [];
+  }
   if (!raw) return [];
   try {
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
+    if (!Array.isArray(parsed)) return [];
+    return parsed;
+  } catch (error) {
+    console.error("Failed to parse snap:list JSON", error);
     return [];
   }
 }
 
-async function getLatestSnapshot(env) {
-  const list = await getList(env);
-  if (list.length) return list[list.length - 1];
-  const raw = await env.HIST.get("snap:latest");
+async function safeLoadLatest(env) {
+  let raw = null;
+  try {
+    raw = await env.HIST.get("snap:latest");
+  } catch (error) {
+    console.error("Failed to read snap:latest from KV", error);
+    return null;
+  }
   if (!raw) return null;
   try {
-    return JSON.parse(raw);
-  } catch {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+    return parsed;
+  } catch (error) {
+    console.error("Failed to parse snap:latest JSON", error);
     return null;
   }
 }
 
-async function getRecentList(env, limit) {
-  const list = await getList(env);
+async function getLatestSnapshot(env) {
+  const list = await safeLoadList(env);
+  if (list.length) return list[list.length - 1];
+  return safeLoadLatest(env);
+}
 
+async function getRecentList(env, limit) {
+  const list = await safeLoadList(env);
   if (list.length <= limit) return list;
   return list.slice(list.length - limit);
 }
