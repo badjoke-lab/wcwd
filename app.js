@@ -1,4 +1,4 @@
-/* WCWD frontend (static) — uses History Worker /api/latest and /api/list */
+/* WCWD frontend (static) — uses History Worker /api/list */
 
 const HISTORY_BASE = (() => {
   const meta = document.querySelector('meta[name="wcwd-history-base"]');
@@ -6,9 +6,7 @@ const HISTORY_BASE = (() => {
   return v || "https://wcwd-history.badjoke-lab.workers.dev";
 })();
 
-// 15min cron => 24h ~= 96 points
-const DAY_POINTS_DEFAULT = 96;
-const HISTORY_LIMIT = DAY_POINTS_DEFAULT;
+const DEFAULT_INTERVAL_MIN = 15;
 
 const UI = {
   status: document.getElementById("status"),
@@ -71,13 +69,14 @@ function pct(n, digits = 2) {
   return `${Number(n).toFixed(digits)}%`;
 }
 
-async function fetchJson(url, { timeoutMs = 8000 } = {}) {
+async function fetchHistoryList(url, { timeoutMs = 8000 } = {}) {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
     const res = await fetch(url, { signal: ctrl.signal, headers: { accept: "application/json" } });
     if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
-    return await res.json();
+    const json = await res.json();
+    return { json, headers: res.headers };
   } finally {
     clearTimeout(t);
   }
@@ -144,37 +143,8 @@ function avg(nums) {
   return a.reduce((s, v) => s + v, 0) / a.length;
 }
 
-function median(nums) {
-  const a = (nums || []).filter((v) => typeof v === "number" && Number.isFinite(v)).sort((x, y) => x - y);
-  if (!a.length) return null;
-  const mid = Math.floor(a.length / 2);
-  return a.length % 2 ? a[mid] : (a[mid - 1] + a[mid]) / 2;
-}
-
-function estimateIntervalMinutes(hist) {
-  // Use last up to 20 gaps, median
-  if (!Array.isArray(hist) || hist.length < 3) return 15;
-
-  const tail = hist.slice(Math.max(0, hist.length - 25));
-  const diffs = [];
-  for (let i = 1; i < tail.length; i++) {
-    const a = Date.parse(tail[i - 1]?.ts);
-    const b = Date.parse(tail[i]?.ts);
-    if (Number.isFinite(a) && Number.isFinite(b) && b > a) {
-      diffs.push((b - a) / 60000);
-    }
-  }
-
-  const m = median(diffs);
-  if (!m) return 15;
-
-  // clamp (just in case)
-  return Math.max(1, Math.min(120, m));
-}
-
-function renderAlerts(latest, hist) {
+function renderAlerts(latest, hist, intervalMin) {
   // Compare latest vs avg of recent history (excluding latest)
-  const intervalMin = estimateIntervalMinutes(hist);
   const pointsFor3h = Math.max(4, Math.round((3 * 60) / intervalMin)); // keep some minimum
 
   const seriesTps = hist.map((x) => x.tps).filter(Number.isFinite);
@@ -217,14 +187,25 @@ async function loadAll() {
   // History (server observed)
   let hist = [];
   let latest = null;
+  let meta = null;
+  let intervalMin = DEFAULT_INTERVAL_MIN;
 
   try {
-    hist = await fetchJson(`${HISTORY_BASE}/api/list?limit=${encodeURIComponent(String(HISTORY_LIMIT))}`, { timeoutMs: 8000 });
-    latest = await fetchJson(`${HISTORY_BASE}/api/latest`, { timeoutMs: 8000 });
+    const { json, headers } = await fetchHistoryList(`${HISTORY_BASE}/api/list`, { timeoutMs: 8000 });
+    const headerInterval = Number(headers.get("x-wcwd-interval-min"));
+    intervalMin = Number.isFinite(headerInterval) && headerInterval > 0 ? headerInterval : DEFAULT_INTERVAL_MIN;
+
+    if (Array.isArray(json)) {
+      hist = json;
+    } else {
+      hist = json?.items || json?.data || [];
+      meta = json?.meta ?? null;
+    }
+    latest = hist[hist.length - 1] || null;
     setStatusText(true);
 
-    const intervalMin = estimateIntervalMinutes(hist);
-    UI.noteHistory.textContent = `History OK. points=${hist.length} (~${fmtNum(intervalMin, 0)} min interval) source=${HISTORY_BASE}`;
+    const pointsPerDay = Math.round((24 * 60) / intervalMin);
+    UI.noteHistory.textContent = `History OK. points=${pointsPerDay} (~${fmtNum(intervalMin, 0)} min interval) source=${HISTORY_BASE}`;
   } catch (e) {
     errors.push(`History fetch failed: ${(e && e.message) ? e.message : String(e)}`);
     UI.noteHistory.textContent = `History fetch failed. source=${HISTORY_BASE}`;
@@ -260,7 +241,16 @@ async function loadAll() {
       UI.pctContract.textContent = "—";
       UI.pctOther.textContent = "—";
 
-      UI.raw.textContent = JSON.stringify({ latest, hist_head: hist.slice(0, 3) }, null, 2);
+      UI.raw.textContent = JSON.stringify(
+        {
+          latest,
+          hist_head: hist.slice(0, 3),
+          intervalMin,
+          meta,
+        },
+        null,
+        2,
+      );
     }
   } catch (e) {
     errors.push(`Render failed: ${(e && e.message) ? e.message : String(e)}`);
@@ -273,7 +263,7 @@ async function loadAll() {
       drawSparkline(UI.sparkGas, hist.map((x) => x.gas_gwei));
       drawSparkline(UI.sparkWld, hist.map((x) => x.wld_usd));
       drawSparkline(UI.sparkToken, hist.map((x) => x.token_pct));
-      renderAlerts(latest, hist);
+      renderAlerts(latest, hist, intervalMin);
     }
   } catch (e) {
     errors.push(`Sparkline failed: ${(e && e.message) ? e.message : String(e)}`);
