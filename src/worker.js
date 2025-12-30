@@ -2,8 +2,8 @@
  * WCWD History Worker (KV saver edition)
  *
  * KV keys:
- * - snap:latest                 -> latest snapshot (json object)
- * - snap:day:YYYY-MM-DD          -> snapshots for that UTC day (json array)
+ * - snap:list                   -> recent snapshots (json array, capped)
+ * - snap:latest                 -> latest snapshot (json object, optional)
  *
  * API:
  * - GET  /api/latest
@@ -12,9 +12,9 @@
  * - GET  /health
  */
 
-const DEFAULT_LIMIT = 96;          // 15min * 24h = 96 points
-const MAX_LIMIT = 2000;            // safety
-const DAY_BUCKET_MAX = 3000;       // per-day cap to avoid unbounded growth
+const INTERVAL_MIN = 15;
+const MAX_POINTS = 96;             // 15min * 24h = 96 points
+const DEFAULT_LIMIT = MAX_POINTS;
 const FETCH_TIMEOUT_MS = 9000;
 
 function corsHeaders(origin = "*") {
@@ -27,20 +27,28 @@ function corsHeaders(origin = "*") {
   };
 }
 
-function json(data, init = {}) {
+function json(data, init = {}, corsOrigin = "*") {
   const headers = new Headers(init.headers || {});
-  headers.set("content-type", "application/json; charset=utf-8");
-  headers.set("cache-control", "no-store");
-  const ch = corsHeaders(headers.get("origin") || "*");
+  if (!headers.has("content-type")) {
+    headers.set("content-type", "application/json; charset=utf-8");
+  }
+  if (!headers.has("cache-control")) {
+    headers.set("cache-control", "no-store");
+  }
+  const ch = corsHeaders(corsOrigin);
   for (const [k, v] of Object.entries(ch)) headers.set(k, v);
   return new Response(JSON.stringify(data, null, 2), { ...init, headers });
 }
 
-function text(s, init = {}) {
+function text(s, init = {}, corsOrigin = "*") {
   const headers = new Headers(init.headers || {});
-  headers.set("content-type", "text/plain; charset=utf-8");
-  headers.set("cache-control", "no-store");
-  const ch = corsHeaders(headers.get("origin") || "*");
+  if (!headers.has("content-type")) {
+    headers.set("content-type", "text/plain; charset=utf-8");
+  }
+  if (!headers.has("cache-control")) {
+    headers.set("cache-control", "no-store");
+  }
+  const ch = corsHeaders(corsOrigin);
   for (const [k, v] of Object.entries(ch)) headers.set(k, v);
   return new Response(s, { ...init, headers });
 }
@@ -49,12 +57,6 @@ function clampInt(n, min, max, fallback) {
   const x = Number(n);
   if (!Number.isFinite(x)) return fallback;
   return Math.max(min, Math.min(max, Math.floor(x)));
-}
-
-function utcDayKeyFromIso(isoTs) {
-  // isoTs example: 2025-12-23T16:15:18.866Z
-  const day = String(isoTs).slice(0, 10); // UTC day
-  return `snap:day:${day}`;
 }
 
 async function fetchWithTimeout(url, init = {}, timeoutMs = FETCH_TIMEOUT_MS) {
@@ -100,6 +102,7 @@ function buildSnapshot(j, httpStatus) {
   const wldJpy = j?.coingecko?.simple?.jpy ?? null;
 
   return {
+    ts: new Date().toISOString(),
     summary_http_status: httpStatus,
     summary_ok: ok,
     tps,
@@ -112,8 +115,6 @@ function buildSnapshot(j, httpStatus) {
 }
 
 async function runOnce(env) {
-  const ts = new Date().toISOString();
-
   let httpStatus = 0;
   let j = null;
 
@@ -126,49 +127,34 @@ async function runOnce(env) {
     j = null;
   }
 
-  const snap = { ts, ...buildSnapshot(j, httpStatus) };
+  if (httpStatus === 0) return null;
 
-  // --- KV saver: only 2 writes per run ---
-  const dayKey = utcDayKeyFromIso(ts);
+  const snap = buildSnapshot(j, httpStatus);
 
-  // read current day bucket (1 read), append, cap, write back (1 write)
-  let dayArr = [];
+  let list = [];
   try {
-    const raw = await env.HIST.get(dayKey);
+    const raw = await env.HIST.get("snap:list");
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) dayArr = parsed;
+      if (Array.isArray(parsed)) list = parsed;
     }
   } catch {
-    dayArr = [];
+    list = [];
   }
 
-  dayArr.push(snap);
+  list.push(snap);
 
-  // keep last DAY_BUCKET_MAX points
-  if (dayArr.length > DAY_BUCKET_MAX) {
-    dayArr = dayArr.slice(dayArr.length - DAY_BUCKET_MAX);
+  if (list.length > MAX_POINTS) {
+    list = list.slice(list.length - MAX_POINTS);
   }
 
-  // write day bucket + latest
-  await env.HIST.put(dayKey, JSON.stringify(dayArr));
-  await env.HIST.put("snap:latest", JSON.stringify(snap));
+  await env.HIST.put("snap:list", JSON.stringify(list));
 
   return snap;
 }
 
-async function getLatest(env) {
-  const raw = await env.HIST.get("snap:latest");
-  if (!raw) return null;
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
-}
-
-async function getDay(env, dayKey) {
-  const raw = await env.HIST.get(dayKey);
+async function getList(env) {
+  const raw = await env.HIST.get("snap:list");
   if (!raw) return [];
   try {
     const parsed = JSON.parse(raw);
@@ -178,66 +164,70 @@ async function getDay(env, dayKey) {
   }
 }
 
-function utcDayKey(offsetDays = 0) {
-  const d = new Date();
-  d.setUTCDate(d.getUTCDate() + offsetDays);
-  const day = d.toISOString().slice(0, 10);
-  return `snap:day:${day}`;
+async function getLatestSnapshot(env) {
+  const list = await getList(env);
+  if (list.length) return list[list.length - 1];
+  const raw = await env.HIST.get("snap:latest");
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
 }
 
 async function getRecentList(env, limit) {
-  // Combine today + yesterday to cover last 24h even if interval is coarse
-  const [today, yday] = await Promise.all([
-    getDay(env, utcDayKey(0)),
-    getDay(env, utcDayKey(-1)),
-  ]);
+  const list = await getList(env);
 
-  const merged = yday.concat(today);
-
-  // sort by ts ascending (safe even if out-of-order)
-  merged.sort((a, b) => String(a.ts).localeCompare(String(b.ts)));
-
-  // return last N
-  if (merged.length <= limit) return merged;
-  return merged.slice(merged.length - limit);
+  if (list.length <= limit) return list;
+  return list.slice(list.length - limit);
 }
 
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    const origin = request.headers.get("origin") || "*";
     const { pathname } = url;
 
     // CORS preflight
     if (request.method === "OPTIONS") {
-      return new Response(null, { status: 204, headers: corsHeaders("*") });
+      return new Response(null, { status: 200, headers: corsHeaders("*") });
     }
 
     if (pathname === "/health") {
-      return json({ ok: true, ts: new Date().toISOString() });
+      return json({ ok: true, ts: new Date().toISOString() }, {}, origin);
     }
 
     if (pathname === "/run") {
-      if (request.method !== "POST") return text("Method Not Allowed", { status: 405 });
+      if (request.method !== "POST") return text("Method Not Allowed", { status: 405 }, origin);
       const snap = await runOnce(env);
-      return json({ ok: true, snap });
+      if (!snap) return json({ ok: false, error: "fetch_failed" }, { status: 502 }, origin);
+      return json({ ok: true, snap }, {}, origin);
     }
 
     if (pathname === "/api/latest") {
-      if (request.method !== "GET") return text("Method Not Allowed", { status: 405 });
-      const latest = await getLatest(env);
-      if (!latest) return json({ error: "not_found" }, { status: 404 });
-      return json(latest);
+      if (request.method !== "GET") return text("Method Not Allowed", { status: 405 }, origin);
+      const latest = await getLatestSnapshot(env);
+      if (!latest) return json({ error: "not_found" }, { status: 404 }, origin);
+      const headers = {
+        "x-wcwd-interval-min": String(INTERVAL_MIN),
+      };
+      return json(latest, { headers }, origin);
     }
 
     if (pathname === "/api/list") {
-      if (request.method !== "GET") return text("Method Not Allowed", { status: 405 });
+      if (request.method !== "GET") return text("Method Not Allowed", { status: 405 }, origin);
 
-      const limit = clampInt(url.searchParams.get("limit"), 1, MAX_LIMIT, DEFAULT_LIMIT);
+      const limit = clampInt(url.searchParams.get("limit"), 1, MAX_POINTS, DEFAULT_LIMIT);
       const list = await getRecentList(env, limit);
-      return json(list);
+      const headers = {
+        "cache-control": "public, max-age=60",
+        "x-wcwd-interval-min": String(INTERVAL_MIN),
+      };
+      return json(list, { headers }, origin);
     }
 
-    return text("Not Found", { status: 404 });
+    return text("Not Found", { status: 404 }, origin);
   },
 
   async scheduled(_event, env, ctx) {
