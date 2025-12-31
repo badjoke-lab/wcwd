@@ -21,6 +21,11 @@ const SERIES_PERIOD_DAYS = {
   "7d": 7,
 };
 const SERIES_METRICS = new Set(["tps", "gas_gwei", "wld_usd", "token_pct"]);
+const ALERT_DEBOUNCE_MS = 60 * 60 * 1000;
+const ALERT_TYPES = {
+  tps_spike: "alert:last_sent:tps_spike",
+  gas_high: "alert:last_sent:gas_high",
+};
 
 function corsHeaders(origin = "*") {
   return {
@@ -151,10 +156,9 @@ function buildHourlyPoints(snapshots, metric) {
     const v = extractMetricValue(metric, snap.data);
     if (v == null) continue;
     const bucketStart = Math.floor(snap.tsMs / 3600000) * 3600000;
-    const bucketEnd = bucketStart + 3600000;
-    const list = buckets.get(bucketEnd) ?? [];
+    const list = buckets.get(bucketStart) ?? [];
     list.push(v);
-    buckets.set(bucketEnd, list);
+    buckets.set(bucketStart, list);
   }
   const points = [];
   const keys = Array.from(buckets.keys()).sort((a, b) => a - b);
@@ -162,7 +166,7 @@ function buildHourlyPoints(snapshots, metric) {
     const values = buckets.get(key) ?? [];
     if (!values.length) continue;
     const avg = values.reduce((sum, val) => sum + val, 0) / values.length;
-    points.push({ ts: new Date(key).toISOString(), v: avg });
+    points.push({ ts: new Date(key).toISOString(), v: avg, n: values.length });
   }
   return points;
 }
@@ -191,6 +195,92 @@ async function safeJson(res) {
     return await res.json();
   } catch {
     return null;
+  }
+}
+
+function avg(nums) {
+  const list = (nums || []).filter((v) => Number.isFinite(v));
+  if (!list.length) return null;
+  return list.reduce((sum, val) => sum + val, 0) / list.length;
+}
+
+function fmtNum(n, digits = 0) {
+  if (!Number.isFinite(n)) return "—";
+  return Number(n).toFixed(digits);
+}
+
+async function readLastSent(env, key) {
+  try {
+    const raw = await env.HIST.get(key);
+    if (!raw) return null;
+    const ms = Number(raw);
+    if (Number.isFinite(ms) && ms > 0) return ms;
+    const parsed = Date.parse(raw);
+    return Number.isFinite(parsed) ? parsed : null;
+  } catch (error) {
+    console.error(`Failed to read ${key}`, error);
+    return null;
+  }
+}
+
+async function writeLastSent(env, key, ms) {
+  try {
+    await env.HIST.put(key, String(ms));
+  } catch (error) {
+    console.error(`Failed to write ${key}`, error);
+  }
+}
+
+function buildAlertMessage(type, latest, avgValue, intervalMin) {
+  const ts = typeof latest?.ts === "string" ? latest.ts : new Date().toISOString();
+  if (type === "tps_spike") {
+    return `[WCWD] TPS spike: ${fmtNum(latest?.tps, 0)} (avg ${fmtNum(avgValue, 0)}) interval=${intervalMin}m ts=${ts}\nhttps://wcwd.pages.dev/`;
+  }
+  if (type === "gas_high") {
+    return `[WCWD] Gas high: ${fmtNum(latest?.gas_gwei, 6)} (avg ${fmtNum(avgValue, 6)}) interval=${intervalMin}m ts=${ts}\nhttps://wcwd.pages.dev/`;
+  }
+  return `[WCWD] Alert: ${type} interval=${intervalMin}m ts=${ts}\nhttps://wcwd.pages.dev/`;
+}
+
+async function sendDiscordAlert(env, key, message) {
+  if (!env.DISCORD_WEBHOOK_URL) return { ok: false, skipped: "webhook_unset" };
+  const nowMs = Date.now();
+  const lastSent = await readLastSent(env, key);
+  if (lastSent && nowMs - lastSent < ALERT_DEBOUNCE_MS) {
+    return { ok: false, skipped: "debounced" };
+  }
+  const res = await fetch(env.DISCORD_WEBHOOK_URL, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ content: message }),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    return { ok: false, skipped: `http_${res.status}`, detail: body };
+  }
+  await writeLastSent(env, key, nowMs);
+  return { ok: true };
+}
+
+async function checkAlerts(env) {
+  const list = await safeLoadList(env);
+  if (list.length < 2) return;
+  const latest = list[list.length - 1];
+  const pointsFor3h = Math.max(3, Math.round((3 * 60) / INTERVAL_MIN));
+  const recent = list.slice(Math.max(0, list.length - pointsFor3h - 1), Math.max(0, list.length - 1));
+  const tpsAvg = avg(recent.map((entry) => entry?.tps).filter(Number.isFinite));
+  const gasAvg = avg(recent.map((entry) => entry?.gas_gwei).filter(Number.isFinite));
+
+  if (tpsAvg && Number.isFinite(latest?.tps) && latest.tps >= tpsAvg * 1.5) {
+    const message = buildAlertMessage("tps_spike", latest, tpsAvg, INTERVAL_MIN);
+    const result = await sendDiscordAlert(env, ALERT_TYPES.tps_spike, message);
+    if (!result.ok) console.log("TPS alert skipped", result);
+  }
+
+  if (gasAvg && Number.isFinite(latest?.gas_gwei) && latest.gas_gwei >= gasAvg * 2.0) {
+    const message = buildAlertMessage("gas_high", latest, gasAvg, INTERVAL_MIN);
+    const result = await sendDiscordAlert(env, ALERT_TYPES.gas_high, message);
+    if (!result.ok) console.log("Gas alert skipped", result);
   }
 }
 
@@ -384,6 +474,7 @@ export default {
 
         const snapshots = await loadDaySnapshots(env, days);
         const points = step === "raw" ? buildRawPoints(snapshots, metric) : buildHourlyPoints(snapshots, metric);
+        const agg = step === "raw" ? "raw" : "avg";
 
         return json(
           {
@@ -391,12 +482,38 @@ export default {
             metric,
             period,
             step,
+            agg,
             interval_min: INTERVAL_MIN,
             points,
           },
-          {},
+          { headers: { "x-wcwd-series-agg": agg } },
           origin
         );
+      }
+
+      if (pathname === "/api/test-notify") {
+        if (request.method !== "POST") return errorJson("test_notify", "method_not_allowed", 405, origin);
+        if (!env.ADMIN_TOKEN) return errorJson("test_notify", "not_found", 404, origin);
+        const auth = request.headers.get("authorization") || "";
+        if (auth !== `Bearer ${env.ADMIN_TOKEN}`) {
+          return errorJson("test_notify", "unauthorized", 401, origin);
+        }
+        const type = url.searchParams.get("type") || "";
+        const alertKey = ALERT_TYPES[type];
+        if (!alertKey) return errorJson("test_notify", "invalid_type", 400, origin);
+
+        const list = await safeLoadList(env);
+        const latest = list[list.length - 1] || (await safeLoadLatest(env));
+        if (!latest) return errorJson("test_notify", "no_data", 404, origin);
+        const pointsFor3h = Math.max(3, Math.round((3 * 60) / INTERVAL_MIN));
+        const recent = list.slice(Math.max(0, list.length - pointsFor3h - 1), Math.max(0, list.length - 1));
+        const tpsAvg = avg(recent.map((entry) => entry?.tps).filter(Number.isFinite));
+        const gasAvg = avg(recent.map((entry) => entry?.gas_gwei).filter(Number.isFinite));
+        const baseAvg = type === "gas_high" ? gasAvg : tpsAvg;
+        const message = buildAlertMessage(type, latest, baseAvg ?? 0, INTERVAL_MIN);
+        const result = await sendDiscordAlert(env, alertKey, message);
+        const ok = result.ok || result.skipped === "webhook_unset";
+        return json({ ok, result }, {}, origin);
       }
 
       return errorJson("router", "not_found", 404, origin);
@@ -427,6 +544,7 @@ export default {
           updated_at: new Date().toISOString(),
         };
         await env.HIST.put("meta:retention", JSON.stringify(meta));
+        await checkAlerts(env);
       })()
     );
   },

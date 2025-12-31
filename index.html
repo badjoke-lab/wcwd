@@ -164,6 +164,25 @@
     </section>
 
     <section class="card">
+      <h2>7d Series (history)</h2>
+      <p class="muted">
+        7d charts come from the History Worker series API (hourly avg, UTC buckets).
+      </p>
+
+      <div class="mini">
+        <div class="k">TPS (7d, 1h avg)</div>
+        <canvas id="seriesTps7d" width="720" height="56" style="width:100%;height:56px;border-radius:10px;background:#fff;"></canvas>
+        <div class="note mono" id="noteSeriesTps7d">—</div>
+      </div>
+
+      <div class="mini">
+        <div class="k">WLD USD (7d, 1h avg)</div>
+        <canvas id="seriesWld7d" width="720" height="56" style="width:100%;height:56px;border-radius:10px;background:#fff;"></canvas>
+        <div class="note mono" id="noteSeriesWld7d">—</div>
+      </div>
+    </section>
+
+    <section class="card">
       <h2>Alerts (vs recent average)</h2>
       <p class="muted">Alerts compare the latest value vs the average of recent history points (server-side KV samples).</p>
 

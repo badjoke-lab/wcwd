@@ -43,3 +43,14 @@
 - 日キーは直近7日だけ保持（`snap:day:YYYY-MM-DD` / `hist:YYYY-MM-DD` を8日以上前から削除）
 - `snap:list` は直近24h＋最大点数上限で維持（intervalに応じて自動調整）
 - `meta:retention` で現状の保持情報を確認可能
+
+## 8) Discord 通知（任意）
+- 環境変数 `DISCORD_WEBHOOK_URL` を設定すると、cron実行時に「TPS急増」「Gas急増」を通知する
+- 未設定の場合は通知処理をスキップ（cronは落ちない）
+- 連投防止：同じ通知タイプは 60 分に 1 回まで
+
+### テスト通知（任意）
+- `ADMIN_TOKEN` を設定している場合のみ利用可能
+- 例：
+  - `curl -X POST "https://wcwd-history.badjoke-lab.workers.dev/api/test-notify?type=tps_spike" -H "Authorization: Bearer $ADMIN_TOKEN"`
+  - `curl -X POST "https://wcwd-history.badjoke-lab.workers.dev/api/test-notify?type=gas_high" -H "Authorization: Bearer $ADMIN_TOKEN"`
