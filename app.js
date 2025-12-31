@@ -39,6 +39,11 @@ const UI = {
   sparkToken: document.getElementById("sparkToken"),
   noteHistory: document.getElementById("noteHistory"),
 
+  seriesTps7d: document.getElementById("seriesTps7d"),
+  seriesWld7d: document.getElementById("seriesWld7d"),
+  noteSeriesTps7d: document.getElementById("noteSeriesTps7d"),
+  noteSeriesWld7d: document.getElementById("noteSeriesWld7d"),
+
   alertSpike: document.getElementById("alertSpike"),
   alertDrop: document.getElementById("alertDrop"),
   alertHighGas: document.getElementById("alertHighGas"),
@@ -179,6 +184,33 @@ function drawSparkline(canvas, series) {
   ctx.stroke();
 }
 
+async function loadSeries(metric, canvas, noteEl, errors, intervalMin) {
+  const url = `${HISTORY_BASE}/api/series?metric=${metric}&period=7d&step=1h`;
+  try {
+    const { json, headers } = await fetchJsonWithMeta(url, { timeoutMs: 8000 });
+    const points = Array.isArray(json?.points) ? json.points : [];
+    const agg = json?.agg || headers.get("x-wcwd-series-agg") || "avg";
+    const step = json?.step || "1h";
+    const intervalHeader = Number(headers.get("x-wcwd-interval-min"));
+    const intervalJson = Number(json?.interval_min);
+    const intervalValue = Number.isFinite(intervalJson)
+      ? intervalJson
+      : (Number.isFinite(intervalHeader) ? intervalHeader : intervalMin);
+    if (noteEl) {
+      noteEl.textContent = `7d series OK. metric=${metric} step=${step} agg=${agg} interval=${fmtNum(intervalValue, 0)}m points=${points.length} source=wcwd-history`;
+    }
+    drawSparkline(canvas, points.map((p) => p?.v));
+    return { metric, agg, step, interval_min: intervalValue, points };
+  } catch (e) {
+    errors.push(`7d series fetch failed (${metric}): ${(e && e.message) ? e.message : String(e)}`);
+    if (noteEl) {
+      noteEl.textContent = `7d series unavailable. metric=${metric} step=1h agg=avg interval=${fmtNum(intervalMin, 0)}m source=wcwd-history`;
+    }
+    drawSparkline(canvas, []);
+    return null;
+  }
+}
+
 function avg(nums) {
   const a = (nums || []).filter((v) => typeof v === "number" && Number.isFinite(v));
   if (!a.length) return null;
@@ -226,6 +258,7 @@ async function loadAll() {
 
   const errors = [];
   const isLite = new URLSearchParams(location.search).get("lite") === "1";
+  const seriesMeta = {};
 
   // History (server observed)
   let hist = [];
@@ -303,20 +336,6 @@ async function loadAll() {
       UI.pctContract.textContent = "—";
       UI.pctOther.textContent = "—";
 
-      UI.raw.textContent = JSON.stringify(
-        {
-          latest,
-          hist_head: hist.slice(0, 3),
-          intervalMin,
-          maxPoints24h,
-          usePoints,
-          mode: isLite ? "lite" : "full",
-          source,
-          meta,
-        },
-        null,
-        2,
-      );
     }
   } catch (e) {
     errors.push(`Render failed: ${(e && e.message) ? e.message : String(e)}`);
@@ -333,6 +352,35 @@ async function loadAll() {
     }
   } catch (e) {
     errors.push(`Sparkline failed: ${(e && e.message) ? e.message : String(e)}`);
+  }
+
+  try {
+    const tpsSeries = await loadSeries("tps", UI.seriesTps7d, UI.noteSeriesTps7d, errors, intervalMin);
+    if (tpsSeries) seriesMeta.tps = { points: tpsSeries.points.length, agg: tpsSeries.agg, step: tpsSeries.step };
+    const wldSeries = await loadSeries("wld_usd", UI.seriesWld7d, UI.noteSeriesWld7d, errors, intervalMin);
+    if (wldSeries) seriesMeta.wld_usd = { points: wldSeries.points.length, agg: wldSeries.agg, step: wldSeries.step };
+  } catch (e) {
+    errors.push(`7d series render failed: ${(e && e.message) ? e.message : String(e)}`);
+  }
+
+  try {
+    UI.raw.textContent = JSON.stringify(
+      {
+        latest,
+        hist_head: hist.slice(0, 3),
+        intervalMin,
+        maxPoints24h,
+        usePoints,
+        mode: isLite ? "lite" : "full",
+        source,
+        meta,
+        series: seriesMeta,
+      },
+      null,
+      2,
+    );
+  } catch (e) {
+    errors.push(`Debug render failed: ${(e && e.message) ? e.message : String(e)}`);
   }
 
   if (errors.length) setError(new Error(errors.join("\n")));
