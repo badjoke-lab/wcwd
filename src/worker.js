@@ -13,8 +13,8 @@
  */
 
 const INTERVAL_MIN = 15;
-const MAX_POINTS = Math.round((24 * 60) / INTERVAL_MIN);
-const DEFAULT_LIMIT = MAX_POINTS;
+const MAX_POINTS = 672;
+const DEFAULT_LIMIT = 96;
 const FETCH_TIMEOUT_MS = 9000;
 
 function corsHeaders(origin = "*") {
@@ -23,34 +23,43 @@ function corsHeaders(origin = "*") {
     "access-control-allow-headers": "content-type,authorization",
     "access-control-allow-methods": "GET,POST,OPTIONS",
     "access-control-max-age": "86400",
-    "vary": "Origin",
   };
 }
 
+function baseHeaders(corsOrigin = "*") {
+  const headers = new Headers(corsHeaders(corsOrigin));
+  headers.set("cache-control", "no-store");
+  headers.set("x-wcwd-interval-min", String(INTERVAL_MIN));
+  return headers;
+}
+
+function mergeHeaders(base, extra) {
+  const headers = new Headers(base);
+  const extraHeaders = new Headers(extra || {});
+  for (const [k, v] of extraHeaders.entries()) {
+    headers.set(k, v);
+  }
+  return headers;
+}
+
 function json(data, init = {}, corsOrigin = "*") {
-  const headers = new Headers(init.headers || {});
+  const headers = mergeHeaders(baseHeaders(corsOrigin), init.headers);
   if (!headers.has("content-type")) {
     headers.set("content-type", "application/json; charset=utf-8");
   }
-  if (!headers.has("cache-control")) {
-    headers.set("cache-control", "no-store");
-  }
-  const ch = corsHeaders(corsOrigin);
-  for (const [k, v] of Object.entries(ch)) headers.set(k, v);
   return new Response(JSON.stringify(data, null, 2), { ...init, headers });
 }
 
 function text(s, init = {}, corsOrigin = "*") {
-  const headers = new Headers(init.headers || {});
+  const headers = mergeHeaders(baseHeaders(corsOrigin), init.headers);
   if (!headers.has("content-type")) {
     headers.set("content-type", "text/plain; charset=utf-8");
   }
-  if (!headers.has("cache-control")) {
-    headers.set("cache-control", "no-store");
-  }
-  const ch = corsHeaders(corsOrigin);
-  for (const [k, v] of Object.entries(ch)) headers.set(k, v);
   return new Response(s, { ...init, headers });
+}
+
+function errorJson(where, error, status = 500, corsOrigin = "*") {
+  return json({ ok: false, error, where }, { status }, corsOrigin);
 }
 
 function clampInt(n, min, max, fallback) {
@@ -211,48 +220,46 @@ async function getRecentList(env, limit) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
-    const origin = request.headers.get("origin") || "*";
+    const origin = "*";
     const { pathname } = url;
 
     // CORS preflight
     if (request.method === "OPTIONS") {
-      return new Response(null, { status: 200, headers: corsHeaders("*") });
+      return new Response(null, { status: 204, headers: baseHeaders(origin) });
     }
+    try {
+      if (pathname === "/health") {
+        return json({ ok: true, ts: new Date().toISOString() }, {}, origin);
+      }
 
-    if (pathname === "/health") {
-      return json({ ok: true, ts: new Date().toISOString() }, {}, origin);
+      if (pathname === "/run") {
+        if (request.method !== "POST") return errorJson("run", "method_not_allowed", 405, origin);
+        const snap = await runOnce(env);
+        if (!snap) return errorJson("run", "fetch_failed", 502, origin);
+        return json({ ok: true, snap }, {}, origin);
+      }
+
+      if (pathname === "/api/latest") {
+        if (request.method !== "GET") {
+          return errorJson("latest", "method_not_allowed", 405, origin);
+        }
+        const latest = await getLatestSnapshot(env);
+        if (!latest) return json({ ok: false, reason: "no_data" }, {}, origin);
+        return json(latest, {}, origin);
+      }
+
+      if (pathname === "/api/list") {
+        if (request.method !== "GET") return errorJson("list", "method_not_allowed", 405, origin);
+
+        const limit = clampInt(url.searchParams.get("limit"), 1, MAX_POINTS, DEFAULT_LIMIT);
+        const list = await getRecentList(env, limit);
+        return json(list, {}, origin);
+      }
+
+      return errorJson("router", "not_found", 404, origin);
+    } catch (error) {
+      return errorJson("fetch", error?.message ?? "unknown_error", 500, origin);
     }
-
-    if (pathname === "/run") {
-      if (request.method !== "POST") return text("Method Not Allowed", { status: 405 }, origin);
-      const snap = await runOnce(env);
-      if (!snap) return json({ ok: false, error: "fetch_failed" }, { status: 502 }, origin);
-      return json({ ok: true, snap }, {}, origin);
-    }
-
-    if (pathname === "/api/latest") {
-      if (request.method !== "GET") return text("Method Not Allowed", { status: 405 }, origin);
-      const latest = await getLatestSnapshot(env);
-      if (!latest) return json({ error: "not_found" }, { status: 404 }, origin);
-      const headers = {
-        "x-wcwd-interval-min": String(INTERVAL_MIN),
-      };
-      return json(latest, { headers }, origin);
-    }
-
-    if (pathname === "/api/list") {
-      if (request.method !== "GET") return text("Method Not Allowed", { status: 405 }, origin);
-
-      const limit = clampInt(url.searchParams.get("limit"), 1, MAX_POINTS, DEFAULT_LIMIT);
-      const list = await getRecentList(env, limit);
-      const headers = {
-        "cache-control": "public, max-age=60",
-        "x-wcwd-interval-min": String(INTERVAL_MIN),
-      };
-      return json(list, { headers }, origin);
-    }
-
-    return text("Not Found", { status: 404 }, origin);
   },
 
   async scheduled(_event, env, ctx) {
