@@ -13,7 +13,7 @@
  */
 
 const INTERVAL_MIN = 15;
-const MAX_POINTS = 672;
+const LIST_MAX = Math.ceil((24 * 60) / INTERVAL_MIN) + 2;
 const DEFAULT_LIMIT = 96;
 const FETCH_TIMEOUT_MS = 9000;
 const SERIES_RAW_MAX_POINTS = 3000;
@@ -249,14 +249,23 @@ async function runOnce(env) {
     list.push(snap);
   }
 
-  if (list.length > MAX_POINTS) {
-    list = list.slice(list.length - MAX_POINTS);
+  const cutoff = Date.now() - 24 * 60 * 60 * 1000;
+  list = list.filter((entry) => {
+    const ts = typeof entry?.ts === "string" ? entry.ts : null;
+    if (!ts) return false;
+    const ms = Date.parse(ts);
+    if (!Number.isFinite(ms)) return false;
+    return ms >= cutoff;
+  });
+
+  if (list.length > LIST_MAX) {
+    list = list.slice(list.length - LIST_MAX);
   }
 
   await env.HIST.put("snap:list", JSON.stringify(list));
   await env.HIST.put("snap:latest", JSON.stringify(snap));
 
-  return snap;
+  return { snap, listLength: list.length };
 }
 
 function shouldAppendSnapshot(list, snap) {
@@ -333,9 +342,9 @@ export default {
 
       if (pathname === "/run") {
         if (request.method !== "POST") return errorJson("run", "method_not_allowed", 405, origin);
-        const snap = await runOnce(env);
-        if (!snap) return errorJson("run", "fetch_failed", 502, origin);
-        return json({ ok: true, snap }, {}, origin);
+        const result = await runOnce(env);
+        if (!result?.snap) return errorJson("run", "fetch_failed", 502, origin);
+        return json({ ok: true, snap: result.snap }, {}, origin);
       }
 
       if (pathname === "/api/latest") {
@@ -350,7 +359,7 @@ export default {
       if (pathname === "/api/list") {
         if (request.method !== "GET") return errorJson("list", "method_not_allowed", 405, origin);
 
-        const limit = clampInt(url.searchParams.get("limit"), 1, MAX_POINTS, DEFAULT_LIMIT);
+        const limit = clampInt(url.searchParams.get("limit"), 1, LIST_MAX, DEFAULT_LIMIT);
         const list = await getRecentList(env, limit);
         return json(list, {}, origin);
       }
@@ -399,7 +408,25 @@ export default {
   async scheduled(_event, env, ctx) {
     ctx.waitUntil(
       (async () => {
-        await runOnce(env);
+        const result = await runOnce(env);
+        if (!result?.snap) return;
+        const now = new Date();
+        for (let i = 8; i <= 14; i += 1) {
+          const day = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+          day.setUTCDate(day.getUTCDate() - i);
+          const dayKey = formatDateUTC(day);
+          await env.HIST.delete(`snap:day:${dayKey}`);
+          await env.HIST.delete(`hist:${dayKey}`);
+        }
+        const meta = {
+          days: 7,
+          interval_min: INTERVAL_MIN,
+          list_max: LIST_MAX,
+          list_points: result.listLength,
+          day_keys_expected: 7,
+          updated_at: new Date().toISOString(),
+        };
+        await env.HIST.put("meta:retention", JSON.stringify(meta));
       })()
     );
   },
