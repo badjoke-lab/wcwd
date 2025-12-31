@@ -16,6 +16,11 @@ const INTERVAL_MIN = 15;
 const MAX_POINTS = 672;
 const DEFAULT_LIMIT = 96;
 const FETCH_TIMEOUT_MS = 9000;
+const SERIES_RAW_MAX_POINTS = 3000;
+const SERIES_PERIOD_DAYS = {
+  "7d": 7,
+};
+const SERIES_METRICS = new Set(["tps", "gas_gwei", "wld_usd", "token_pct"]);
 
 function corsHeaders(origin = "*") {
   return {
@@ -66,6 +71,100 @@ function clampInt(n, min, max, fallback) {
   const x = Number(n);
   if (!Number.isFinite(x)) return fallback;
   return Math.max(min, Math.min(max, Math.floor(x)));
+}
+
+function formatDateUTC(date) {
+  const y = date.getUTCFullYear();
+  const m = String(date.getUTCMonth() + 1).padStart(2, "0");
+  const d = String(date.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+function buildDayKeys(days) {
+  const now = new Date();
+  const base = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+  const keys = [];
+  for (let i = days - 1; i >= 0; i -= 1) {
+    const day = new Date(base);
+    day.setUTCDate(base.getUTCDate() - i);
+    keys.push(`snap:day:${formatDateUTC(day)}`);
+  }
+  return keys;
+}
+
+async function loadDaySnapshots(env, days) {
+  const keys = buildDayKeys(days);
+  const snapshots = [];
+
+  for (const key of keys) {
+    let raw = null;
+    try {
+      raw = await env.HIST.get(key);
+    } catch (error) {
+      console.error(`Failed to read ${key} from KV`, error);
+      continue;
+    }
+    if (!raw) continue;
+    let parsed = null;
+    try {
+      parsed = JSON.parse(raw);
+    } catch (error) {
+      console.error(`Failed to parse ${key} JSON`, error);
+      continue;
+    }
+    if (!Array.isArray(parsed)) continue;
+    for (const entry of parsed) {
+      if (!entry || typeof entry !== "object") continue;
+      const ts = typeof entry.ts === "string" ? entry.ts : null;
+      if (!ts) continue;
+      const ms = Date.parse(ts);
+      if (!Number.isFinite(ms)) continue;
+      snapshots.push({ ts, tsMs: ms, data: entry });
+    }
+  }
+
+  return snapshots;
+}
+
+function extractMetricValue(metric, data) {
+  const v = data?.[metric];
+  return Number.isFinite(v) ? v : null;
+}
+
+function buildRawPoints(snapshots, metric) {
+  const points = [];
+  for (const snap of snapshots) {
+    const v = extractMetricValue(metric, snap.data);
+    if (v == null) continue;
+    points.push({ ts: new Date(snap.tsMs).toISOString(), tsMs: snap.tsMs, v });
+  }
+  points.sort((a, b) => a.tsMs - b.tsMs);
+  if (points.length > SERIES_RAW_MAX_POINTS) {
+    return points.slice(points.length - SERIES_RAW_MAX_POINTS).map(({ ts, v }) => ({ ts, v }));
+  }
+  return points.map(({ ts, v }) => ({ ts, v }));
+}
+
+function buildHourlyPoints(snapshots, metric) {
+  const buckets = new Map();
+  for (const snap of snapshots) {
+    const v = extractMetricValue(metric, snap.data);
+    if (v == null) continue;
+    const bucketStart = Math.floor(snap.tsMs / 3600000) * 3600000;
+    const bucketEnd = bucketStart + 3600000;
+    const list = buckets.get(bucketEnd) ?? [];
+    list.push(v);
+    buckets.set(bucketEnd, list);
+  }
+  const points = [];
+  const keys = Array.from(buckets.keys()).sort((a, b) => a - b);
+  for (const key of keys) {
+    const values = buckets.get(key) ?? [];
+    if (!values.length) continue;
+    const avg = values.reduce((sum, val) => sum + val, 0) / values.length;
+    points.push({ ts: new Date(key).toISOString(), v: avg });
+  }
+  return points;
 }
 
 async function fetchWithTimeout(url, init = {}, timeoutMs = FETCH_TIMEOUT_MS) {
@@ -254,6 +353,41 @@ export default {
         const limit = clampInt(url.searchParams.get("limit"), 1, MAX_POINTS, DEFAULT_LIMIT);
         const list = await getRecentList(env, limit);
         return json(list, {}, origin);
+      }
+
+      if (pathname === "/api/series") {
+        if (request.method !== "GET") return errorJson("series", "method_not_allowed", 405, origin);
+
+        const metric = url.searchParams.get("metric") || "";
+        const period = url.searchParams.get("period") || "7d";
+        const step = url.searchParams.get("step") || "1h";
+
+        if (!SERIES_METRICS.has(metric)) {
+          return errorJson("series", "invalid_metric", 400, origin);
+        }
+        const days = SERIES_PERIOD_DAYS[period];
+        if (!days) {
+          return errorJson("series", "invalid_period", 400, origin);
+        }
+        if (step !== "1h" && step !== "raw") {
+          return errorJson("series", "invalid_step", 400, origin);
+        }
+
+        const snapshots = await loadDaySnapshots(env, days);
+        const points = step === "raw" ? buildRawPoints(snapshots, metric) : buildHourlyPoints(snapshots, metric);
+
+        return json(
+          {
+            ok: true,
+            metric,
+            period,
+            step,
+            interval_min: INTERVAL_MIN,
+            points,
+          },
+          {},
+          origin
+        );
       }
 
       return errorJson("router", "not_found", 404, origin);
