@@ -19,7 +19,7 @@
       <h1>WCWD — World Chain / WLD Dashboard</h1>
 
       <p class="lead">Phase 0: RPC + optional APIs (Etherscan / CoinGecko). No indexer. No wallet connect.</p>
-      <p class="lead">✅ History: Cloudflare Workers Cron + KV (server-side sampling, every 15 min).</p>
+      <p class="lead">✅ History: Cloudflare Workers Cron + KV (server-side sampling, interval from worker, default ~15 min).</p>
 
       <div class="actions">
         <button id="reload" type="button">Reload</button>
@@ -137,7 +137,7 @@
       <h2>Trends (server observed)</h2>
       <p class="muted">
         These trends come from Workers Cron sampling and KV storage (not “who viewed the page”).
-        Default: every 15 minutes. (1 day ≈ 96 points)
+        Interval is reported by the history worker (default ~15 minutes). (1 day ≈ 96 points @ 15 min)
       </p>
 
       <div class="mini">
