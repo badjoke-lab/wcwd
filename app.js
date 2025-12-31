@@ -7,8 +7,9 @@ const HISTORY_BASE = (() => {
 })();
 
 const DEFAULT_INTERVAL_MIN = 15;
-const MAX_POINTS_CAP = 400;
 const INTERVAL_STORAGE_KEY = "wcwd-interval-min";
+const HISTORY_CACHE_KEY = "wcwd-history-cache-v1";
+const SAFE_REQUEST_LIMIT = 288;
 
 const UI = {
   status: document.getElementById("status"),
@@ -84,19 +85,40 @@ function computePointsPerDay(intervalMin) {
   return Math.round((24 * 60) / intervalMin);
 }
 
-function computeMaxPoints(intervalMin) {
-  const pointsPerDay = computePointsPerDay(intervalMin);
-  return Math.min(pointsPerDay, MAX_POINTS_CAP);
+function loadHistoryCache() {
+  const raw = localStorage.getItem(HISTORY_CACHE_KEY);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    const hist = Array.isArray(parsed?.hist) ? parsed.hist : [];
+    const intervalMin = Number(parsed?.intervalMin);
+    return {
+      hist,
+      intervalMin: Number.isFinite(intervalMin) && intervalMin > 0 ? intervalMin : DEFAULT_INTERVAL_MIN,
+      savedAt: parsed?.savedAt || null,
+    };
+  } catch (e) {
+    return null;
+  }
 }
 
-async function fetchHistoryList(url, { timeoutMs = 8000 } = {}) {
+function storeHistoryCache(hist, intervalMin) {
+  const payload = {
+    hist,
+    intervalMin,
+    savedAt: new Date().toISOString(),
+  };
+  localStorage.setItem(HISTORY_CACHE_KEY, JSON.stringify(payload));
+}
+
+async function fetchJsonWithMeta(url, { timeoutMs = 8000 } = {}) {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
     const res = await fetch(url, { signal: ctrl.signal, headers: { accept: "application/json" } });
     if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
     const json = await res.json();
-    return { json, headers: res.headers };
+    return { json, headers: res.headers, status: res.status };
   } finally {
     clearTimeout(t);
   }
@@ -165,7 +187,7 @@ function avg(nums) {
 
 function renderAlerts(latest, hist, intervalMin) {
   // Compare latest vs avg of recent history (excluding latest)
-  const pointsFor3h = Math.max(1, Math.round((3 * 60) / intervalMin));
+  const pointsFor3h = Math.max(6, Math.round((3 * 60) / intervalMin));
 
   const seriesTps = hist.map((x) => x.tps).filter(Number.isFinite);
   const seriesGas = hist.map((x) => x.gas_gwei).filter(Number.isFinite);
@@ -203,16 +225,18 @@ async function loadAll() {
   setStatusText(false);
 
   const errors = [];
+  const isLite = new URLSearchParams(location.search).get("lite") === "1";
 
   // History (server observed)
   let hist = [];
   let latest = null;
   let meta = null;
   let intervalMin = loadStoredInterval();
+  let source = HISTORY_BASE;
+  let historyOk = false;
 
   try {
-    const requestLimit = computeMaxPoints(intervalMin);
-    const { json, headers } = await fetchHistoryList(`${HISTORY_BASE}/api/list?limit=${requestLimit}`, { timeoutMs: 8000 });
+    const { json, headers } = await fetchJsonWithMeta(`${HISTORY_BASE}/api/list?limit=${SAFE_REQUEST_LIMIT}`, { timeoutMs: 8000 });
     const headerInterval = Number(headers.get("x-wcwd-interval-min"));
     intervalMin = Number.isFinite(headerInterval) && headerInterval > 0 ? headerInterval : DEFAULT_INTERVAL_MIN;
     storeInterval(intervalMin);
@@ -223,14 +247,31 @@ async function loadAll() {
       hist = json?.items || json?.data || [];
       meta = json?.meta ?? null;
     }
-    latest = hist[hist.length - 1] || null;
-    setStatusText(true);
-
-    UI.noteHistory.textContent = `History OK. points=${hist.length} (~${fmtNum(intervalMin, 0)} min interval) source=${HISTORY_BASE}`;
+    historyOk = true;
+    storeHistoryCache(hist, intervalMin);
   } catch (e) {
     errors.push(`History fetch failed: ${(e && e.message) ? e.message : String(e)}`);
-    UI.noteHistory.textContent = `History fetch failed. source=${HISTORY_BASE}`;
-    setStatusText(false);
+    const cached = loadHistoryCache();
+    if (cached?.hist?.length) {
+      hist = cached.hist;
+      intervalMin = cached.intervalMin;
+      source = "cache";
+    }
+  }
+
+  const maxPoints24h = computePointsPerDay(intervalMin);
+  const usePoints = isLite ? Math.max(12, Math.floor(maxPoints24h / 2)) : maxPoints24h;
+  if (hist.length > usePoints) {
+    hist = hist.slice(-usePoints);
+  }
+  latest = hist[hist.length - 1] || null;
+  setStatusText(historyOk);
+
+  if (latest) {
+    const okLabel = source === "cache" ? "History OK (cache)." : "History OK.";
+    UI.noteHistory.textContent = `${okLabel} points=${hist.length} interval=${fmtNum(intervalMin, 0)}min mode=${isLite ? "lite" : "full"} source=${source}`;
+  } else {
+    UI.noteHistory.textContent = `History unavailable. points=${hist.length} interval=${fmtNum(intervalMin, 0)}min mode=${isLite ? "lite" : "full"} source=${source} — Try again later / enable ?lite=1 / reduce points`;
   }
 
   // Render from history latest
@@ -267,6 +308,10 @@ async function loadAll() {
           latest,
           hist_head: hist.slice(0, 3),
           intervalMin,
+          maxPoints24h,
+          usePoints,
+          mode: isLite ? "lite" : "full",
+          source,
           meta,
         },
         null,
