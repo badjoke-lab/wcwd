@@ -13,7 +13,7 @@
  */
 
 const INTERVAL_MIN = 15;
-const MAX_POINTS = 96;             // 15min * 24h = 96 points
+const MAX_POINTS = Math.round((24 * 60) / INTERVAL_MIN);
 const DEFAULT_LIMIT = MAX_POINTS;
 const FETCH_TIMEOUT_MS = 9000;
 

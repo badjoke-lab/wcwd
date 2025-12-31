@@ -7,6 +7,8 @@ const HISTORY_BASE = (() => {
 })();
 
 const DEFAULT_INTERVAL_MIN = 15;
+const MAX_POINTS_CAP = 400;
+const INTERVAL_STORAGE_KEY = "wcwd-interval-min";
 
 const UI = {
   status: document.getElementById("status"),
@@ -67,6 +69,24 @@ function fmtJpy(n, digits = 2) {
 function pct(n, digits = 2) {
   if (n === null || n === undefined || Number.isNaN(n)) return "—";
   return `${Number(n).toFixed(digits)}%`;
+}
+
+function loadStoredInterval() {
+  const stored = Number(localStorage.getItem(INTERVAL_STORAGE_KEY));
+  return Number.isFinite(stored) && stored > 0 ? stored : DEFAULT_INTERVAL_MIN;
+}
+
+function storeInterval(intervalMin) {
+  localStorage.setItem(INTERVAL_STORAGE_KEY, String(intervalMin));
+}
+
+function computePointsPerDay(intervalMin) {
+  return Math.round((24 * 60) / intervalMin);
+}
+
+function computeMaxPoints(intervalMin) {
+  const pointsPerDay = computePointsPerDay(intervalMin);
+  return Math.min(pointsPerDay, MAX_POINTS_CAP);
 }
 
 async function fetchHistoryList(url, { timeoutMs = 8000 } = {}) {
@@ -145,7 +165,7 @@ function avg(nums) {
 
 function renderAlerts(latest, hist, intervalMin) {
   // Compare latest vs avg of recent history (excluding latest)
-  const pointsFor3h = Math.max(4, Math.round((3 * 60) / intervalMin)); // keep some minimum
+  const pointsFor3h = Math.max(1, Math.round((3 * 60) / intervalMin));
 
   const seriesTps = hist.map((x) => x.tps).filter(Number.isFinite);
   const seriesGas = hist.map((x) => x.gas_gwei).filter(Number.isFinite);
@@ -188,12 +208,14 @@ async function loadAll() {
   let hist = [];
   let latest = null;
   let meta = null;
-  let intervalMin = DEFAULT_INTERVAL_MIN;
+  let intervalMin = loadStoredInterval();
 
   try {
-    const { json, headers } = await fetchHistoryList(`${HISTORY_BASE}/api/list`, { timeoutMs: 8000 });
+    const requestLimit = computeMaxPoints(intervalMin);
+    const { json, headers } = await fetchHistoryList(`${HISTORY_BASE}/api/list?limit=${requestLimit}`, { timeoutMs: 8000 });
     const headerInterval = Number(headers.get("x-wcwd-interval-min"));
     intervalMin = Number.isFinite(headerInterval) && headerInterval > 0 ? headerInterval : DEFAULT_INTERVAL_MIN;
+    storeInterval(intervalMin);
 
     if (Array.isArray(json)) {
       hist = json;
@@ -204,8 +226,7 @@ async function loadAll() {
     latest = hist[hist.length - 1] || null;
     setStatusText(true);
 
-    const pointsPerDay = Math.round((24 * 60) / intervalMin);
-    UI.noteHistory.textContent = `History OK. points=${pointsPerDay} (~${fmtNum(intervalMin, 0)} min interval) source=${HISTORY_BASE}`;
+    UI.noteHistory.textContent = `History OK. points=${hist.length} (~${fmtNum(intervalMin, 0)} min interval) source=${HISTORY_BASE}`;
   } catch (e) {
     errors.push(`History fetch failed: ${(e && e.message) ? e.message : String(e)}`);
     UI.noteHistory.textContent = `History fetch failed. source=${HISTORY_BASE}`;
