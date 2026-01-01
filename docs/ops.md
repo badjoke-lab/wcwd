@@ -21,6 +21,10 @@
    - `curl -s "https://wcwd-history.badjoke-lab.workers.dev/api/list?limit=5" | head`
 4. **Pagesが見に行けてるか（CORS/ヘッダ）**
    - `curl -sI "https://wcwd-history.badjoke-lab.workers.dev/api/list?limit=1" | tr -d '\r' | sed -n '1,40p'`
+5. **Health / Events / Daily が取れるか**
+   - `curl -s "https://wcwd-history.badjoke-lab.workers.dev/api/health" | head`
+   - `curl -s "https://wcwd-history.badjoke-lab.workers.dev/api/events?limit=5" | head`
+   - `curl -s "https://wcwd-history.badjoke-lab.workers.dev/api/daily/latest" | head`
 
 > 重要：wranglerのKV確認は **--remote なしだと空に見える**（ローカルKVを見るため）
 
@@ -45,7 +49,8 @@
 - `meta:retention` で現状の保持情報を確認可能
 
 ## 8) Discord 通知（任意）
-- 環境変数 `DISCORD_WEBHOOK_URL` を設定すると、cron実行時に「TPS急増」「Gas急増」を通知する
+- 環境変数 `DISCORD_WEBHOOK_URL` を設定すると、cron実行時に「TPS急増/急落」「Gas急増」「Summary取得失敗」を通知する
+- Daily Summary 生成時に 1 日 1 回通知する
 - 未設定の場合は通知処理をスキップ（cronは落ちない）
 - 連投防止：同じ通知タイプは 60 分に 1 回まで
 

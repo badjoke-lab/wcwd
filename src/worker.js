@@ -8,6 +8,10 @@
  * API:
  * - GET  /api/latest
  * - GET  /api/list?limit=96
+ * - GET  /api/health
+ * - GET  /api/events?limit=50
+ * - GET  /api/daily?date=YYYY-MM-DD
+ * - GET  /api/daily/latest
  * - POST /run        (manual run)
  * - GET  /health
  */
@@ -21,10 +25,18 @@ const SERIES_PERIOD_DAYS = {
   "7d": 7,
 };
 const SERIES_METRICS = new Set(["tps", "gas_gwei", "wld_usd", "token_pct"]);
+const EVENTS_MAX = 200;
+const HEALTH_KEY = "health:latest";
+const EVENTS_KEY = "events:list";
+const DAILY_LATEST_KEY = "daily:latest";
 const ALERT_DEBOUNCE_MS = 60 * 60 * 1000;
 const ALERT_TYPES = {
   tps_spike: "alert:last_sent:tps_spike",
+  tps_drop: "alert:last_sent:tps_drop",
   gas_high: "alert:last_sent:gas_high",
+  summary_fail: "alert:last_sent:summary_fail",
+  health_change: "alert:last_sent:health_change",
+  daily_summary: "alert:last_sent:daily_summary",
 };
 
 function corsHeaders(origin = "*") {
@@ -209,6 +221,11 @@ function fmtNum(n, digits = 0) {
   return Number(n).toFixed(digits);
 }
 
+function fmtRatio(n, digits = 2) {
+  if (!Number.isFinite(n)) return "—";
+  return Number(n).toFixed(digits);
+}
+
 async function readLastSent(env, key) {
   try {
     const raw = await env.HIST.get(key);
@@ -231,13 +248,25 @@ async function writeLastSent(env, key, ms) {
   }
 }
 
-function buildAlertMessage(type, latest, avgValue, intervalMin) {
+function buildAlertMessage(type, latest, avgValue, intervalMin, message = "") {
   const ts = typeof latest?.ts === "string" ? latest.ts : new Date().toISOString();
   if (type === "tps_spike") {
     return `[WCWD] TPS spike: ${fmtNum(latest?.tps, 0)} (avg ${fmtNum(avgValue, 0)}) interval=${intervalMin}m ts=${ts}\nhttps://wcwd.pages.dev/`;
   }
+  if (type === "tps_drop") {
+    return `[WCWD] TPS drop: ${fmtNum(latest?.tps, 0)} (avg ${fmtNum(avgValue, 0)}) interval=${intervalMin}m ts=${ts}\nhttps://wcwd.pages.dev/`;
+  }
   if (type === "gas_high") {
     return `[WCWD] Gas high: ${fmtNum(latest?.gas_gwei, 6)} (avg ${fmtNum(avgValue, 6)}) interval=${intervalMin}m ts=${ts}\nhttps://wcwd.pages.dev/`;
+  }
+  if (type === "summary_fail") {
+    return `[WCWD] Summary fetch failed repeatedly. interval=${intervalMin}m ts=${ts}\nhttps://wcwd.pages.dev/`;
+  }
+  if (type === "daily_summary") {
+    return message || `[WCWD] Daily summary: ${ts}\nhttps://wcwd.pages.dev/`;
+  }
+  if (type === "health_change") {
+    return `[WCWD] Health change: ${message}\nhttps://wcwd.pages.dev/`;
   }
   return `[WCWD] Alert: ${type} interval=${intervalMin}m ts=${ts}\nhttps://wcwd.pages.dev/`;
 }
@@ -262,25 +291,296 @@ async function sendDiscordAlert(env, key, message) {
   return { ok: true };
 }
 
-async function checkAlerts(env) {
-  const list = await safeLoadList(env);
-  if (list.length < 2) return;
-  const latest = list[list.length - 1];
-  const pointsFor3h = Math.max(3, Math.round((3 * 60) / INTERVAL_MIN));
+function buildLatestMetrics(latest) {
+  return {
+    tps: latest?.tps ?? null,
+    gas_gwei: latest?.gas_gwei ?? null,
+    token_pct: latest?.token_pct ?? null,
+  };
+}
+
+function buildHealthEvent(type, level, msg, latest, ts) {
+  return {
+    ts,
+    type,
+    level,
+    msg,
+    latest: buildLatestMetrics(latest),
+  };
+}
+
+function buildHealthReport(list, latest, intervalMin) {
+  if (!latest) return null;
+  const pointsFor3h = Math.max(3, Math.round((3 * 60) / intervalMin));
   const recent = list.slice(Math.max(0, list.length - pointsFor3h - 1), Math.max(0, list.length - 1));
   const tpsAvg = avg(recent.map((entry) => entry?.tps).filter(Number.isFinite));
   const gasAvg = avg(recent.map((entry) => entry?.gas_gwei).filter(Number.isFinite));
 
-  if (tpsAvg && Number.isFinite(latest?.tps) && latest.tps >= tpsAvg * 1.5) {
-    const message = buildAlertMessage("tps_spike", latest, tpsAvg, INTERVAL_MIN);
-    const result = await sendDiscordAlert(env, ALERT_TYPES.tps_spike, message);
-    if (!result.ok) console.log("TPS alert skipped", result);
+  const reasons = [];
+  const events = [];
+  const ts = new Date().toISOString();
+
+  if (tpsAvg && Number.isFinite(latest?.tps)) {
+    const ratio = latest.tps / tpsAvg;
+    if (ratio >= 1.5) {
+      reasons.push(`TPS spike (${fmtRatio(ratio)}x vs 3h avg)`);
+      events.push(
+        buildHealthEvent(
+          "tps_spike",
+          "WARN",
+          `TPS spike: ${fmtNum(latest.tps, 0)} (avg ${fmtNum(tpsAvg, 0)}) interval=${intervalMin}m`,
+          latest,
+          ts
+        )
+      );
+    } else if (ratio <= 0.7) {
+      reasons.push(`TPS drop (${fmtRatio(ratio)}x vs 3h avg)`);
+      events.push(
+        buildHealthEvent(
+          "tps_drop",
+          "WARN",
+          `TPS drop: ${fmtNum(latest.tps, 0)} (avg ${fmtNum(tpsAvg, 0)}) interval=${intervalMin}m`,
+          latest,
+          ts
+        )
+      );
+    }
   }
 
-  if (gasAvg && Number.isFinite(latest?.gas_gwei) && latest.gas_gwei >= gasAvg * 2.0) {
-    const message = buildAlertMessage("gas_high", latest, gasAvg, INTERVAL_MIN);
-    const result = await sendDiscordAlert(env, ALERT_TYPES.gas_high, message);
-    if (!result.ok) console.log("Gas alert skipped", result);
+  if (gasAvg && Number.isFinite(latest?.gas_gwei)) {
+    const ratio = latest.gas_gwei / gasAvg;
+    if (ratio >= 2.0) {
+      reasons.push(`Gas high (${fmtRatio(ratio)}x vs 3h avg)`);
+      events.push(
+        buildHealthEvent(
+          "gas_high",
+          "ALERT",
+          `Gas high: ${fmtNum(latest.gas_gwei, 6)} (avg ${fmtNum(gasAvg, 6)}) interval=${intervalMin}m`,
+          latest,
+          ts
+        )
+      );
+    }
+  }
+
+  const failWindow = 3;
+  const recentFail = list.slice(Math.max(0, list.length - failWindow));
+  if (recentFail.length === failWindow && recentFail.every((entry) => entry?.summary_ok === false)) {
+    reasons.push("Summary fetch failed repeatedly");
+    events.push(
+      buildHealthEvent(
+        "summary_fail",
+        "WARN",
+        `Summary fetch failed repeatedly (${failWindow}x) interval=${intervalMin}m`,
+        latest,
+        ts
+      )
+    );
+  }
+
+  let level = "NORMAL";
+  if (events.some((event) => event.level === "ALERT")) level = "ALERT";
+  else if (events.some((event) => event.level === "WARN")) level = "WARN";
+
+  return {
+    ok: true,
+    level,
+    reasons,
+    latest,
+    baseline: {
+      tps_3h: tpsAvg ?? null,
+      gas_3h: gasAvg ?? null,
+    },
+    interval_min: intervalMin,
+    ts,
+    events,
+  };
+}
+
+async function safeLoadEvents(env) {
+  let raw = null;
+  try {
+    raw = await env.HIST.get(EVENTS_KEY);
+  } catch (error) {
+    console.error("Failed to read events:list from KV", error);
+    return [];
+  }
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch (error) {
+    console.error("Failed to parse events:list JSON", error);
+    return [];
+  }
+}
+
+async function writeEvents(env, events) {
+  try {
+    await env.HIST.put(EVENTS_KEY, JSON.stringify(events));
+  } catch (error) {
+    console.error("Failed to write events:list", error);
+  }
+}
+
+async function safeLoadHealth(env) {
+  let raw = null;
+  try {
+    raw = await env.HIST.get(HEALTH_KEY);
+  } catch (error) {
+    console.error("Failed to read health:latest from KV", error);
+    return null;
+  }
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
+    return parsed;
+  } catch (error) {
+    console.error("Failed to parse health:latest JSON", error);
+    return null;
+  }
+}
+
+async function appendEvents(env, incoming) {
+  if (!incoming.length) return [];
+  const events = await safeLoadEvents(env);
+  const merged = events.concat(incoming);
+  const trimmed = merged.length > EVENTS_MAX ? merged.slice(merged.length - EVENTS_MAX) : merged;
+  await writeEvents(env, trimmed);
+  return incoming;
+}
+
+async function updateHealthAndEvents(env, list, latest) {
+  if (!latest) return null;
+  const report = buildHealthReport(list, latest, INTERVAL_MIN);
+  if (!report) return null;
+
+  const prev = await safeLoadHealth(env);
+  const prevLevel = prev?.level ?? null;
+  const levelChanged = prevLevel && prevLevel !== report.level;
+
+  await env.HIST.put(HEALTH_KEY, JSON.stringify({
+    ok: report.ok,
+    level: report.level,
+    reasons: report.reasons,
+    latest: report.latest,
+    baseline: report.baseline,
+    interval_min: report.interval_min,
+    ts: report.ts,
+  }));
+
+  const eventsToAdd = [];
+  if (report.level === "WARN" || report.level === "ALERT") {
+    eventsToAdd.push(...report.events);
+  }
+  if (levelChanged) {
+    eventsToAdd.push(
+      buildHealthEvent(
+        "health_change",
+        report.level,
+        `Health ${prevLevel} -> ${report.level}`,
+        latest,
+        report.ts
+      )
+    );
+  }
+
+  if (eventsToAdd.length) {
+    await appendEvents(env, eventsToAdd);
+  }
+
+  for (const event of eventsToAdd) {
+    if (event.level !== "WARN" && event.level !== "ALERT") continue;
+    const alertKey = ALERT_TYPES[event.type];
+    if (!alertKey) continue;
+    const avgValue = event.type === "gas_high" ? report.baseline?.gas_3h : report.baseline?.tps_3h;
+    const message = buildAlertMessage(event.type, latest, avgValue, INTERVAL_MIN, event.msg);
+    const result = await sendDiscordAlert(env, alertKey, message);
+    if (!result.ok) console.log("Discord alert skipped", result);
+  }
+
+  return report;
+}
+
+function buildDailySummary(list, intervalMin, dateStr) {
+  if (!list.length) return null;
+  const tpsValues = list.map((entry) => entry?.tps).filter(Number.isFinite);
+  const gasValues = list.map((entry) => entry?.gas_gwei).filter(Number.isFinite);
+  const wldUsdValues = list.map((entry) => entry?.wld_usd).filter(Number.isFinite);
+  const wldJpyValues = list.map((entry) => entry?.wld_jpy).filter(Number.isFinite);
+
+  const tpsMax = tpsValues.length ? Math.max(...tpsValues) : null;
+  const tpsMin = tpsValues.length ? Math.min(...tpsValues) : null;
+  const gasMax = gasValues.length ? Math.max(...gasValues) : null;
+
+  const wldUsdChange = wldUsdValues.length ? wldUsdValues[wldUsdValues.length - 1] - wldUsdValues[0] : null;
+  const wldJpyChange = wldJpyValues.length ? wldJpyValues[wldJpyValues.length - 1] - wldJpyValues[0] : null;
+
+  const healthCounts = { NORMAL: 0, WARN: 0, ALERT: 0 };
+  for (let i = 0; i < list.length; i += 1) {
+    const slice = list.slice(0, i + 1);
+    const latest = slice[slice.length - 1];
+    const report = buildHealthReport(slice, latest, intervalMin);
+    const level = report?.level ?? "NORMAL";
+    if (healthCounts[level] != null) healthCounts[level] += 1;
+  }
+  const healthMode = Object.entries(healthCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "NORMAL";
+
+  return {
+    ok: true,
+    date: dateStr,
+    health: {
+      counts: healthCounts,
+      mode: healthMode,
+    },
+    tps: {
+      max: tpsMax,
+      min: tpsMin,
+    },
+    gas: {
+      max: gasMax,
+    },
+    wld: {
+      usd_change: wldUsdChange,
+      jpy_change: wldJpyChange,
+    },
+    interval_min: intervalMin,
+    ts: new Date().toISOString(),
+  };
+}
+
+async function maybeGenerateDailySummary(env, list) {
+  const today = formatDateUTC(new Date());
+  const latestDaily = await safeLoadJson(env, DAILY_LATEST_KEY);
+  if (latestDaily?.date === today) return null;
+
+  const summary = buildDailySummary(list, INTERVAL_MIN, today);
+  if (!summary) return null;
+
+  await env.HIST.put(`daily:${today}`, JSON.stringify(summary));
+  await env.HIST.put(DAILY_LATEST_KEY, JSON.stringify(summary));
+
+  const message = `[WCWD] Daily summary ${today}\nHealth mode: ${summary.health.mode} (N:${summary.health.counts.NORMAL} W:${summary.health.counts.WARN} A:${summary.health.counts.ALERT})\nTPS max/min: ${fmtNum(summary.tps.max, 0)} / ${fmtNum(summary.tps.min, 0)}\nGas max: ${fmtNum(summary.gas.max, 6)}\nWLD change: USD ${fmtNum(summary.wld.usd_change, 6)} / JPY ${fmtNum(summary.wld.jpy_change, 2)}\nhttps://wcwd.pages.dev/`;
+  const result = await sendDiscordAlert(env, ALERT_TYPES.daily_summary, message);
+  if (!result.ok) console.log("Daily summary skipped", result);
+  return summary;
+}
+
+async function safeLoadJson(env, key) {
+  let raw = null;
+  try {
+    raw = await env.HIST.get(key);
+  } catch (error) {
+    console.error(`Failed to read ${key} from KV`, error);
+    return null;
+  }
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch (error) {
+    console.error(`Failed to parse ${key} JSON`, error);
+    return null;
   }
 }
 
@@ -355,7 +655,7 @@ async function runOnce(env) {
   await env.HIST.put("snap:list", JSON.stringify(list));
   await env.HIST.put("snap:latest", JSON.stringify(snap));
 
-  return { snap, listLength: list.length };
+  return { snap, list, listLength: list.length };
 }
 
 function shouldAppendSnapshot(list, snap) {
@@ -434,6 +734,7 @@ export default {
         if (request.method !== "POST") return errorJson("run", "method_not_allowed", 405, origin);
         const result = await runOnce(env);
         if (!result?.snap) return errorJson("run", "fetch_failed", 502, origin);
+        await updateHealthAndEvents(env, result.list ?? [], result.snap);
         return json({ ok: true, snap: result.snap }, {}, origin);
       }
 
@@ -452,6 +753,37 @@ export default {
         const limit = clampInt(url.searchParams.get("limit"), 1, LIST_MAX, DEFAULT_LIMIT);
         const list = await getRecentList(env, limit);
         return json(list, {}, origin);
+      }
+
+      if (pathname === "/api/health") {
+        if (request.method !== "GET") return errorJson("health", "method_not_allowed", 405, origin);
+        const health = await safeLoadJson(env, HEALTH_KEY);
+        if (!health) return json({ ok: false, reason: "no_data" }, {}, origin);
+        return json(health, {}, origin);
+      }
+
+      if (pathname === "/api/events") {
+        if (request.method !== "GET") return errorJson("events", "method_not_allowed", 405, origin);
+        const limit = clampInt(url.searchParams.get("limit"), 1, EVENTS_MAX, 50);
+        const events = await safeLoadEvents(env);
+        const list = events.length > limit ? events.slice(events.length - limit) : events;
+        return json(list, {}, origin);
+      }
+
+      if (pathname === "/api/daily/latest") {
+        if (request.method !== "GET") return errorJson("daily_latest", "method_not_allowed", 405, origin);
+        const daily = await safeLoadJson(env, DAILY_LATEST_KEY);
+        if (!daily) return json({ ok: false, reason: "no_data" }, {}, origin);
+        return json(daily, {}, origin);
+      }
+
+      if (pathname === "/api/daily") {
+        if (request.method !== "GET") return errorJson("daily", "method_not_allowed", 405, origin);
+        const date = url.searchParams.get("date") || "";
+        if (!date) return errorJson("daily", "invalid_date", 400, origin);
+        const daily = await safeLoadJson(env, `daily:${date}`);
+        if (!daily) return json({ ok: false, reason: "no_data" }, {}, origin);
+        return json(daily, {}, origin);
       }
 
       if (pathname === "/api/series") {
@@ -544,7 +876,10 @@ export default {
           updated_at: new Date().toISOString(),
         };
         await env.HIST.put("meta:retention", JSON.stringify(meta));
-        await checkAlerts(env);
+        if (result?.list?.length) {
+          await updateHealthAndEvents(env, result.list, result.snap);
+          await maybeGenerateDailySummary(env, result.list);
+        }
       })()
     );
   },

@@ -15,6 +15,10 @@ const UI = {
   status: document.getElementById("status"),
   reload: document.getElementById("reload"),
 
+  healthLevel: document.getElementById("healthLevel"),
+  healthReasons: document.getElementById("healthReasons"),
+  healthBaseline: document.getElementById("healthBaseline"),
+
   tps: document.getElementById("tps"),
   tx24h: document.getElementById("tx24h"),
   gasPrice: document.getElementById("gasPrice"),
@@ -47,6 +51,16 @@ const UI = {
   alertSpike: document.getElementById("alertSpike"),
   alertDrop: document.getElementById("alertDrop"),
   alertHighGas: document.getElementById("alertHighGas"),
+
+  eventsList: document.getElementById("eventsList"),
+
+  dailyDate: document.getElementById("dailyDate"),
+  dailyHealth: document.getElementById("dailyHealth"),
+  dailyTpsMax: document.getElementById("dailyTpsMax"),
+  dailyTpsMin: document.getElementById("dailyTpsMin"),
+  dailyGasMax: document.getElementById("dailyGasMax"),
+  dailyWldUsdChange: document.getElementById("dailyWldUsdChange"),
+  dailyWldJpyChange: document.getElementById("dailyWldJpyChange"),
 
   raw: document.getElementById("raw"),
   errors: document.getElementById("errors"),
@@ -251,6 +265,77 @@ function setStatusText(histOk) {
   else UI.status.textContent = histOk ? "OK" : "DEGRADED";
 }
 
+function healthLabel(level) {
+  if (level === "ALERT") return "🚨 Alert";
+  if (level === "WARN") return "⚠️ Warn";
+  if (level === "NORMAL") return "✅ Normal";
+  return "—";
+}
+
+function renderHealth(health) {
+  if (!health || typeof health !== "object") {
+    UI.healthLevel.textContent = "—";
+    UI.healthReasons.textContent = "—";
+    UI.healthBaseline.textContent = "—";
+    return;
+  }
+  UI.healthLevel.textContent = healthLabel(health.level);
+  const reasons = Array.isArray(health.reasons) ? health.reasons.slice(0, 3) : [];
+  UI.healthReasons.textContent = reasons.length ? reasons.join("\n") : "—";
+  const tpsBase = fmtNum(health?.baseline?.tps_3h, 2);
+  const gasBase = fmtNum(health?.baseline?.gas_3h, 6);
+  UI.healthBaseline.textContent = `baseline (3h avg): tps=${tpsBase} gas=${gasBase}`;
+}
+
+function renderEvents(events) {
+  if (!UI.eventsList) return;
+  UI.eventsList.innerHTML = "";
+  if (!Array.isArray(events) || events.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "note";
+    empty.textContent = "No events yet";
+    UI.eventsList.appendChild(empty);
+    return;
+  }
+  const list = document.createElement("ul");
+  list.className = "mono";
+  for (const event of events) {
+    const item = document.createElement("li");
+    const ts = event?.ts || "—";
+    const level = event?.level || "—";
+    const msg = event?.msg || "—";
+    item.textContent = `${ts} [${level}] ${msg}`;
+    list.appendChild(item);
+  }
+  UI.eventsList.appendChild(list);
+}
+
+function renderDaily(summary) {
+  if (!summary || typeof summary !== "object") {
+    UI.dailyDate.textContent = "—";
+    UI.dailyHealth.textContent = "—";
+    UI.dailyTpsMax.textContent = "—";
+    UI.dailyTpsMin.textContent = "—";
+    UI.dailyGasMax.textContent = "—";
+    UI.dailyWldUsdChange.textContent = "—";
+    UI.dailyWldJpyChange.textContent = "—";
+    return;
+  }
+  UI.dailyDate.textContent = summary.date || "—";
+  const health = summary?.health;
+  if (health?.mode) {
+    const counts = health.counts || {};
+    UI.dailyHealth.textContent = `${health.mode} (N:${counts.NORMAL ?? 0} W:${counts.WARN ?? 0} A:${counts.ALERT ?? 0})`;
+  } else {
+    UI.dailyHealth.textContent = "—";
+  }
+  UI.dailyTpsMax.textContent = fmtNum(summary?.tps?.max, 0);
+  UI.dailyTpsMin.textContent = fmtNum(summary?.tps?.min, 0);
+  UI.dailyGasMax.textContent = fmtNum(summary?.gas?.max, 6);
+  UI.dailyWldUsdChange.textContent = fmtUsd(summary?.wld?.usd_change, 6);
+  UI.dailyWldJpyChange.textContent = fmtJpy(summary?.wld?.jpy_change, 2);
+}
+
 async function loadAll() {
   clearError();
   UI.raw.textContent = "—";
@@ -259,6 +344,9 @@ async function loadAll() {
   const errors = [];
   const isLite = new URLSearchParams(location.search).get("lite") === "1";
   const seriesMeta = {};
+  let health = null;
+  let events = [];
+  let daily = null;
 
   // History (server observed)
   let hist = [];
@@ -364,6 +452,33 @@ async function loadAll() {
   }
 
   try {
+    const { json } = await fetchJsonWithMeta(`${HISTORY_BASE}/api/health`, { timeoutMs: 8000 });
+    health = json;
+    renderHealth(health);
+  } catch (e) {
+    errors.push(`Health fetch failed: ${(e && e.message) ? e.message : String(e)}`);
+    renderHealth(null);
+  }
+
+  try {
+    const { json } = await fetchJsonWithMeta(`${HISTORY_BASE}/api/events?limit=50`, { timeoutMs: 8000 });
+    events = Array.isArray(json) ? json : [];
+    renderEvents(events);
+  } catch (e) {
+    errors.push(`Events fetch failed: ${(e && e.message) ? e.message : String(e)}`);
+    renderEvents([]);
+  }
+
+  try {
+    const { json } = await fetchJsonWithMeta(`${HISTORY_BASE}/api/daily/latest`, { timeoutMs: 8000 });
+    daily = json;
+    renderDaily(daily);
+  } catch (e) {
+    errors.push(`Daily summary fetch failed: ${(e && e.message) ? e.message : String(e)}`);
+    renderDaily(null);
+  }
+
+  try {
     UI.raw.textContent = JSON.stringify(
       {
         latest,
@@ -375,6 +490,9 @@ async function loadAll() {
         source,
         meta,
         series: seriesMeta,
+        health,
+        events: events.slice(0, 3),
+        daily,
       },
       null,
       2,
