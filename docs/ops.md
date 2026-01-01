@@ -4,6 +4,8 @@
 - Pages（表示）: `https://wcwd.pages.dev/`
 - Worker（収集/API）: `https://wcwd-history.badjoke-lab.workers.dev`
 - Cron → KV に保存 → Pages が Worker API を読む（**閲覧数依存ではない**）
+- Worker は GitHub Actions（main push）で自動デプロイされる
+  - Secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`
 
 ## 2) 推奨 cron 間隔（無料枠）
 - 推奨：無料は **15分**（≈ 96点/日）
