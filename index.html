@@ -32,6 +32,24 @@
     </header>
 
     <section class="card">
+      <h2>Health</h2>
+      <div class="grid">
+        <div class="metric">
+          <div class="k">Status</div>
+          <div class="v" id="healthLevel">—</div>
+        </div>
+        <div class="metric">
+          <div class="k">Reasons</div>
+          <div class="v mono" id="healthReasons">—</div>
+        </div>
+        <div class="metric">
+          <div class="k">Baseline</div>
+          <div class="v mono" id="healthBaseline">—</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
       <h2>Network</h2>
       <div class="grid">
         <div class="metric">
@@ -198,6 +216,45 @@
         <div class="metric">
           <div class="k">High Gas</div>
           <div class="v" id="alertHighGas">—</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Events</h2>
+      <div id="eventsList">—</div>
+    </section>
+
+    <section class="card">
+      <h2>Daily</h2>
+      <div class="grid">
+        <div class="metric">
+          <div class="k">Date</div>
+          <div class="v" id="dailyDate">—</div>
+        </div>
+        <div class="metric">
+          <div class="k">Health (mode)</div>
+          <div class="v mono" id="dailyHealth">—</div>
+        </div>
+        <div class="metric">
+          <div class="k">TPS max</div>
+          <div class="v" id="dailyTpsMax">—</div>
+        </div>
+        <div class="metric">
+          <div class="k">TPS min</div>
+          <div class="v" id="dailyTpsMin">—</div>
+        </div>
+        <div class="metric">
+          <div class="k">Gas max (gwei)</div>
+          <div class="v" id="dailyGasMax">—</div>
+        </div>
+        <div class="metric">
+          <div class="k">WLD change (USD)</div>
+          <div class="v" id="dailyWldUsdChange">—</div>
+        </div>
+        <div class="metric">
+          <div class="k">WLD change (JPY)</div>
+          <div class="v" id="dailyWldJpyChange">—</div>
         </div>
       </div>
     </section>
