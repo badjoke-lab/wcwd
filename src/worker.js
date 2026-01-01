@@ -162,6 +162,7 @@ function buildRawPoints(snapshots, metric) {
   return points.map(({ ts, v }) => ({ ts, v }));
 }
 
+// step=1h is fixed to hourly average (no "last") to reduce noise for monitoring.
 function buildHourlyPoints(snapshots, metric) {
   const buckets = new Map();
   for (const snap of snapshots) {
@@ -758,8 +759,23 @@ export default {
       if (pathname === "/api/health") {
         if (request.method !== "GET") return errorJson("health", "method_not_allowed", 405, origin);
         const health = await safeLoadJson(env, HEALTH_KEY);
-        if (!health) return json({ ok: false, reason: "no_data" }, {}, origin);
-        return json(health, {}, origin);
+        if (!health) {
+          return json(
+            {
+              ok: true,
+              level: "UNKNOWN",
+              reasons: [],
+              latest: null,
+              baseline: { tps_3h: null, gas_3h: null },
+              interval_min: INTERVAL_MIN,
+              ts: new Date().toISOString(),
+              reason: "no_data",
+            },
+            {},
+            origin
+          );
+        }
+        return json({ ok: true, ...health }, {}, origin);
       }
 
       if (pathname === "/api/events") {
@@ -767,14 +783,30 @@ export default {
         const limit = clampInt(url.searchParams.get("limit"), 1, EVENTS_MAX, 50);
         const events = await safeLoadEvents(env);
         const list = events.length > limit ? events.slice(events.length - limit) : events;
-        return json(list, {}, origin);
+        return json({ ok: true, events: list }, {}, origin);
       }
 
       if (pathname === "/api/daily/latest") {
         if (request.method !== "GET") return errorJson("daily_latest", "method_not_allowed", 405, origin);
         const daily = await safeLoadJson(env, DAILY_LATEST_KEY);
-        if (!daily) return json({ ok: false, reason: "no_data" }, {}, origin);
-        return json(daily, {}, origin);
+        if (!daily) {
+          return json(
+            {
+              ok: true,
+              date: null,
+              health: { counts: { NORMAL: 0, WARN: 0, ALERT: 0 }, mode: "NORMAL" },
+              tps: { max: null, min: null },
+              gas: { max: null },
+              wld: { usd_change: null, jpy_change: null },
+              interval_min: INTERVAL_MIN,
+              ts: new Date().toISOString(),
+              reason: "no_data",
+            },
+            {},
+            origin
+          );
+        }
+        return json({ ok: true, ...daily }, {}, origin);
       }
 
       if (pathname === "/api/daily") {
@@ -782,8 +814,8 @@ export default {
         const date = url.searchParams.get("date") || "";
         if (!date) return errorJson("daily", "invalid_date", 400, origin);
         const daily = await safeLoadJson(env, `daily:${date}`);
-        if (!daily) return json({ ok: false, reason: "no_data" }, {}, origin);
-        return json(daily, {}, origin);
+        if (!daily) return json({ ok: true, reason: "no_data", date }, {}, origin);
+        return json({ ok: true, ...daily }, {}, origin);
       }
 
       if (pathname === "/api/series") {
