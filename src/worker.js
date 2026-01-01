@@ -9,6 +9,7 @@
  * - GET  /api/latest
  * - GET  /api/list?limit=96
  * - GET  /api/health
+ * - GET  /api/version
  * - GET  /api/events?limit=50
  * - GET  /api/daily?date=YYYY-MM-DD
  * - GET  /api/daily/latest
@@ -38,6 +39,7 @@ const ALERT_TYPES = {
   health_change: "alert:last_sent:health_change",
   daily_summary: "alert:last_sent:daily_summary",
 };
+const UNKNOWN_VERSION = "unknown";
 
 function corsHeaders(origin = "*") {
   return {
@@ -745,6 +747,21 @@ export default {
         const latest = await getLatestSnapshot(env);
         if (!latest) return json({ ok: false, reason: "no_data" }, {}, origin);
         return json(latest, {}, origin);
+      }
+
+      if (pathname === "/api/version") {
+        if (request.method !== "GET") return errorJson("version", "method_not_allowed", 405, origin);
+        const workerVersion = env.WORKER_VERSION || UNKNOWN_VERSION;
+        const deployedAt = env.DEPLOYED_AT || new Date().toISOString();
+        return json(
+          {
+            ok: true,
+            worker_version: workerVersion,
+            deployed_at: deployedAt,
+          },
+          {},
+          origin
+        );
       }
 
       if (pathname === "/api/list") {

@@ -9,16 +9,19 @@ function buildCorsHeaders(request) {
   return headers;
 }
 
-export async function onRequest({ request, params }) {
+export async function onRequest({ request, params, env }) {
   const method = request.method.toUpperCase();
   if (!["GET", "POST", "OPTIONS"].includes(method)) {
     return new Response("Method Not Allowed", { status: 405 });
   }
 
   const corsHeaders = buildCorsHeaders(request);
+  const pagesVersion = env?.CF_PAGES_COMMIT_SHA || "unknown";
+
   if (method === "OPTIONS") {
     corsHeaders.set("cache-control", "no-store");
     corsHeaders.set("x-wcwd-proxy", "pages");
+    corsHeaders.set("x-wcwd-pages-version", pagesVersion);
     return new Response(null, { status: 204, headers: corsHeaders });
   }
 
@@ -47,6 +50,7 @@ export async function onRequest({ request, params }) {
     const errHeaders = buildCorsHeaders(request);
     errHeaders.set("cache-control", "no-store");
     errHeaders.set("x-wcwd-proxy", "pages");
+    errHeaders.set("x-wcwd-pages-version", pagesVersion);
     return new Response(
       JSON.stringify({ ok: false, error: "upstream_fetch_failed" }),
       { status: 502, headers: errHeaders },
@@ -59,6 +63,7 @@ export async function onRequest({ request, params }) {
   }
   responseHeaders.set("cache-control", "no-store");
   responseHeaders.set("x-wcwd-proxy", "pages");
+  responseHeaders.set("x-wcwd-pages-version", pagesVersion);
 
   return new Response(upstream.body, {
     status: upstream.status,

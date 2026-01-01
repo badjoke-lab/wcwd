@@ -20,6 +20,7 @@ const DEFAULT_INTERVAL_MIN = 15;
 const INTERVAL_STORAGE_KEY = "wcwd-interval-min";
 const HISTORY_CACHE_KEY = "wcwd-history-cache-v1";
 const SAFE_REQUEST_LIMIT = 288;
+const UNKNOWN_VERSION = "unknown";
 
 const UI = {
   status: document.getElementById("status"),
@@ -94,6 +95,13 @@ function fmtJpy(n, digits = 2) {
 function pct(n, digits = 2) {
   if (n === null || n === undefined || Number.isNaN(n)) return "—";
   return `${Number(n).toFixed(digits)}%`;
+}
+
+function shortSha(sha) {
+  if (!sha) return UNKNOWN_VERSION;
+  const trimmed = String(sha).trim();
+  if (!trimmed || trimmed === UNKNOWN_VERSION) return UNKNOWN_VERSION;
+  return trimmed.length > 7 ? trimmed.slice(0, 7) : trimmed;
 }
 
 function loadStoredInterval() {
@@ -352,6 +360,10 @@ async function loadAll() {
   let health = null;
   let events = [];
   let daily = null;
+  let pagesVersion = null;
+  let workerVersion = null;
+  let historyNoteBase = "";
+  let versionNote = "";
 
   // History (server observed)
   let hist = [];
@@ -361,15 +373,22 @@ async function loadAll() {
   let source = isLocalMode() ? "worker-direct" : "pages-proxy";
   let historyOk = false;
 
+  const applyHistoryNote = () => {
+    const parts = [historyNoteBase, versionNote].filter(Boolean);
+    UI.noteHistory.textContent = parts.join(" ");
+  };
+
   try {
     const { json, headers } = await fetchJsonWithMeta(`${API_BASE}/api/list?limit=${SAFE_REQUEST_LIMIT}`, { timeoutMs: 8000 });
     const headerInterval = Number(headers.get("x-wcwd-interval-min"));
     const proxyHeader = headers.get("x-wcwd-proxy");
+    const pagesHeader = headers.get("x-wcwd-pages-version");
     if (proxyHeader && proxyHeader.toLowerCase() === "pages") {
       source = "pages-proxy";
     } else if (!isLocalMode()) {
       source = "worker-direct";
     }
+    pagesVersion = pagesHeader || pagesVersion;
     intervalMin = Number.isFinite(headerInterval) && headerInterval > 0 ? headerInterval : DEFAULT_INTERVAL_MIN;
     storeInterval(intervalMin);
 
@@ -401,10 +420,11 @@ async function loadAll() {
 
   if (latest) {
     const okLabel = historyOk ? "History OK." : "History OK (cache).";
-    UI.noteHistory.textContent = `${okLabel} points=${hist.length} interval=${fmtNum(intervalMin, 0)}min mode=${isLite ? "lite" : "full"} source=${source}`;
+    historyNoteBase = `${okLabel} points=${hist.length} interval=${fmtNum(intervalMin, 0)}min mode=${isLite ? "lite" : "full"} source=${source}`;
   } else {
-    UI.noteHistory.textContent = `History unavailable. points=${hist.length} interval=${fmtNum(intervalMin, 0)}min mode=${isLite ? "lite" : "full"} source=${source} — Try again later / enable ?lite=1 / reduce points`;
+    historyNoteBase = `History unavailable. points=${hist.length} interval=${fmtNum(intervalMin, 0)}min mode=${isLite ? "lite" : "full"} source=${source} — Try again later / enable ?lite=1 / reduce points`;
   }
+  applyHistoryNote();
 
   // Render from history latest
   try {
@@ -488,6 +508,20 @@ async function loadAll() {
     errors.push(`Daily summary fetch failed: ${(e && e.message) ? e.message : String(e)}`);
     renderDaily(null);
   }
+
+  try {
+    const { json, headers } = await fetchJsonWithMeta(`${API_BASE}/api/version`, { timeoutMs: 6000 });
+    workerVersion = json?.worker_version || workerVersion;
+    pagesVersion = pagesVersion || headers.get("x-wcwd-pages-version");
+  } catch (e) {
+    errors.push(`Version fetch failed: ${(e && e.message) ? e.message : String(e)}`);
+  }
+
+  if (isLocalMode() && !pagesVersion) {
+    pagesVersion = "local";
+  }
+  versionNote = `pages=${shortSha(pagesVersion)} worker=${shortSha(workerVersion)}`;
+  applyHistoryNote();
 
   try {
     UI.raw.textContent = JSON.stringify(
