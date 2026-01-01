@@ -1,9 +1,19 @@
 /* WCWD frontend (static) — uses History Worker /api/list */
 
-const HISTORY_BASE = (() => {
-  const meta = document.querySelector('meta[name="wcwd-history-base"]');
-  const v = meta?.getAttribute("content")?.trim();
-  return v || "https://wcwd-history.badjoke-lab.workers.dev";
+const WORKER_BASE = "https://wcwd-history.badjoke-lab.workers.dev";
+
+function isLocalMode() {
+  const h = location.hostname;
+  return h === "localhost" || h === "127.0.0.1" || h === "" || location.protocol === "file:";
+}
+
+const API_BASE = (() => {
+  if (isLocalMode()) {
+    const meta = document.querySelector('meta[name="wcwd-history-base"]');
+    const v = meta?.getAttribute("content")?.trim();
+    return v || WORKER_BASE;
+  }
+  return "";
 })();
 
 const DEFAULT_INTERVAL_MIN = 15;
@@ -65,11 +75,6 @@ const UI = {
   raw: document.getElementById("raw"),
   errors: document.getElementById("errors"),
 };
-
-function isLocalMode() {
-  const h = location.hostname;
-  return h === "localhost" || h === "127.0.0.1" || h === "" || location.protocol === "file:";
-}
 
 function fmtNum(n, digits = 0) {
   if (n === null || n === undefined || Number.isNaN(n)) return "—";
@@ -199,7 +204,7 @@ function drawSparkline(canvas, series) {
 }
 
 async function loadSeries(metric, canvas, noteEl, errors, intervalMin) {
-  const url = `${HISTORY_BASE}/api/series?metric=${metric}&period=7d&step=1h`;
+  const url = `${API_BASE}/api/series?metric=${metric}&period=7d&step=1h`;
   try {
     const { json, headers } = await fetchJsonWithMeta(url, { timeoutMs: 8000 });
     const points = Array.isArray(json?.points) ? json.points : [];
@@ -353,12 +358,18 @@ async function loadAll() {
   let latest = null;
   let meta = null;
   let intervalMin = loadStoredInterval();
-  let source = HISTORY_BASE;
+  let source = isLocalMode() ? "worker-direct" : "pages-proxy";
   let historyOk = false;
 
   try {
-    const { json, headers } = await fetchJsonWithMeta(`${HISTORY_BASE}/api/list?limit=${SAFE_REQUEST_LIMIT}`, { timeoutMs: 8000 });
+    const { json, headers } = await fetchJsonWithMeta(`${API_BASE}/api/list?limit=${SAFE_REQUEST_LIMIT}`, { timeoutMs: 8000 });
     const headerInterval = Number(headers.get("x-wcwd-interval-min"));
+    const proxyHeader = headers.get("x-wcwd-proxy");
+    if (proxyHeader && proxyHeader.toLowerCase() === "pages") {
+      source = "pages-proxy";
+    } else if (!isLocalMode()) {
+      source = "worker-direct";
+    }
     intervalMin = Number.isFinite(headerInterval) && headerInterval > 0 ? headerInterval : DEFAULT_INTERVAL_MIN;
     storeInterval(intervalMin);
 
@@ -376,7 +387,7 @@ async function loadAll() {
     if (cached?.hist?.length) {
       hist = cached.hist;
       intervalMin = cached.intervalMin;
-      source = "cache";
+      // keep source unchanged; data is from cache fallback
     }
   }
 
@@ -389,7 +400,7 @@ async function loadAll() {
   setStatusText(historyOk);
 
   if (latest) {
-    const okLabel = source === "cache" ? "History OK (cache)." : "History OK.";
+    const okLabel = historyOk ? "History OK." : "History OK (cache).";
     UI.noteHistory.textContent = `${okLabel} points=${hist.length} interval=${fmtNum(intervalMin, 0)}min mode=${isLite ? "lite" : "full"} source=${source}`;
   } else {
     UI.noteHistory.textContent = `History unavailable. points=${hist.length} interval=${fmtNum(intervalMin, 0)}min mode=${isLite ? "lite" : "full"} source=${source} — Try again later / enable ?lite=1 / reduce points`;
@@ -452,7 +463,7 @@ async function loadAll() {
   }
 
   try {
-    const { json } = await fetchJsonWithMeta(`${HISTORY_BASE}/api/health`, { timeoutMs: 8000 });
+    const { json } = await fetchJsonWithMeta(`${API_BASE}/api/health`, { timeoutMs: 8000 });
     health = json;
     renderHealth(health);
   } catch (e) {
@@ -461,7 +472,7 @@ async function loadAll() {
   }
 
   try {
-    const { json } = await fetchJsonWithMeta(`${HISTORY_BASE}/api/events?limit=50`, { timeoutMs: 8000 });
+    const { json } = await fetchJsonWithMeta(`${API_BASE}/api/events?limit=50`, { timeoutMs: 8000 });
     events = Array.isArray(json) ? json : [];
     renderEvents(events);
   } catch (e) {
@@ -470,7 +481,7 @@ async function loadAll() {
   }
 
   try {
-    const { json } = await fetchJsonWithMeta(`${HISTORY_BASE}/api/daily/latest`, { timeoutMs: 8000 });
+    const { json } = await fetchJsonWithMeta(`${API_BASE}/api/daily/latest`, { timeoutMs: 8000 });
     daily = json;
     renderDaily(daily);
   } catch (e) {
