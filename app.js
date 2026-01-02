@@ -15,8 +15,6 @@ const API_BASE = (() => {
   }
   return "";
 })();
-const HISTORY_ORIGIN = HISTORY_BASE.replace(/\/+$/, "");
-const api = (path) => `${HISTORY_ORIGIN}${path.startsWith("/") ? path : `/${path}`}`;
 
 const DEFAULT_INTERVAL_MIN = 15;
 const INTERVAL_STORAGE_KEY = "wcwd-interval-min";
@@ -77,11 +75,13 @@ const UI = {
 
   ecoHotList: document.getElementById("ecoHotList"),
   ecoHotEmpty: document.getElementById("ecoHotEmpty"),
+  ecoNewList: document.getElementById("ecoNewList"),
+  ecoNewEmpty: document.getElementById("ecoNewEmpty"),
   ecoList: document.getElementById("ecoList"),
   ecoEmpty: document.getElementById("ecoEmpty"),
   ecoSearch: document.getElementById("ecoSearch"),
   ecoCategory: document.getElementById("ecoCategory"),
-  ecoShowAll: document.getElementById("ecoShowAll"),
+  ecoShowUnverified: document.getElementById("ecoShowUnverified"),
   ecoTagState: document.getElementById("ecoTagState"),
   ecoError: document.getElementById("ecoError"),
   ecoTabs: Array.from(document.querySelectorAll("[data-eco-type]")),
@@ -117,21 +117,30 @@ function ecoTypeLabel(type) {
 
 function isWorldChainVerified(item) {
   const contracts = Array.isArray(item?.contracts) ? item.contracts : [];
-  const hasWorldChainContract = contracts.some((contract) => Number(contract?.chainId) === 480);
-  const explorer = item?.links?.explorer;
-  const hasWorldscanLink = typeof explorer === "string" && explorer.includes("worldscan.org/address/");
-  const isOffchainVerified = item?.type === "offchain" && item?.offchain_verified === true;
-  return hasWorldChainContract || hasWorldscanLink || isOffchainVerified;
+  const hasWorldChainContract = contracts.some((c) => Number(c?.chainId) === 480);
+  const explorer = normalizeText(item?.links?.explorer);
+  const hasWorldscanAddress = explorer.includes("worldscan.org/address/");
+  const offchainVerified = item?.type === "offchain" && item?.offchain_verified === true;
+  return hasWorldChainContract || hasWorldscanAddress || offchainVerified;
 }
 
-function ecoVerificationInfo(item) {
+function verificationStatus(item) {
   if (item?.type === "offchain" && item?.offchain_verified === true) {
-    return { label: "⚪ Offchain (World official)", className: "offchain" };
+    return {
+      label: "Offchain (World official)",
+      className: "offchain",
+    };
   }
   if (isWorldChainVerified(item)) {
-    return { label: "✅ Verified on World Chain", className: "verified" };
+    return {
+      label: "Verified on World Chain",
+      className: "verified",
+    };
   }
-  return { label: "⚠ Unverified / Cross-chain", className: "unverified" };
+  return {
+    label: "Unverified / Cross-chain",
+    className: "unverified",
+  };
 }
 
 function normalizeText(value) {
@@ -159,9 +168,6 @@ function matchesCategory(item, category) {
 
 function matchesType(item, typeTab) {
   if (!typeTab || typeTab === "all") return true;
-  if (typeTab === "infra") {
-    return item?.type === "infra" || item?.type === "offchain";
-  }
   return item?.type === typeTab;
 }
 
@@ -217,16 +223,16 @@ function renderEcoCard(item) {
   const badge = document.createElement("span");
   badge.className = "eco-badge";
   badge.textContent = ecoTypeLabel(item?.type);
-  const verify = ecoVerificationInfo(item);
-  const verifyBadge = document.createElement("span");
-  verifyBadge.className = `eco-verify ${verify.className}`;
-  verifyBadge.textContent = verify.label;
   const cat = document.createElement("span");
   cat.className = "note";
   cat.textContent = item?.category || "—";
+  const status = verificationStatus(item);
+  const statusBadge = document.createElement("span");
+  statusBadge.className = `eco-status ${status.className}`;
+  statusBadge.textContent = status.label;
   meta.appendChild(badge);
-  meta.appendChild(verifyBadge);
   meta.appendChild(cat);
+  meta.appendChild(statusBadge);
   card.appendChild(meta);
 
   if (item?.description) {
@@ -270,7 +276,7 @@ function renderHotList() {
   if (!UI.ecoHotList || !UI.ecoHotEmpty) return;
   UI.ecoHotList.innerHTML = "";
   const hotItems = ECO_ITEMS.filter((item) => item?.hot)
-    .filter((item) => (ECO_STATE.showUnverified ? true : isWorldChainVerified(item)))
+    .filter((item) => ECO_STATE.showUnverified || isWorldChainVerified(item))
     .sort((a, b) => (a.hot_rank ?? 999) - (b.hot_rank ?? 999))
     .slice(0, 5);
   if (!hotItems.length) {
@@ -281,19 +287,36 @@ function renderHotList() {
   hotItems.forEach((item) => UI.ecoHotList.appendChild(renderEcoCard(item)));
 }
 
+function renderNewList() {
+  if (!UI.ecoNewList || !UI.ecoNewEmpty) return;
+  UI.ecoNewList.innerHTML = "";
+  const newItems = ECO_ITEMS
+    .filter((item) => ECO_STATE.showUnverified || isWorldChainVerified(item))
+    .slice()
+    .sort((a, b) => (b.added_at || "").localeCompare(a.added_at || ""))
+    .slice(0, 5);
+  if (!newItems.length) {
+    UI.ecoNewEmpty.style.display = "block";
+    return;
+  }
+  UI.ecoNewEmpty.style.display = "none";
+  newItems.forEach((item) => UI.ecoNewList.appendChild(renderEcoCard(item)));
+}
+
 function renderEcosystem() {
   if (!UI.ecoList || !UI.ecoEmpty) return;
   setActiveTab(ECO_STATE.typeTab);
   updateTagState();
   renderHotList();
+  renderNewList();
   UI.ecoList.innerHTML = "";
 
   const filtered = ECO_ITEMS.filter((item) => (
-    (ECO_STATE.showUnverified ? true : isWorldChainVerified(item))
-    && matchesType(item, ECO_STATE.typeTab)
+    matchesType(item, ECO_STATE.typeTab)
     && matchesCategory(item, ECO_STATE.category)
     && matchesTag(item, ECO_STATE.tag)
     && matchesQuery(item, ECO_STATE.query)
+    && (ECO_STATE.showUnverified || isWorldChainVerified(item))
   ));
 
   if (!filtered.length) {
@@ -333,13 +356,6 @@ function bindEcoControls() {
       });
     });
   }
-  if (UI.ecoShowAll) {
-    UI.ecoShowAll.checked = ECO_STATE.showUnverified;
-    UI.ecoShowAll.addEventListener("change", (event) => {
-      ECO_STATE.showUnverified = event.target.checked;
-      renderEcosystem();
-    });
-  }
   if (UI.ecoSearch) {
     UI.ecoSearch.addEventListener("input", (event) => {
       ECO_STATE.query = event.target.value.trim();
@@ -349,6 +365,12 @@ function bindEcoControls() {
   if (UI.ecoCategory) {
     UI.ecoCategory.addEventListener("change", (event) => {
       ECO_STATE.category = event.target.value || "all";
+      renderEcosystem();
+    });
+  }
+  if (UI.ecoShowUnverified) {
+    UI.ecoShowUnverified.addEventListener("change", (event) => {
+      ECO_STATE.showUnverified = event.target.checked;
       renderEcosystem();
     });
   }
@@ -373,6 +395,8 @@ async function loadEcosystem() {
     UI.ecoList.innerHTML = "";
     if (UI.ecoHotList) UI.ecoHotList.innerHTML = "";
     if (UI.ecoHotEmpty) UI.ecoHotEmpty.style.display = "block";
+    if (UI.ecoNewList) UI.ecoNewList.innerHTML = "";
+    if (UI.ecoNewEmpty) UI.ecoNewEmpty.style.display = "block";
   }
 }
 
@@ -523,15 +547,14 @@ async function loadSeries(metric, canvas, noteEl, errors, intervalMin) {
       ? intervalJson
       : (Number.isFinite(intervalHeader) ? intervalHeader : intervalMin);
     if (noteEl) {
-      const pointsNote = points.length < 2 ? " points不足" : "";
-      noteEl.textContent = `7d series OK. metric=${metric} step=${step} agg=${agg} interval=${fmtNum(intervalValue, 0)}m points=${points.length}${pointsNote} source=${HISTORY_ORIGIN}`;
+      noteEl.textContent = `7d series OK. metric=${metric} step=${step} agg=${agg} interval=${fmtNum(intervalValue, 0)}m points=${points.length} source=wcwd-history`;
     }
     drawSparkline(canvas, points.map((p) => p?.v));
     return { metric, agg, step, interval_min: intervalValue, points };
   } catch (e) {
     errors.push(`7d series fetch failed (${metric}): ${(e && e.message) ? e.message : String(e)}`);
     if (noteEl) {
-      noteEl.textContent = `7d series unavailable. metric=${metric} step=1h agg=avg interval=${fmtNum(intervalMin, 0)}m points不足 source=${HISTORY_ORIGIN}`;
+      noteEl.textContent = `7d series unavailable. metric=${metric} step=1h agg=avg interval=${fmtNum(intervalMin, 0)}m source=wcwd-history`;
     }
     drawSparkline(canvas, []);
     return null;
@@ -718,7 +741,6 @@ async function loadAll() {
   latest = hist[hist.length - 1] || null;
   setStatusText(historyOk);
 
-  const sourceLabel = source === "cache" ? `cache (${HISTORY_ORIGIN})` : HISTORY_ORIGIN;
   if (latest) {
     const okLabel = historyOk ? "History OK." : "History OK (cache).";
     historyNoteBase = `${okLabel} points=${hist.length} interval=${fmtNum(intervalMin, 0)}min mode=${isLite ? "lite" : "full"} source=${source}`;
@@ -744,7 +766,7 @@ async function loadAll() {
       UI.wldMc.textContent = "—";
       UI.wldVol.textContent = "—";
       UI.wldSpark7d.textContent = "—";
-      drawSparkline(UI.chartWld7d, []);
+      UI.chartWld7d.textContent = "—";
 
       // Activity (approx from snapshot)
       const tokenPct = latest.token_pct;
@@ -779,18 +801,8 @@ async function loadAll() {
     if (tpsSeries) seriesMeta.tps = { points: tpsSeries.points.length, agg: tpsSeries.agg, step: tpsSeries.step };
     const wldSeries = await loadSeries("wld_usd", UI.seriesWld7d, UI.noteSeriesWld7d, errors, intervalMin);
     if (wldSeries) seriesMeta.wld_usd = { points: wldSeries.points.length, agg: wldSeries.agg, step: wldSeries.step };
-
-    if (wldSeries?.points?.length >= 2) {
-      UI.wldSpark7d.textContent = `points=${wldSeries.points.length} source=${HISTORY_ORIGIN}`;
-      drawSparkline(UI.chartWld7d, wldSeries.points.map((p) => p?.v));
-    } else {
-      UI.wldSpark7d.textContent = `points不足 source=${HISTORY_ORIGIN}`;
-      drawSparkline(UI.chartWld7d, []);
-    }
   } catch (e) {
     errors.push(`7d series render failed: ${(e && e.message) ? e.message : String(e)}`);
-    UI.wldSpark7d.textContent = `points不足 source=${HISTORY_ORIGIN}`;
-    drawSparkline(UI.chartWld7d, []);
   }
 
   try {
