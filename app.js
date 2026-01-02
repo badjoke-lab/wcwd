@@ -73,9 +73,266 @@ const UI = {
   dailyWldUsdChange: document.getElementById("dailyWldUsdChange"),
   dailyWldJpyChange: document.getElementById("dailyWldJpyChange"),
 
+  ecoHotList: document.getElementById("ecoHotList"),
+  ecoHotEmpty: document.getElementById("ecoHotEmpty"),
+  ecoList: document.getElementById("ecoList"),
+  ecoEmpty: document.getElementById("ecoEmpty"),
+  ecoSearch: document.getElementById("ecoSearch"),
+  ecoCategory: document.getElementById("ecoCategory"),
+  ecoTagState: document.getElementById("ecoTagState"),
+  ecoError: document.getElementById("ecoError"),
+  ecoTabs: Array.from(document.querySelectorAll("[data-eco-type]")),
+
   raw: document.getElementById("raw"),
   errors: document.getElementById("errors"),
 };
+
+const ECO_STATE = {
+  typeTab: "all",
+  query: "",
+  category: "all",
+  tag: "",
+};
+
+let ECO_ITEMS = [];
+
+function setEcoError(message) {
+  if (!UI.ecoError) return;
+  UI.ecoError.textContent = message || "";
+  UI.ecoError.style.display = message ? "block" : "none";
+}
+
+function ecoTypeLabel(type) {
+  if (type === "token") return "Token";
+  if (type === "nft") return "NFT";
+  if (type === "dapp") return "dApp";
+  return "—";
+}
+
+function normalizeText(value) {
+  return String(value || "").toLowerCase();
+}
+
+function matchesQuery(item, query) {
+  if (!query) return true;
+  const q = normalizeText(query);
+  const haystack = [
+    item?.name,
+    item?.symbol,
+    item?.description,
+    ...(Array.isArray(item?.tags) ? item.tags : []),
+  ]
+    .map(normalizeText)
+    .join(" ");
+  return haystack.includes(q);
+}
+
+function matchesCategory(item, category) {
+  if (!category || category === "all") return true;
+  return item?.category === category;
+}
+
+function matchesType(item, typeTab) {
+  if (!typeTab || typeTab === "all") return true;
+  return item?.type === typeTab;
+}
+
+function matchesTag(item, tag) {
+  if (!tag) return true;
+  const tags = Array.isArray(item?.tags) ? item.tags : [];
+  return tags.includes(tag);
+}
+
+function setActiveTab(typeTab) {
+  if (!UI.ecoTabs?.length) return;
+  UI.ecoTabs.forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.ecoType === typeTab);
+  });
+}
+
+function updateTagState() {
+  if (!UI.ecoTagState) return;
+  UI.ecoTagState.textContent = ECO_STATE.tag ? `Tag filter: ${ECO_STATE.tag}` : "Tag filter: none";
+}
+
+function renderEcoLinks(links) {
+  const container = document.createElement("div");
+  container.className = "eco-links";
+  const linkDefs = [
+    ["Official", links?.official],
+    ["App", links?.app],
+    ["Docs", links?.docs],
+    ["Explorer", links?.explorer],
+  ];
+  for (const [label, url] of linkDefs) {
+    if (!url) continue;
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.target = "_blank";
+    anchor.rel = "noopener";
+    anchor.textContent = label;
+    container.appendChild(anchor);
+  }
+  return container;
+}
+
+function renderEcoCard(item) {
+  const card = document.createElement("div");
+  card.className = "eco-card";
+
+  const title = document.createElement("h4");
+  title.textContent = item?.symbol ? `${item.name} (${item.symbol})` : item?.name || "—";
+  card.appendChild(title);
+
+  const meta = document.createElement("div");
+  meta.className = "eco-meta";
+  const badge = document.createElement("span");
+  badge.className = "eco-badge";
+  badge.textContent = ecoTypeLabel(item?.type);
+  const cat = document.createElement("span");
+  cat.className = "note";
+  cat.textContent = item?.category || "—";
+  meta.appendChild(badge);
+  meta.appendChild(cat);
+  card.appendChild(meta);
+
+  if (item?.description) {
+    const desc = document.createElement("div");
+    desc.className = "note";
+    desc.textContent = item.description;
+    card.appendChild(desc);
+  }
+
+  const tags = Array.isArray(item?.tags) ? item.tags : [];
+  if (tags.length) {
+    const tagWrap = document.createElement("div");
+    tagWrap.className = "eco-tags";
+    tags.forEach((tag) => {
+      const tagBtn = document.createElement("button");
+      tagBtn.type = "button";
+      tagBtn.className = "eco-tag";
+      tagBtn.textContent = tag;
+      if (ECO_STATE.tag === tag) {
+        tagBtn.classList.add("active");
+      }
+      tagBtn.addEventListener("click", () => {
+        ECO_STATE.tag = ECO_STATE.tag === tag ? "" : tag;
+        updateTagState();
+        renderEcosystem();
+      });
+      tagWrap.appendChild(tagBtn);
+    });
+    card.appendChild(tagWrap);
+  }
+
+  const links = renderEcoLinks(item?.links || {});
+  if (links.childElementCount) {
+    card.appendChild(links);
+  }
+
+  return card;
+}
+
+function renderHotList() {
+  if (!UI.ecoHotList || !UI.ecoHotEmpty) return;
+  UI.ecoHotList.innerHTML = "";
+  const hotItems = ECO_ITEMS.filter((item) => item?.hot)
+    .sort((a, b) => (a.hot_rank ?? 999) - (b.hot_rank ?? 999))
+    .slice(0, 5);
+  if (!hotItems.length) {
+    UI.ecoHotEmpty.style.display = "block";
+    return;
+  }
+  UI.ecoHotEmpty.style.display = "none";
+  hotItems.forEach((item) => UI.ecoHotList.appendChild(renderEcoCard(item)));
+}
+
+function renderEcosystem() {
+  if (!UI.ecoList || !UI.ecoEmpty) return;
+  setActiveTab(ECO_STATE.typeTab);
+  updateTagState();
+  renderHotList();
+  UI.ecoList.innerHTML = "";
+
+  const filtered = ECO_ITEMS.filter((item) => (
+    matchesType(item, ECO_STATE.typeTab)
+    && matchesCategory(item, ECO_STATE.category)
+    && matchesTag(item, ECO_STATE.tag)
+    && matchesQuery(item, ECO_STATE.query)
+  ));
+
+  if (!filtered.length) {
+    UI.ecoEmpty.style.display = "block";
+    return;
+  }
+  UI.ecoEmpty.style.display = "none";
+  filtered.forEach((item) => UI.ecoList.appendChild(renderEcoCard(item)));
+}
+
+function updateEcoCategories() {
+  if (!UI.ecoCategory) return;
+  const categories = Array.from(new Set(ECO_ITEMS.map((item) => item?.category).filter(Boolean))).sort();
+  UI.ecoCategory.innerHTML = "";
+  const allOpt = document.createElement("option");
+  allOpt.value = "all";
+  allOpt.textContent = "All categories";
+  UI.ecoCategory.appendChild(allOpt);
+  categories.forEach((cat) => {
+    const opt = document.createElement("option");
+    opt.value = cat;
+    opt.textContent = cat;
+    UI.ecoCategory.appendChild(opt);
+  });
+  if (!categories.includes(ECO_STATE.category)) {
+    ECO_STATE.category = "all";
+  }
+  UI.ecoCategory.value = ECO_STATE.category;
+}
+
+function bindEcoControls() {
+  if (UI.ecoTabs?.length) {
+    UI.ecoTabs.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        ECO_STATE.typeTab = btn.dataset.ecoType || "all";
+        renderEcosystem();
+      });
+    });
+  }
+  if (UI.ecoSearch) {
+    UI.ecoSearch.addEventListener("input", (event) => {
+      ECO_STATE.query = event.target.value.trim();
+      renderEcosystem();
+    });
+  }
+  if (UI.ecoCategory) {
+    UI.ecoCategory.addEventListener("change", (event) => {
+      ECO_STATE.category = event.target.value || "all";
+      renderEcosystem();
+    });
+  }
+}
+
+async function loadEcosystem() {
+  if (!UI.ecoList || !UI.ecoEmpty) return;
+  setEcoError("");
+  UI.ecoList.textContent = "Loading...";
+  UI.ecoEmpty.style.display = "none";
+  try {
+    const res = await fetch("./ecosystem.json", { headers: { accept: "application/json" } });
+    if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
+    const json = await res.json();
+    if (!Array.isArray(json)) throw new Error("ecosystem.json must be an array");
+    ECO_ITEMS = json;
+    updateEcoCategories();
+    renderEcosystem();
+  } catch (e) {
+    setEcoError(`Ecosystem unavailable: ${(e && e.message) ? e.message : String(e)}`);
+    ECO_ITEMS = [];
+    UI.ecoList.innerHTML = "";
+    if (UI.ecoHotList) UI.ecoHotList.innerHTML = "";
+    if (UI.ecoHotEmpty) UI.ecoHotEmpty.style.display = "block";
+  }
+}
 
 function fmtNum(n, digits = 0) {
   if (n === null || n === undefined || Number.isNaN(n)) return "—";
@@ -552,3 +809,5 @@ async function loadAll() {
 UI.reload?.addEventListener("click", () => loadAll());
 
 loadAll();
+bindEcoControls();
+loadEcosystem();

@@ -181,6 +181,49 @@
       <div class="note" id="noteHistory">—</div>
     </section>
 
+    <section class="card" id="ecosystem">
+      <h2>Ecosystem</h2>
+      <p class="muted">World Chain tokens, NFTs, and dApps curated in ecosystem.json.</p>
+
+      <div class="eco-hot">
+        <div class="eco-hot-head">
+          <h3>Hot</h3>
+          <div class="note">Top 5 items with hot=true (sorted by hot_rank).</div>
+        </div>
+        <div id="ecoHotList" class="eco-hot-list"></div>
+        <div class="note" id="ecoHotEmpty">No hot items yet</div>
+      </div>
+
+      <div class="eco-filters">
+        <div class="tabs" role="tablist" aria-label="Ecosystem types">
+          <button class="tab-btn active" type="button" data-eco-type="all">All</button>
+          <button class="tab-btn" type="button" data-eco-type="token">Tokens</button>
+          <button class="tab-btn" type="button" data-eco-type="nft">NFTs</button>
+          <button class="tab-btn" type="button" data-eco-type="dapp">dApps</button>
+        </div>
+        <div class="eco-inputs">
+          <input id="ecoSearch" type="search" placeholder="Search by name, symbol, tag, description" />
+          <select id="ecoCategory"></select>
+        </div>
+        <div class="note" id="ecoTagState">Tag filter: none</div>
+      </div>
+
+      <div class="note error" id="ecoError" role="alert"></div>
+      <div id="ecoList" class="eco-list"></div>
+      <div class="note" id="ecoEmpty">No items match the filters.</div>
+
+      <div class="eco-pr">
+        <h3>Add via PR</h3>
+        <p class="muted">
+          1. Edit ecosystem.json and add your project entry. 2. Open a PR with a short description.
+          3. Once merged, it appears here automatically.
+        </p>
+        <p>
+          <a href="https://github.com/badjoke-lab/wcwd/blob/main/ecosystem.json" target="_blank" rel="noopener">Edit ecosystem.json on GitHub</a>
+        </p>
+      </div>
+    </section>
+
     <section class="card">
       <h2>7d Series (history)</h2>
       <p class="muted">
