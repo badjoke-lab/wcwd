@@ -183,12 +183,17 @@
 
     <section class="card" id="ecosystem">
       <h2>Ecosystem</h2>
-      <p class="muted">World Chain tokens, NFTs, and dApps curated in ecosystem.json.</p>
+      <p class="muted">World Chain (chainId=480) ecosystem list curated in ecosystem.json. Verified items show by default.</p>
+      <ul class="eco-legend">
+        <li><span class="eco-verify verified">✅ Verified on World Chain</span></li>
+        <li><span class="eco-verify offchain">⚪ Offchain (World official)</span></li>
+        <li><span class="eco-verify unverified">⚠ Unverified / Cross-chain</span></li>
+      </ul>
 
       <div class="eco-hot">
         <div class="eco-hot-head">
           <h3>Hot</h3>
-          <div class="note">Top 5 items with hot=true (sorted by hot_rank).</div>
+          <div class="note">Top 5 items with hot=true (sorted by hot_rank, verified filter applies).</div>
         </div>
         <div id="ecoHotList" class="eco-hot-list"></div>
         <div class="note" id="ecoHotEmpty">No hot items yet</div>
@@ -198,12 +203,17 @@
         <div class="tabs" role="tablist" aria-label="Ecosystem types">
           <button class="tab-btn active" type="button" data-eco-type="all">All</button>
           <button class="tab-btn" type="button" data-eco-type="token">Tokens</button>
-          <button class="tab-btn" type="button" data-eco-type="nft">NFTs</button>
           <button class="tab-btn" type="button" data-eco-type="dapp">dApps</button>
+          <button class="tab-btn" type="button" data-eco-type="infra">Infra</button>
+          <button class="tab-btn" type="button" data-eco-type="oracle">Oracles</button>
         </div>
         <div class="eco-inputs">
           <input id="ecoSearch" type="search" placeholder="Search by name, symbol, tag, description" />
           <select id="ecoCategory"></select>
+          <label class="eco-toggle">
+            <input id="ecoShowAll" type="checkbox" />
+            <span>Show unverified/cross-chain</span>
+          </label>
         </div>
         <div class="note" id="ecoTagState">Tag filter: none</div>
       </div>
@@ -218,6 +228,7 @@
           1. Edit ecosystem.json and add your project entry. 2. Open a PR with a short description.
           3. Once merged, it appears here automatically.
         </p>
+        <p class="note">Note: Projects without World Chain (chainId=480) verification are hidden by default.</p>
         <p>
           <a href="https://github.com/badjoke-lab/wcwd/blob/main/ecosystem.json" target="_blank" rel="noopener">Edit ecosystem.json on GitHub</a>
         </p>

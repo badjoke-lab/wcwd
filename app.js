@@ -79,6 +79,7 @@ const UI = {
   ecoEmpty: document.getElementById("ecoEmpty"),
   ecoSearch: document.getElementById("ecoSearch"),
   ecoCategory: document.getElementById("ecoCategory"),
+  ecoShowAll: document.getElementById("ecoShowAll"),
   ecoTagState: document.getElementById("ecoTagState"),
   ecoError: document.getElementById("ecoError"),
   ecoTabs: Array.from(document.querySelectorAll("[data-eco-type]")),
@@ -92,6 +93,7 @@ const ECO_STATE = {
   query: "",
   category: "all",
   tag: "",
+  showUnverified: false,
 };
 
 let ECO_ITEMS = [];
@@ -104,9 +106,30 @@ function setEcoError(message) {
 
 function ecoTypeLabel(type) {
   if (type === "token") return "Token";
-  if (type === "nft") return "NFT";
   if (type === "dapp") return "dApp";
+  if (type === "infra") return "Infra";
+  if (type === "oracle") return "Oracle";
+  if (type === "offchain") return "Offchain";
   return "—";
+}
+
+function isWorldChainVerified(item) {
+  const contracts = Array.isArray(item?.contracts) ? item.contracts : [];
+  const hasWorldChainContract = contracts.some((contract) => Number(contract?.chainId) === 480);
+  const explorer = item?.links?.explorer;
+  const hasWorldscanLink = typeof explorer === "string" && explorer.includes("worldscan.org/address/");
+  const isOffchainVerified = item?.type === "offchain" && item?.offchain_verified === true;
+  return hasWorldChainContract || hasWorldscanLink || isOffchainVerified;
+}
+
+function ecoVerificationInfo(item) {
+  if (item?.type === "offchain" && item?.offchain_verified === true) {
+    return { label: "⚪ Offchain (World official)", className: "offchain" };
+  }
+  if (isWorldChainVerified(item)) {
+    return { label: "✅ Verified on World Chain", className: "verified" };
+  }
+  return { label: "⚠ Unverified / Cross-chain", className: "unverified" };
 }
 
 function normalizeText(value) {
@@ -134,6 +157,9 @@ function matchesCategory(item, category) {
 
 function matchesType(item, typeTab) {
   if (!typeTab || typeTab === "all") return true;
+  if (typeTab === "infra") {
+    return item?.type === "infra" || item?.type === "offchain";
+  }
   return item?.type === typeTab;
 }
 
@@ -189,10 +215,15 @@ function renderEcoCard(item) {
   const badge = document.createElement("span");
   badge.className = "eco-badge";
   badge.textContent = ecoTypeLabel(item?.type);
+  const verify = ecoVerificationInfo(item);
+  const verifyBadge = document.createElement("span");
+  verifyBadge.className = `eco-verify ${verify.className}`;
+  verifyBadge.textContent = verify.label;
   const cat = document.createElement("span");
   cat.className = "note";
   cat.textContent = item?.category || "—";
   meta.appendChild(badge);
+  meta.appendChild(verifyBadge);
   meta.appendChild(cat);
   card.appendChild(meta);
 
@@ -237,6 +268,7 @@ function renderHotList() {
   if (!UI.ecoHotList || !UI.ecoHotEmpty) return;
   UI.ecoHotList.innerHTML = "";
   const hotItems = ECO_ITEMS.filter((item) => item?.hot)
+    .filter((item) => (ECO_STATE.showUnverified ? true : isWorldChainVerified(item)))
     .sort((a, b) => (a.hot_rank ?? 999) - (b.hot_rank ?? 999))
     .slice(0, 5);
   if (!hotItems.length) {
@@ -255,7 +287,8 @@ function renderEcosystem() {
   UI.ecoList.innerHTML = "";
 
   const filtered = ECO_ITEMS.filter((item) => (
-    matchesType(item, ECO_STATE.typeTab)
+    (ECO_STATE.showUnverified ? true : isWorldChainVerified(item))
+    && matchesType(item, ECO_STATE.typeTab)
     && matchesCategory(item, ECO_STATE.category)
     && matchesTag(item, ECO_STATE.tag)
     && matchesQuery(item, ECO_STATE.query)
@@ -296,6 +329,13 @@ function bindEcoControls() {
         ECO_STATE.typeTab = btn.dataset.ecoType || "all";
         renderEcosystem();
       });
+    });
+  }
+  if (UI.ecoShowAll) {
+    UI.ecoShowAll.checked = ECO_STATE.showUnverified;
+    UI.ecoShowAll.addEventListener("change", (event) => {
+      ECO_STATE.showUnverified = event.target.checked;
+      renderEcosystem();
     });
   }
   if (UI.ecoSearch) {

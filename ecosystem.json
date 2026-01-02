@@ -1,250 +1,228 @@
 [
   {
-    "id": "worldcoin",
+    "id": "wld",
     "type": "token",
     "name": "Worldcoin",
     "symbol": "WLD",
     "category": "core",
-    "tags": ["identity", "governance"],
-    "description": "The Worldcoin ecosystem token powering World ID and World Chain.",
+    "tags": ["token", "governance", "world"],
+    "description": "Worldcoin ecosystem token on World Chain.",
+    "contracts": [
+      {
+        "chainId": 480,
+        "address": "0x2cfc85d8e48f8eab294be644d9e25c3030863003"
+      }
+    ],
     "links": {
-      "official": "https://worldcoin.org"
+      "official": "https://worldcoin.org",
+      "explorer": "https://worldscan.org/address/0x2cfc85d8e48f8eab294be644d9e25c3030863003"
     },
     "status": "active",
     "hot": true,
     "hot_rank": 1,
-    "added_at": "2024-04-01",
-    "updated_at": "2024-04-01"
+    "added_at": "2024-05-01",
+    "updated_at": "2024-05-01"
   },
   {
-    "id": "ethereum",
-    "type": "token",
-    "name": "Ethereum",
-    "symbol": "ETH",
-    "category": "core",
-    "tags": ["gas", "native"],
-    "description": "Native asset used for gas and settlement across Ethereum ecosystems.",
+    "id": "uniswap-v3-core-factory",
+    "type": "infra",
+    "name": "Uniswap v3 Core Factory",
+    "category": "dex",
+    "tags": ["dex", "liquidity", "uniswap"],
+    "description": "Uniswap v3 core factory deployment on World Chain.",
+    "contracts": [
+      {
+        "chainId": 480,
+        "address": "0x7a5028BDa40e7B173C278C5342087826455ea25a"
+      }
+    ],
     "links": {
-      "official": "https://ethereum.org"
-    },
-    "status": "active",
-    "added_at": "2024-04-01",
-    "updated_at": "2024-04-01"
-  },
-  {
-    "id": "usd-coin",
-    "type": "token",
-    "name": "USD Coin",
-    "symbol": "USDC",
-    "category": "defi",
-    "tags": ["stablecoin", "payments"],
-    "description": "Fiat-backed stablecoin used across DeFi and payments.",
-    "links": {
-      "official": "https://www.circle.com/usdc"
-    },
-    "status": "active",
-    "added_at": "2024-04-01",
-    "updated_at": "2024-04-01"
-  },
-  {
-    "id": "tether",
-    "type": "token",
-    "name": "Tether",
-    "symbol": "USDT",
-    "category": "defi",
-    "tags": ["stablecoin", "liquidity"],
-    "description": "Fiat-backed stablecoin with broad exchange liquidity.",
-    "links": {
-      "official": "https://tether.to"
-    },
-    "status": "active",
-    "added_at": "2024-04-01",
-    "updated_at": "2024-04-01"
-  },
-  {
-    "id": "wrapped-bitcoin",
-    "type": "token",
-    "name": "Wrapped Bitcoin",
-    "symbol": "WBTC",
-    "category": "defi",
-    "tags": ["bitcoin", "bridge"],
-    "description": "Tokenized Bitcoin backed 1:1 and used across DeFi.",
-    "links": {
-      "official": "https://wbtc.network"
-    },
-    "status": "active",
-    "added_at": "2024-04-01",
-    "updated_at": "2024-04-01"
-  },
-  {
-    "id": "dai",
-    "type": "token",
-    "name": "Dai",
-    "symbol": "DAI",
-    "category": "defi",
-    "tags": ["stablecoin", "lending"],
-    "description": "Decentralized stablecoin governed by MakerDAO.",
-    "links": {
-      "official": "https://makerdao.com"
-    },
-    "status": "active",
-    "added_at": "2024-04-01",
-    "updated_at": "2024-04-01"
-  },
-  {
-    "id": "cryptopunks",
-    "type": "nft",
-    "name": "CryptoPunks",
-    "category": "nft",
-    "tags": ["collectibles", "profile"],
-    "description": "One of the earliest and most iconic NFT collections.",
-    "links": {
-      "official": "https://cryptopunks.app"
-    },
-    "status": "active",
-    "added_at": "2024-04-01",
-    "updated_at": "2024-04-01"
-  },
-  {
-    "id": "bored-ape-yacht-club",
-    "type": "nft",
-    "name": "Bored Ape Yacht Club",
-    "category": "nft",
-    "tags": ["collectibles", "community"],
-    "description": "Flagship NFT collection and membership community.",
-    "links": {
-      "official": "https://boredapeyachtclub.com"
-    },
-    "status": "active",
-    "added_at": "2024-04-01",
-    "updated_at": "2024-04-01"
-  },
-  {
-    "id": "azuki",
-    "type": "nft",
-    "name": "Azuki",
-    "category": "nft",
-    "tags": ["anime", "collectibles"],
-    "description": "Anime-inspired NFT collection with community focus.",
-    "links": {
-      "official": "https://www.azuki.com"
-    },
-    "status": "active",
-    "added_at": "2024-04-01",
-    "updated_at": "2024-04-01"
-  },
-  {
-    "id": "pudgy-penguins",
-    "type": "nft",
-    "name": "Pudgy Penguins",
-    "category": "nft",
-    "tags": ["collectibles", "brand"],
-    "description": "Community-driven NFT collection expanding to consumer products.",
-    "links": {
-      "official": "https://www.pudgypenguins.com"
-    },
-    "status": "active",
-    "added_at": "2024-04-01",
-    "updated_at": "2024-04-01"
-  },
-  {
-    "id": "world-app",
-    "type": "dapp",
-    "name": "World App",
-    "category": "core",
-    "tags": ["wallet", "identity"],
-    "description": "Official Worldcoin wallet and onboarding app.",
-    "links": {
-      "official": "https://worldcoin.org/world-app",
-      "app": "https://worldapp.org"
+      "official": "https://uniswap.org",
+      "docs": "https://docs.world.org/world-chain/reference/useful-contracts",
+      "explorer": "https://worldscan.org/address/0x7a5028BDa40e7B173C278C5342087826455ea25a"
     },
     "status": "active",
     "hot": true,
     "hot_rank": 2,
-    "added_at": "2024-04-01",
-    "updated_at": "2024-04-01"
+    "added_at": "2024-05-01",
+    "updated_at": "2024-05-01"
   },
   {
-    "id": "world-id",
-    "type": "dapp",
-    "name": "World ID",
-    "category": "core",
-    "tags": ["identity", "proof-of-personhood"],
-    "description": "Privacy-preserving proof of personhood protocol.",
+    "id": "oracle-wld-usd",
+    "type": "oracle",
+    "name": "WLD/USD Price Feed",
+    "category": "price-feed",
+    "tags": ["oracle", "wld", "usd"],
+    "description": "Oracle for the WLD/USD price on World Chain.",
+    "contracts": [
+      {
+        "chainId": 480,
+        "address": "0x8Bb2943AB030E3eE05a58d9832525B4f60A97FA0"
+      }
+    ],
     "links": {
-      "official": "https://worldcoin.org/world-id",
-      "docs": "https://docs.worldcoin.org/id"
+      "docs": "https://docs.world.org/world-chain/reference/useful-contracts",
+      "explorer": "https://worldscan.org/address/0x8Bb2943AB030E3eE05a58d9832525B4f60A97FA0"
     },
     "status": "active",
-    "hot": true,
-    "hot_rank": 3,
-    "added_at": "2024-04-01",
-    "updated_at": "2024-04-01"
+    "added_at": "2024-05-01",
+    "updated_at": "2024-05-01"
   },
   {
-    "id": "uniswap",
-    "type": "dapp",
-    "name": "Uniswap",
-    "category": "defi",
-    "tags": ["dex", "liquidity"],
-    "description": "Automated market maker for swapping tokens.",
+    "id": "oracle-eth-usd",
+    "type": "oracle",
+    "name": "ETH/USD Price Feed",
+    "category": "price-feed",
+    "tags": ["oracle", "eth", "usd"],
+    "description": "Oracle for the ETH/USD price on World Chain.",
+    "contracts": [
+      {
+        "chainId": 480,
+        "address": "0xe1d72a719171DceAB9499757EB9d5AEb9e8D64A6"
+      }
+    ],
     "links": {
-      "official": "https://uniswap.org",
-      "app": "https://app.uniswap.org"
+      "docs": "https://docs.world.org/world-chain/reference/useful-contracts",
+      "explorer": "https://worldscan.org/address/0xe1d72a719171DceAB9499757EB9d5AEb9e8D64A6"
     },
     "status": "active",
-    "hot": true,
-    "hot_rank": 4,
-    "added_at": "2024-04-01",
-    "updated_at": "2024-04-01"
+    "added_at": "2024-05-01",
+    "updated_at": "2024-05-01"
   },
   {
-    "id": "aave",
-    "type": "dapp",
-    "name": "Aave",
-    "category": "defi",
-    "tags": ["lending", "borrowing"],
-    "description": "Open-source liquidity protocol for lending and borrowing.",
+    "id": "oracle-btc-usd",
+    "type": "oracle",
+    "name": "BTC/USD Price Feed",
+    "category": "price-feed",
+    "tags": ["oracle", "btc", "usd"],
+    "description": "Oracle for the BTC/USD price on World Chain.",
+    "contracts": [
+      {
+        "chainId": 480,
+        "address": "0xdD91675235C37a47597c053807d61Da27Ae1AE6C"
+      }
+    ],
     "links": {
-      "official": "https://aave.com",
-      "app": "https://app.aave.com",
-      "docs": "https://docs.aave.com"
+      "docs": "https://docs.world.org/world-chain/reference/useful-contracts",
+      "explorer": "https://worldscan.org/address/0xdD91675235C37a47597c053807d61Da27Ae1AE6C"
     },
     "status": "active",
-    "hot": true,
-    "hot_rank": 5,
-    "added_at": "2024-04-01",
-    "updated_at": "2024-04-01"
+    "added_at": "2024-05-01",
+    "updated_at": "2024-05-01"
   },
   {
-    "id": "safe",
-    "type": "dapp",
-    "name": "Safe",
-    "category": "infra",
-    "tags": ["multisig", "treasury"],
-    "description": "Multi-sig wallet and treasury management platform.",
+    "id": "oracle-usdc-usd",
+    "type": "oracle",
+    "name": "USDC/USD Price Feed",
+    "category": "price-feed",
+    "tags": ["oracle", "usdc", "usd"],
+    "description": "Oracle for the USDC/USD price on World Chain.",
+    "contracts": [
+      {
+        "chainId": 480,
+        "address": "0xF4301686AfF4eE36d70c718a9e62309b53862BE8"
+      }
+    ],
+    "links": {
+      "docs": "https://docs.world.org/world-chain/reference/useful-contracts",
+      "explorer": "https://worldscan.org/address/0xF4301686AfF4eE36d70c718a9e62309b53862BE8"
+    },
+    "status": "active",
+    "added_at": "2024-05-01",
+    "updated_at": "2024-05-01"
+  },
+  {
+    "id": "gnosis-safe-1-4-1",
+    "type": "infra",
+    "name": "Safe (Gnosis Safe v1.4.1)",
+    "category": "multisig",
+    "tags": ["safe", "multisig", "treasury"],
+    "description": "Safe multisig contracts (v1.4.1) deployed on World Chain.",
+    "contracts": [
+      {
+        "chainId": 480,
+        "address": "0x866087c23a7eE1fD5498ef84D59aF742f3d4b322"
+      },
+      {
+        "chainId": 480,
+        "address": "0x29fcB43b46531BcA003ddC8FCB67FFE91900C762"
+      },
+      {
+        "chainId": 480,
+        "address": "0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67"
+      }
+    ],
     "links": {
       "official": "https://safe.global",
-      "app": "https://app.safe.global",
-      "docs": "https://docs.safe.global"
+      "docs": "https://docs.safe.global",
+      "explorer": "https://worldscan.org/address/0x4e1DCf7AD4e460CfD30791CCC4F9c8a4f820ec67"
     },
     "status": "active",
-    "added_at": "2024-04-01",
-    "updated_at": "2024-04-01"
+    "added_at": "2024-05-01",
+    "updated_at": "2024-05-01"
+  },
+  {
+    "id": "gnosis-safe-1-3-0",
+    "type": "infra",
+    "name": "Safe (Gnosis Safe v1.3.0)",
+    "category": "multisig",
+    "tags": ["safe", "multisig", "treasury"],
+    "description": "Safe multisig contracts (v1.3.0) deployed on World Chain.",
+    "contracts": [
+      {
+        "chainId": 480,
+        "address": "0x8d98006269238CAEd033b2d94661B29312AD09b7"
+      },
+      {
+        "chainId": 480,
+        "address": "0xd9Db270c1B5E3Bd161E8c8503c55cEABeE709552"
+      },
+      {
+        "chainId": 480,
+        "address": "0xa6B71E26C5e0845f74c812102Ca7114b6a896AB2"
+      }
+    ],
+    "links": {
+      "official": "https://safe.global",
+      "docs": "https://docs.safe.global",
+      "explorer": "https://worldscan.org/address/0xa6B71E26C5e0845f74c812102Ca7114b6a896AB2"
+    },
+    "status": "active",
+    "added_at": "2024-05-01",
+    "updated_at": "2024-05-01"
   },
   {
     "id": "worldscan",
-    "type": "dapp",
+    "type": "offchain",
     "name": "Worldscan",
     "category": "infra",
     "tags": ["explorer", "analytics"],
-    "description": "Block explorer for the World Chain ecosystem.",
+    "description": "Official block explorer for World Chain.",
     "links": {
       "official": "https://worldscan.org",
-      "explorer": "https://worldscan.org"
+      "docs": "https://docs.world.org/world-chain/providers/block-explorers"
     },
+    "offchain_verified": true,
     "status": "active",
-    "added_at": "2024-04-01",
-    "updated_at": "2024-04-01"
+    "hot": true,
+    "hot_rank": 3,
+    "added_at": "2024-05-01",
+    "updated_at": "2024-05-01"
+  },
+  {
+    "id": "world-chain-dev-docs",
+    "type": "offchain",
+    "name": "World Chain Developer Docs",
+    "category": "infra",
+    "tags": ["docs", "developer"],
+    "description": "Official developer documentation for World Chain.",
+    "links": {
+      "official": "https://docs.world.org/world-chain",
+      "docs": "https://docs.world.org/world-chain/reference/useful-contracts"
+    },
+    "offchain_verified": true,
+    "status": "active",
+    "added_at": "2024-05-01",
+    "updated_at": "2024-05-01"
   }
 ]
