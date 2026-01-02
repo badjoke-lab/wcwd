@@ -7,6 +7,26 @@ html,body { background:var(--bg); color:var(--fg); font-family: system-ui, -appl
 .grid2 { display:grid; grid-template-columns: 1fr 1fr; gap: 10px 18px; }
 .muted { color: var(--muted); }
 .note { color: var(--muted); font-size: 12px; margin-top: 4px; }
+.note.error { color: #b42318; }
 pre { background:#fafafa; border:1px solid var(--border); padding:10px; border-radius:8px; overflow:auto; }
 button { padding: 6px 10px; }
+.tabs { display:flex; gap: 6px; flex-wrap: wrap; }
+.tab-btn { border:1px solid var(--border); background:#fff; border-radius: 999px; padding: 6px 12px; cursor:pointer; }
+.tab-btn.active { background:#111; color:#fff; border-color:#111; }
+.eco-filters { display:flex; flex-direction:column; gap: 8px; margin-top: 10px; }
+.eco-inputs { display:flex; gap: 8px; flex-wrap: wrap; }
+.eco-inputs input, .eco-inputs select { padding: 6px 10px; border:1px solid var(--border); border-radius: 8px; }
+.eco-list, .eco-hot-list { display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; margin-top: 8px; }
+.eco-card { border:1px solid var(--border); border-radius: 10px; padding: 10px; background:#fff; display:flex; flex-direction:column; gap: 8px; }
+.eco-card h4 { margin: 0; font-size: 16px; }
+.eco-badge { display:inline-flex; align-items:center; font-size: 11px; padding: 2px 8px; border-radius: 999px; background:#f2f2f2; text-transform: uppercase; letter-spacing: 0.04em; }
+.eco-meta { display:flex; gap: 6px; flex-wrap: wrap; align-items:center; }
+.eco-tags { display:flex; gap: 6px; flex-wrap: wrap; }
+.eco-tag { border:1px solid var(--border); background:#fff; border-radius: 999px; font-size: 11px; padding: 2px 8px; cursor:pointer; }
+.eco-tag.active { background:#111; color:#fff; border-color:#111; }
+.eco-links { display:flex; gap: 8px; flex-wrap: wrap; font-size: 12px; }
+.eco-links a { text-decoration: none; border-bottom: 1px solid transparent; }
+.eco-links a:hover { border-bottom-color: currentColor; }
+.eco-hot-head { display:flex; align-items:baseline; gap: 10px; }
+.eco-pr { margin-top: 12px; }
 @media (max-width: 640px) { .grid2 { grid-template-columns: 1fr; } }
