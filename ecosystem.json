@@ -1,0 +1,165 @@
+[
+  {
+    "id": "wld",
+    "type": "token",
+    "name": "Worldcoin",
+    "symbol": "WLD",
+    "category": "core",
+    "tags": ["identity", "governance"],
+    "description": "Worldcoin ecosystem token on World Chain.",
+    "contracts": [
+      {"chainId": 480, "address": "0x0000000000000000000000000000000000000000"}
+    ],
+    "links": {
+      "official": "https://worldcoin.org",
+      "explorer": "https://worldscan.org/address/0x0000000000000000000000000000000000000000"
+    },
+    "status": "active",
+    "hot": true,
+    "hot_rank": 1,
+    "added_at": "2024-04-01",
+    "updated_at": "2024-04-01"
+  },
+  {
+    "id": "uniswap-v3-factory",
+    "type": "infra",
+    "name": "Uniswap v3 Factory",
+    "category": "defi",
+    "tags": ["dex", "liquidity"],
+    "description": "Core factory contract for Uniswap v3 deployments.",
+    "contracts": [
+      {"chainId": 480, "address": "0x0000000000000000000000000000000000000000"}
+    ],
+    "links": {
+      "official": "https://uniswap.org",
+      "explorer": "https://worldscan.org/address/0x0000000000000000000000000000000000000000"
+    },
+    "status": "active",
+    "hot": true,
+    "hot_rank": 2,
+    "added_at": "2024-04-02",
+    "updated_at": "2024-04-02"
+  },
+  {
+    "id": "chainlink-wld-usd",
+    "type": "oracle",
+    "name": "WLD/USD Price Feed",
+    "category": "oracle",
+    "tags": ["chainlink", "price-feed"],
+    "description": "WLD/USD oracle feed on World Chain.",
+    "contracts": [
+      {"chainId": 480, "address": "0x0000000000000000000000000000000000000000"}
+    ],
+    "links": {
+      "official": "https://chain.link",
+      "explorer": "https://worldscan.org/address/0x0000000000000000000000000000000000000000"
+    },
+    "status": "active",
+    "added_at": "2024-04-03",
+    "updated_at": "2024-04-03"
+  },
+  {
+    "id": "chainlink-eth-usd",
+    "type": "oracle",
+    "name": "ETH/USD Price Feed",
+    "category": "oracle",
+    "tags": ["chainlink", "price-feed"],
+    "description": "ETH/USD oracle feed on World Chain.",
+    "contracts": [
+      {"chainId": 480, "address": "0x0000000000000000000000000000000000000000"}
+    ],
+    "links": {
+      "official": "https://chain.link",
+      "explorer": "https://worldscan.org/address/0x0000000000000000000000000000000000000000"
+    },
+    "status": "active",
+    "added_at": "2024-04-03",
+    "updated_at": "2024-04-03"
+  },
+  {
+    "id": "chainlink-btc-usd",
+    "type": "oracle",
+    "name": "BTC/USD Price Feed",
+    "category": "oracle",
+    "tags": ["chainlink", "price-feed"],
+    "description": "BTC/USD oracle feed on World Chain.",
+    "contracts": [
+      {"chainId": 480, "address": "0x0000000000000000000000000000000000000000"}
+    ],
+    "links": {
+      "official": "https://chain.link",
+      "explorer": "https://worldscan.org/address/0x0000000000000000000000000000000000000000"
+    },
+    "status": "active",
+    "added_at": "2024-04-03",
+    "updated_at": "2024-04-03"
+  },
+  {
+    "id": "chainlink-usdc-usd",
+    "type": "oracle",
+    "name": "USDC/USD Price Feed",
+    "category": "oracle",
+    "tags": ["chainlink", "price-feed"],
+    "description": "USDC/USD oracle feed on World Chain.",
+    "contracts": [
+      {"chainId": 480, "address": "0x0000000000000000000000000000000000000000"}
+    ],
+    "links": {
+      "official": "https://chain.link",
+      "explorer": "https://worldscan.org/address/0x0000000000000000000000000000000000000000"
+    },
+    "status": "active",
+    "added_at": "2024-04-03",
+    "updated_at": "2024-04-03"
+  },
+  {
+    "id": "safe",
+    "type": "infra",
+    "name": "Safe",
+    "category": "infra",
+    "tags": ["multisig", "treasury"],
+    "description": "Gnosis Safe contract suite on World Chain.",
+    "contracts": [
+      {"chainId": 480, "address": "0x0000000000000000000000000000000000000000"}
+    ],
+    "links": {
+      "official": "https://safe.global",
+      "explorer": "https://worldscan.org/address/0x0000000000000000000000000000000000000000"
+    },
+    "status": "active",
+    "added_at": "2024-04-04",
+    "updated_at": "2024-04-04"
+  },
+  {
+    "id": "worldscan",
+    "type": "offchain",
+    "name": "Worldscan",
+    "category": "infra",
+    "tags": ["explorer", "analytics"],
+    "description": "Block explorer for World Chain.",
+    "links": {
+      "official": "https://worldscan.org",
+      "docs": "https://docs.world.org/world-chain"
+    },
+    "offchain_verified": true,
+    "status": "active",
+    "added_at": "2024-04-05",
+    "updated_at": "2024-04-05"
+  },
+  {
+    "id": "world-chain-docs",
+    "type": "offchain",
+    "name": "World Chain Developer Docs",
+    "category": "infra",
+    "tags": ["docs", "developer"],
+    "description": "Official World Chain developer documentation.",
+    "links": {
+      "official": "https://world.org",
+      "docs": "https://docs.world.org/world-chain"
+    },
+    "offchain_verified": true,
+    "status": "active",
+    "added_at": "2024-04-06",
+    "updated_at": "2024-04-06"
+  }
+]
