@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <rect width="64" height="64" fill="#fff"/>
+  <!-- simple WCWD mark -->
+  <path d="M12 18h6l6 22 6-22h6l6 22 6-22h6l-10 30h-6l-6-22-6 22h-6L12 18z" fill="#111"/>
+</svg>
