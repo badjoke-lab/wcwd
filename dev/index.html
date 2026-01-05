@@ -1,80 +1,79 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <link rel="icon" href="/favicon.ico" sizes="any" />
-  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>WCWD Dev Hub</title>
-  <meta name="description" content="WCWD Dev Hub: quick links to World ID, World Chain, Infra, and Mini Apps pages." />
-
+  <title>WCWD — Dev Hub</title>
+  <meta name="description" content="WCWD Dev Hub: sitemap, tools, and docs links." />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="/assets/common.css" />
   <link rel="stylesheet" href="/style.css" />
 </head>
-
 <body>
   <header class="header">
-  <div class="container">
-    <a class="brand" href="/">WCWD</a>
-    <nav class="nav">
-      <a href="/">Dashboard</a>
-      <a href="/dev/">Dev Hub</a>
-      <a href="/world-id/">World ID</a>
-      <a href="/world-chain/">World Chain</a>
-      <a href="/infra/status/">Status</a>
-      <a href="/mini-apps/preflight/">Preflight</a>
-    </nav>
-  </div>
-</header>
-
-
-<main class="container">
-    <h1>Dev Hub</h1>
-    <p class="muted small">Quick access to sub-tools/pages in this repo.</p>
-
-    <div class="grid">
-      <section class="col-12 card">
-        <p class="card-title">World ID</p>
-        <p class="card-sub">Verification & migration utilities (static pages).</p>
-        <div class="row">
-          <a class="btn secondary" href="/world-id/verify/">Verify</a>
-          <a class="btn secondary" href="/world-id/migration/">Migration</a>
-        </div>
-      </section>
-
-      <section class="col-12 card">
-        <p class="card-title">World Chain</p>
-        <p class="card-sub">Paymaster & Oracles references/tools.</p>
-        <div class="row">
-          <a class="btn secondary" href="/world-chain/paymaster/">Paymaster</a>
-          <a class="btn secondary" href="/world-chain/oracles/">Oracles</a>
-        </div>
-      </section>
-
-      <section class="col-12 card">
-        <p class="card-title">Infra</p>
-        <p class="card-sub">Operational status pages.</p>
-        <div class="row">
-          <a class="btn secondary" href="/infra/status/">Status</a>
-        </div>
-      </section>
-
-      <section class="col-12 card">
-        <p class="card-title">Mini Apps</p>
-        <p class="card-sub">Preflight checks & utilities.</p>
-        <div class="row">
-          <a class="btn secondary" href="/mini-apps/preflight/">Preflight</a>
-        </div>
-      </section>
-
-      <section class="col-12 card">
-        <p class="card-title">Notes</p>
-        <ul class="small muted" style="margin: 8px 0 0; padding-left: 18px;">
-          <li>Some pages may be stubs until their tasks land.</li>
-          <li>Never commit local secrets or machine files (e.g. .dev.vars, .DS_Store).</li>
-        </ul>
-      </section>
+    <div class="container">
+      <a class="brand" href="/">WCWD</a>
+      <nav class="nav">
+        <a href="/">Dashboard</a>
+        <a href="/dev/" aria-current="page">Dev Hub</a>
+        <a href="/world-id/">World ID</a>
+        <a href="/world-chain/">World Chain</a>
+        <a href="/infra/status/">Status</a>
+        <a href="/mini-apps/preflight/">Preflight</a>
+      </nav>
     </div>
+  </header>
+
+  <main class="container">
+    <h1>Dev Hub</h1>
+    <p class="muted small">
+      Sitemap + quick links for this WCWD repo. Use search to filter pages.
+    </p>
+
+    <section class="card">
+      <p class="card-title">Search</p>
+      <div class="grid">
+        <div class="col-6">
+          <input id="q" class="input" type="search" placeholder="Search pages (e.g. world id / paymaster / status)..." autocomplete="off" />
+          <p class="muted small" style="margin-top:8px;">
+            Tip: type "world", "id", "chain", "oracle", "paymaster", "status", "preflight".
+          </p>
+        </div>
+        <div class="col-6">
+          <div class="label">Shortcuts</div>
+          <div class="chips">
+            <button class="chip" data-chip="world">world</button>
+            <button class="chip" data-chip="id">id</button>
+            <button class="chip" data-chip="chain">chain</button>
+            <button class="chip" data-chip="paymaster">paymaster</button>
+            <button class="chip" data-chip="oracles">oracles</button>
+            <button class="chip" data-chip="status">status</button>
+            <button class="chip" data-chip="preflight">preflight</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <p class="card-title">Sitemap</p>
+      <div id="list" class="grid"></div>
+      <p id="empty" class="muted small" style="display:none;margin-top:10px;">
+        No matches.
+      </p>
+    </section>
+
+    <section class="card">
+      <p class="card-title">Official Docs (External)</p>
+      <ul class="list">
+        <li><a target="_blank" rel="noreferrer" href="https://docs.world.org/">docs.world.org — Home</a></li>
+        <li><a target="_blank" rel="noreferrer" href="https://docs.world.org/world-id">docs.world.org — World ID</a></li>
+        <li><a target="_blank" rel="noreferrer" href="https://docs.world.org/world-chain">docs.world.org — World Chain</a></li>
+        <li><a target="_blank" rel="noreferrer" href="https://docs.world.org/mini-apps">docs.world.org — Mini Apps</a></li>
+        <li><a target="_blank" rel="noreferrer" href="https://docs.world.org/world-chain/providers/oracles">docs.world.org — World Chain / Oracles</a></li>
+      </ul>
+      <p class="muted small">These are official references. WCWD pages are summaries/tools, not the source of truth.</p>
+    </section>
   </main>
 
   <footer class="footer">
@@ -84,5 +83,6 @@
   </footer>
 
   <script src="/assets/common.js"></script>
+  <script src="/dev/app.js"></script>
 </body>
 </html>
