@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WCWD Dev Hub</title>
+  <meta name="description" content="WCWD Dev Hub: quick links to World ID, World Chain, Infra, and Mini Apps pages." />
+
+  <link rel="stylesheet" href="/assets/common.css" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+
+<body>
+  <header class="header">
+    <div class="container">
+      <a class="brand" href="/">WCWD</a>
+      <nav class="nav">
+        <a href="/">Dashboard</a>
+        <a href="/dev/" aria-current="page">Dev Hub</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <h1>Dev Hub</h1>
+    <p class="muted small">Quick access to sub-tools/pages in this repo.</p>
+
+    <div class="grid">
+      <section class="col-12 card">
+        <p class="card-title">World ID</p>
+        <p class="card-sub">Verification & migration utilities (static pages).</p>
+        <div class="row">
+          <a class="btn secondary" href="/world-id/verify/">Verify</a>
+          <a class="btn secondary" href="/world-id/migration/">Migration</a>
+        </div>
+      </section>
+
+      <section class="col-12 card">
+        <p class="card-title">World Chain</p>
+        <p class="card-sub">Paymaster & Oracles references/tools.</p>
+        <div class="row">
+          <a class="btn secondary" href="/world-chain/paymaster/">Paymaster</a>
+          <a class="btn secondary" href="/world-chain/oracles/">Oracles</a>
+        </div>
+      </section>
+
+      <section class="col-12 card">
+        <p class="card-title">Infra</p>
+        <p class="card-sub">Operational status pages.</p>
+        <div class="row">
+          <a class="btn secondary" href="/infra/status/">Status</a>
+        </div>
+      </section>
+
+      <section class="col-12 card">
+        <p class="card-title">Mini Apps</p>
+        <p class="card-sub">Preflight checks & utilities.</p>
+        <div class="row">
+          <a class="btn secondary" href="/mini-apps/preflight/">Preflight</a>
+        </div>
+      </section>
+
+      <section class="col-12 card">
+        <p class="card-title">Notes</p>
+        <ul class="small muted" style="margin: 8px 0 0; padding-left: 18px;">
+          <li>Some pages may be stubs until their tasks land.</li>
+          <li>Never commit local secrets or machine files (e.g. .dev.vars, .DS_Store).</li>
+        </ul>
+      </section>
+    </div>
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <div class="muted">WCWD — World Chain / WLD Dashboard</div>
+    </div>
+  </footer>
+
+  <script src="/assets/common.js"></script>
+</body>
+</html>
