@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WCWD — World Chain Paymaster Preflight</title>
+  <meta name="description" content="Paymaster / sponsor endpoint preflight helper (browser-only)." />
+  <link rel="stylesheet" href="/assets/common.css" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header class="header">
+    <div class="container">
+      <a class="brand" href="/">WCWD</a>
+      <nav class="nav">
+        <a href="/">Dashboard</a>
+        <a href="/dev/">Dev Hub</a>
+        <a href="/world-chain/paymaster/" aria-current="page">Paymaster</a>
+        <a href="/world-chain/oracles/">Oracles</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <h1>World Chain Paymaster Preflight</h1>
+    <p class="muted small">
+      Browser-only helper. It can (1) ping JSON-RPC (chainId/gasPrice), (2) ping a sponsor endpoint (optional),
+      and (3) generate copyable curl templates. Settings are stored in localStorage.
+    </p>
+
+    <section class="card">
+      <p class="card-title">Config</p>
+
+      <div class="form">
+        <div class="grid">
+          <div class="col-6">
+            <div class="label">JSON-RPC URL (optional)</div>
+            <input id="rpcUrl" class="input" placeholder="https://... (CORS may block in browser)" />
+            <p class="muted small" style="margin:6px 0 0;">
+              If CORS blocks, use a proxy or test from a backend/worker.
+            </p>
+          </div>
+          <div class="col-6">
+            <div class="label">Sponsor / Paymaster Endpoint (optional)</div>
+            <input id="sponsorUrl" class="input" placeholder="https://.../sponsor" />
+            <p class="muted small" style="margin:6px 0 0;">
+              Any POST endpoint that accepts JSON. This page won’t assume a specific schema.
+            </p>
+          </div>
+        </div>
+
+        <div class="grid">
+          <div class="col-6">
+            <div class="label">App / Project ID (optional)</div>
+            <input id="appId" class="input" placeholder="e.g. wcwd-dev" />
+          </div>
+          <div class="col-6">
+            <div class="label">Note (optional)</div>
+            <input id="note" class="input" placeholder="free memo" />
+          </div>
+        </div>
+
+        <div class="row">
+          <button id="btnSave" class="btn">Save</button>
+          <button id="btnReset" class="btn ghost" type="button">Reset</button>
+        </div>
+      </div>
+
+      <div id="statusMount"></div>
+    </section>
+
+    <section class="card">
+      <p class="card-title">Preflight</p>
+      <p class="card-sub">Try JSON-RPC calls and/or sponsor POST.</p>
+
+      <div class="row">
+        <button id="btnRpcPing" class="btn">RPC: chainId + gasPrice</button>
+        <button id="btnSponsorPing" class="btn">Sponsor: POST sample</button>
+        <button id="btnCopyCurlRpc" class="btn secondary" type="button">Copy RPC curl</button>
+        <button id="btnCopyCurlSponsor" class="btn secondary" type="button">Copy Sponsor curl</button>
+      </div>
+
+      <pre id="out" class="card small" style="white-space:pre-wrap; overflow:auto; margin-top:10px; display:none;"></pre>
+    </section>
+
+    <section class="card">
+      <p class="card-title">Checklist (quick)</p>
+      <textarea id="checklist" class="textarea" readonly></textarea>
+      <div class="row" style="margin-top:8px;">
+        <button id="btnCopyChecklist" class="btn secondary" type="button">Copy Checklist</button>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <div class="muted">WCWD — World Chain / WLD Dashboard</div>
+    </div>
+  </footer>
+
+  <script src="/assets/common.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
