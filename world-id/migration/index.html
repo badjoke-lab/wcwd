@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WCWD — World ID Migration Helper</title>
+  <meta name="description" content="A small memo + checklist generator for World ID integration/migration." />
+  <link rel="stylesheet" href="/assets/common.css" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header class="header">
+    <div class="container">
+      <a class="brand" href="/">WCWD</a>
+      <nav class="nav">
+        <a href="/">Dashboard</a>
+        <a href="/dev/">Dev Hub</a>
+        <a href="/world-id/migration/" aria-current="page">World ID Migration</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <h1>World ID Migration Helper</h1>
+    <p class="muted small">Browser-only memo and checklist generator. Stored in localStorage.</p>
+
+    <section class="card">
+      <p class="card-title">Inputs</p>
+      <div class="form">
+        <div class="grid">
+          <div class="col-6">
+            <div class="label">App/Project ID (optional)</div>
+            <input id="appId" class="input" placeholder="e.g. app_staging_123" />
+          </div>
+          <div class="col-6">
+            <div class="label">Action ID (recommended)</div>
+            <input id="actionId" class="input" placeholder="e.g. login" />
+          </div>
+        </div>
+
+        <div class="grid">
+          <div class="col-6">
+            <div class="label">Credential Level (optional)</div>
+            <select id="verificationLevel" class="select">
+              <option value="">(empty)</option>
+              <option value="orb">orb</option>
+              <option value="device">device</option>
+            </select>
+          </div>
+          <div class="col-6">
+            <div class="label">Backend Verify Endpoint (optional)</div>
+            <input id="verifyEndpoint" class="input" placeholder="https://your-worker.example/verify" />
+          </div>
+        </div>
+
+        <div>
+          <div class="label">Notes (optional)</div>
+          <textarea id="notes" class="textarea" placeholder="Links, TODOs, decisions..."></textarea>
+        </div>
+
+        <div class="row">
+          <button id="btnSave" class="btn">Save</button>
+          <button id="btnReset" class="btn ghost" type="button">Reset</button>
+          <button id="btnCopySummary" class="btn secondary" type="button">Copy Summary</button>
+        </div>
+      </div>
+      <div id="statusMount"></div>
+    </section>
+
+    <section class="card">
+      <p class="card-title">Checklist</p>
+      <textarea id="checklistOut" class="textarea" readonly></textarea>
+      <div class="row" style="margin-top:8px;">
+        <button id="btnCopyChecklist" class="btn secondary" type="button">Copy Checklist</button>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <div class="muted">WCWD — World Chain / WLD Dashboard</div>
+    </div>
+  </footer>
+
+  <script src="/assets/common.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
