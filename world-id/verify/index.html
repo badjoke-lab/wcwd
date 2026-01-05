@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WCWD — World ID Verify</title>
+  <meta name="description" content="Paste a World ID proof JSON and generate a verify payload/curl command." />
+  <link rel="stylesheet" href="/assets/common.css" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header class="header">
+    <div class="container">
+      <a class="brand" href="/">WCWD</a>
+      <nav class="nav">
+        <a href="/">Dashboard</a>
+        <a href="/dev/">Dev Hub</a>
+        <a href="/world-id/verify/" aria-current="page">World ID Verify</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <h1>World ID Verify</h1>
+    <p class="muted small">
+      Paste a proof JSON (e.g. from IDKit result) to generate a verify payload.
+      This page does not verify on-chain; it only prepares payload and optional POST to your endpoint.
+    </p>
+
+    <section class="card">
+      <p class="card-title">Input</p>
+      <p class="card-sub">Paste JSON, then generate payload. Endpoint is optional (stored in your browser).</p>
+
+      <div class="form">
+        <div>
+          <div class="label">Proof JSON</div>
+          <textarea id="proofJson" class="textarea" placeholder='Paste JSON here...'></textarea>
+          <div class="row" style="margin-top:8px;">
+            <button id="btnParse" class="btn">Parse & Validate</button>
+            <button id="btnClear" class="btn ghost" type="button">Clear</button>
+          </div>
+        </div>
+
+        <div class="grid">
+          <div class="col-6">
+            <div class="label">Action ID (optional)</div>
+            <input id="actionId" class="input" placeholder="e.g. login" />
+          </div>
+          <div class="col-6">
+            <div class="label">Signal (optional)</div>
+            <input id="signal" class="input" placeholder="e.g. 0xabc... or any string" />
+          </div>
+        </div>
+
+        <div class="grid">
+          <div class="col-6">
+            <div class="label">Credential Type (optional)</div>
+            <select id="credentialType" class="select">
+              <option value="">(empty)</option>
+              <option value="orb">orb</option>
+              <option value="device">device</option>
+            </select>
+          </div>
+          <div class="col-6">
+            <div class="label">Verify Endpoint (optional)</div>
+            <input id="endpoint" class="input" placeholder="https://your-worker.example/verify" />
+            <p class="muted small" style="margin:6px 0 0;">Saved in localStorage. Leave empty to disable POST.</p>
+          </div>
+        </div>
+      </div>
+
+      <div id="statusMount"></div>
+    </section>
+
+    <section class="card">
+      <p class="card-title">Output</p>
+      <p class="card-sub">Verify payload + curl generator.</p>
+
+      <textarea id="payloadOut" class="textarea" readonly placeholder="Payload will appear here..."></textarea>
+
+      <div class="row" style="margin-top:8px;">
+        <button id="btnCopyPayload" class="btn secondary" type="button">Copy Payload</button>
+        <button id="btnCopyCurl" class="btn secondary" type="button">Copy curl</button>
+        <button id="btnPost" class="btn" type="button">POST to Endpoint</button>
+      </div>
+
+      <pre id="postResult" class="card small" style="white-space:pre-wrap; overflow:auto; display:none;"></pre>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <div class="muted">WCWD — World Chain / WLD Dashboard</div>
+    </div>
+  </footer>
+
+  <script src="/assets/common.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
