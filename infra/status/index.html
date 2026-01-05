@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WCWD — Infra Status</title>
+  <meta name="description" content="Endpoint health checks (browser-only). Save your endpoints and check status/latency." />
+  <link rel="stylesheet" href="/assets/common.css" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header class="header">
+    <div class="container">
+      <a class="brand" href="/">WCWD</a>
+      <nav class="nav">
+        <a href="/">Dashboard</a>
+        <a href="/dev/">Dev Hub</a>
+        <a href="/world-id/">World ID</a>
+        <a href="/world-chain/paymaster/">Paymaster</a>
+        <a href="/world-chain/oracles/">Oracles</a>
+        <a href="/infra/status/" aria-current="page">Status</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <h1>Infra Status</h1>
+    <p class="muted small">
+      Browser-only endpoint checker. It measures basic <b>HTTP status</b> and <b>latency</b> via <code>fetch</code>.
+      Some endpoints may fail due to CORS—those are still useful signals.
+    </p>
+
+    <section class="card">
+      <p class="card-title">Quick Check</p>
+      <div class="row">
+        <button id="btnCheckAll" class="btn">Check All</button>
+        <button id="btnClear" class="btn ghost" type="button">Clear Results</button>
+      </div>
+      <div id="statusMount"></div>
+    </section>
+
+    <section class="card">
+      <p class="card-title">Endpoints</p>
+      <p class="card-sub">Add your endpoints (saved in localStorage). “Default” endpoints are always included.</p>
+
+      <div class="form">
+        <div class="grid">
+          <div class="col-6">
+            <div class="label">Name</div>
+            <input id="newName" class="input" placeholder="e.g. History Worker" />
+          </div>
+          <div class="col-6">
+            <div class="label">URL</div>
+            <input id="newUrl" class="input" placeholder="https://... or /api/..." />
+          </div>
+        </div>
+        <div class="row">
+          <button id="btnAdd" class="btn secondary" type="button">Add</button>
+          <button id="btnResetSaved" class="btn ghost" type="button">Reset Saved</button>
+        </div>
+      </div>
+
+      <div style="overflow:auto; margin-top:10px;">
+        <table class="table" id="tbl">
+          <thead>
+            <tr>
+              <th style="min-width:200px;">Name</th>
+              <th style="min-width:420px;">URL</th>
+              <th style="min-width:120px;">Status</th>
+              <th style="min-width:120px;">Latency</th>
+              <th style="min-width:220px;">Last Checked</th>
+              <th style="min-width:140px;"></th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card">
+      <p class="card-title">Notes</p>
+      <ul class="muted small">
+        <li>If CORS blocks, you may still see a failure — that indicates “browser can’t verify”.</li>
+        <li>Use <code>/api/*</code> on this Pages site when possible (same-origin is easiest).</li>
+        <li>This page is for triage: “which endpoint is down / slow / blocked”.</li>
+      </ul>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <div class="muted">WCWD — World Chain / WLD Dashboard</div>
+    </div>
+  </footer>
+
+  <script src="/assets/common.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
