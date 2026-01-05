@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WCWD — Mini Apps Preflight</title>
+  <meta name="description" content="Preflight checklist for World Chain / World ID integrations (browser-only checks + links)." />
+  <link rel="stylesheet" href="/assets/common.css" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header class="header">
+    <div class="container">
+      <a class="brand" href="/">WCWD</a>
+      <nav class="nav">
+        <a href="/">Dashboard</a>
+        <a href="/dev/">Dev Hub</a>
+        <a href="/world-id/">World ID</a>
+        <a href="/world-chain/paymaster/">Paymaster</a>
+        <a href="/world-chain/oracles/">Oracles</a>
+        <a href="/infra/status/">Status</a>
+        <a href="/mini-apps/preflight/" aria-current="page">Preflight</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <h1>Mini Apps — Preflight</h1>
+    <p class="muted small">
+      This page is a quick “before you build” checklist. It does <b>safe browser-only checks</b> (no secrets),
+      and gives you <b>copy-ready</b> snippets/links you’ll repeatedly need.
+    </p>
+
+    <section class="card">
+      <p class="card-title">1) Environment</p>
+      <div class="grid">
+        <div class="col-6">
+          <div class="kv">
+            <div class="k">Site Origin</div>
+            <div class="v"><code id="siteOrigin">-</code></div>
+          </div>
+          <div class="kv">
+            <div class="k">User Agent</div>
+            <div class="v"><span id="ua" class="muted small">-</span></div>
+          </div>
+        </div>
+        <div class="col-6">
+          <div class="kv">
+            <div class="k">HTTPS</div>
+            <div class="v"><span id="isHttps" class="badge">-</span></div>
+          </div>
+          <div class="kv">
+            <div class="k">Localhost</div>
+            <div class="v"><span id="isLocal" class="badge">-</span></div>
+          </div>
+        </div>
+      </div>
+      <p class="muted small" style="margin-top:10px;">
+        Notes: Some features (auth, secure contexts) behave differently on <code>http://localhost</code>.
+      </p>
+    </section>
+
+    <section class="card">
+      <p class="card-title">2) Quick Links (Docs & Pages)</p>
+      <div class="grid">
+        <div class="col-6">
+          <ul class="list">
+            <li><a href="/world-id/">World ID (local hub)</a></li>
+            <li><a href="/world-chain/paymaster/">World Chain — Paymaster</a></li>
+            <li><a href="/world-chain/oracles/">World Chain — Oracles</a></li>
+            <li><a href="/infra/status/">Infra Status</a></li>
+          </ul>
+        </div>
+        <div class="col-6">
+          <ul class="list">
+            <li><a id="docsRoot" target="_blank" rel="noreferrer">docs.world.org (root)</a></li>
+            <li><a id="docsWorldId" target="_blank" rel="noreferrer">World ID docs</a></li>
+            <li><a id="docsWorldChain" target="_blank" rel="noreferrer">World Chain docs</a></li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <p class="card-title">3) Endpoint Preflight</p>
+      <p class="card-sub">
+        Check same-origin endpoints first (fastest to validate). External endpoints may fail due to CORS.
+      </p>
+
+      <div class="row">
+        <button id="btnRun" class="btn">Run Checks</button>
+        <button id="btnClear" class="btn ghost" type="button">Clear</button>
+      </div>
+
+      <div id="mount"></div>
+
+      <div style="overflow:auto; margin-top:10px;">
+        <table class="table">
+          <thead>
+            <tr>
+              <th style="min-width:220px;">Target</th>
+              <th style="min-width:420px;">URL</th>
+              <th style="min-width:120px;">Result</th>
+              <th style="min-width:120px;">Latency</th>
+              <th style="min-width:220px;">Note</th>
+            </tr>
+          </thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card">
+      <p class="card-title">4) Copy Snippets</p>
+
+      <div class="grid">
+        <div class="col-6">
+          <div class="label">Fetch (no-store) template</div>
+          <pre class="code" id="snipFetch"></pre>
+        </div>
+        <div class="col-6">
+          <div class="label">Minimal health endpoint list (JSON)</div>
+          <pre class="code" id="snipJson"></pre>
+        </div>
+      </div>
+
+      <p class="muted small" style="margin-top:10px;">
+        This is intentionally generic. Real integrations often require SDKs/credentials; those do <b>not</b> belong here.
+      </p>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <div class="muted">WCWD — World Chain / WLD Dashboard</div>
+    </div>
+  </footer>
+
+  <script src="/assets/common.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
