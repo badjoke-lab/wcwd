@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WCWD — Oracle Feed Tester</title>
+  <meta name="description" content="Oracle feed tester via JSON-RPC eth_call (latestRoundData/decimals)." />
+  <link rel="stylesheet" href="/assets/common.css" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header class="header">
+    <div class="container">
+      <a class="brand" href="/">WCWD</a>
+      <nav class="nav">
+        <a href="/">Dashboard</a>
+        <a href="/dev/">Dev Hub</a>
+        <a href="/world-chain/paymaster/">Paymaster</a>
+        <a href="/world-chain/oracles/" aria-current="page">Oracles</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <h1>Oracle Feed Tester</h1>
+    <p class="muted small">
+      Paste a feed contract address (AggregatorV3Interface-compatible) and call:
+      <code>decimals()</code> + <code>latestRoundData()</code> via JSON-RPC <code>eth_call</code>.
+      CORS may block some RPC endpoints.
+    </p>
+
+    <section class="card">
+      <p class="card-title">Inputs</p>
+      <div class="form">
+        <div class="grid">
+          <div class="col-6">
+            <div class="label">JSON-RPC URL</div>
+            <input id="rpcUrl" class="input" placeholder="https://..." />
+          </div>
+          <div class="col-6">
+            <div class="label">Feed Contract Address</div>
+            <input id="feedAddr" class="input" placeholder="0x..." />
+          </div>
+        </div>
+
+        <div class="row">
+          <button id="btnFetch" class="btn">Fetch (decimals + latestRoundData)</button>
+          <button id="btnCopyCurl" class="btn secondary" type="button">Copy curl</button>
+          <button id="btnSave" class="btn ghost" type="button">Save</button>
+          <button id="btnReset" class="btn ghost" type="button">Reset</button>
+        </div>
+      </div>
+
+      <div id="statusMount"></div>
+    </section>
+
+    <section class="card">
+      <p class="card-title">Result</p>
+      <pre id="out" class="card small" style="white-space:pre-wrap; overflow:auto; display:none;"></pre>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <div class="muted">WCWD — World Chain / WLD Dashboard</div>
+    </div>
+  </footer>
+
+  <script src="/assets/common.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>
