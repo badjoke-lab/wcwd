@@ -1,6 +1,20 @@
+# ===== OS =====
+.DS_Store
 
-# local env
+# ===== Node =====
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.next/
+.cache/
+
+# ===== Cloudflare / Wrangler =====
+.wrangler/
 .dev.vars
-.env
-.env.*
-*.local
+
+# ===== Editor =====
+.vscode/
+.idea/
+*.swp
