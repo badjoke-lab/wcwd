@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://wcwd.pages.dev/sitemap.xml
+Sitemap: https://wcwd.badjoke-lab.com/sitemap.xml

@@ -1,7 +1,7 @@
 # 運用ドキュメント（無料枠・cron間隔・確認コマンド・復旧手順）
 
 ## 1) 全体構成（1枚図レベルの文章）
-- Pages（表示）: `https://wcwd.pages.dev/`
+- Pages（表示）: `https://wcwd.badjoke-lab.com/`
 - Worker（収集/API）: `https://wcwd-history.badjoke-lab.workers.dev`
 - Cron → KV に保存 → Pages が Worker API を読む（**閲覧数依存ではない**）
 - Worker は GitHub Actions（main push）で自動デプロイされる
