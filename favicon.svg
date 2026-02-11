@@ -1,5 +1,8 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
-  <rect width="64" height="64" fill="#fff"/>
-  <!-- simple WCWD mark -->
-  <path d="M12 18h6l6 22 6-22h6l6 22 6-22h6l-10 30h-6l-6-22-6 22h-6L12 18z" fill="#111"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="WCWD">
+  <rect width="64" height="64" rx="14" fill="white"/>
+  <path d="M14 18h36" stroke="black" stroke-width="3" stroke-linecap="round"/>
+  <path d="M14 46h36" stroke="black" stroke-width="3" stroke-linecap="round"/>
+  <text x="32" y="39" text-anchor="middle"
+        font-family="ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto"
+        font-size="18" font-weight="700" fill="black">WCWD</text>
 </svg>
