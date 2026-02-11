@@ -37,7 +37,7 @@
 
 ## 5) ローカル表示と公開表示の違い
 - ローカル（python http.server）は Pages Functions が無いので `/api/summary` は 404 になりうる
-- 公開（wcwd.pages.dev）は Pages が動く（Functions/Headers含む）
+- 公開（wcwd.badjoke-lab.com）は Pages が動く（Functions/Headers含む）
 - フロントは基本 Worker API（History）を見るため、ローカルでも history-base が正しければ動く
 
 ## 6) 何が取れないか（indexer無しの限界）
