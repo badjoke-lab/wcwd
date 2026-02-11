@@ -1,7 +1,7 @@
 # 運用ドキュメント（無料枠・cron間隔・確認コマンド・復旧手順）
 
 ## 1) 全体構成（1枚図レベルの文章）
-- Pages（表示）: `https://wcwd.pages.dev/`
+- Pages（表示）: `https://wcwd.badjoke-lab.com/`
 - Worker（収集/API）: `https://wcwd-history.badjoke-lab.workers.dev`
 - Cron → KV に保存 → Pages が Worker API を読む（**閲覧数依存ではない**）
 - Worker は GitHub Actions（main push）で自動デプロイされる
@@ -37,7 +37,7 @@
 
 ## 5) ローカル表示と公開表示の違い
 - ローカル（python http.server）は Pages Functions が無いので `/api/summary` は 404 になりうる
-- 公開（wcwd.pages.dev）は Pages が動く（Functions/Headers含む）
+- 公開（wcwd.badjoke-lab.com）は Pages が動く（Functions/Headers含む）
 - フロントは基本 Worker API（History）を見るため、ローカルでも history-base が正しければ動く
 
 ## 6) 何が取れないか（indexer無しの限界）

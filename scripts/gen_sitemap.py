@@ -16,8 +16,8 @@ def guess_base_url() -> str:
         host = cname.read_text(encoding="utf-8").strip()
         if host:
             return f"https://{host.strip('/')}/"
-    # fallback（wcwd の pages.dev 想定）
-    return "https://wcwd.pages.dev/"
+    # fallback（既定のbase URL想定）
+    return "https://wcwd.badjoke-lab.com/"
 
 def should_skip(path: Path) -> bool:
     parts = set(path.parts)
