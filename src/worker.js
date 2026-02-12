@@ -9,6 +9,7 @@
  * - GET  /api/latest
  * - GET  /api/list?limit=96
  * - GET  /api/health
+ * - GET  /api/version
  * - GET  /api/events?limit=50
  * - GET  /api/daily?date=YYYY-MM-DD
  * - GET  /api/daily/latest
@@ -38,6 +39,7 @@ const ALERT_TYPES = {
   health_change: "alert:last_sent:health_change",
   daily_summary: "alert:last_sent:daily_summary",
 };
+const UNKNOWN_VERSION = "unknown";
 
 function corsHeaders(origin = "*") {
   return {
@@ -252,24 +254,24 @@ async function writeLastSent(env, key, ms) {
 function buildAlertMessage(type, latest, avgValue, intervalMin, message = "") {
   const ts = typeof latest?.ts === "string" ? latest.ts : new Date().toISOString();
   if (type === "tps_spike") {
-    return `[WCWD] TPS spike: ${fmtNum(latest?.tps, 0)} (avg ${fmtNum(avgValue, 0)}) interval=${intervalMin}m ts=${ts}\nhttps://wcwd.pages.dev/`;
+    return `[WCWD] TPS spike: ${fmtNum(latest?.tps, 0)} (avg ${fmtNum(avgValue, 0)}) interval=${intervalMin}m ts=${ts}\nhttps://wcwd.badjoke-lab.com/`;
   }
   if (type === "tps_drop") {
-    return `[WCWD] TPS drop: ${fmtNum(latest?.tps, 0)} (avg ${fmtNum(avgValue, 0)}) interval=${intervalMin}m ts=${ts}\nhttps://wcwd.pages.dev/`;
+    return `[WCWD] TPS drop: ${fmtNum(latest?.tps, 0)} (avg ${fmtNum(avgValue, 0)}) interval=${intervalMin}m ts=${ts}\nhttps://wcwd.badjoke-lab.com/`;
   }
   if (type === "gas_high") {
-    return `[WCWD] Gas high: ${fmtNum(latest?.gas_gwei, 6)} (avg ${fmtNum(avgValue, 6)}) interval=${intervalMin}m ts=${ts}\nhttps://wcwd.pages.dev/`;
+    return `[WCWD] Gas high: ${fmtNum(latest?.gas_gwei, 6)} (avg ${fmtNum(avgValue, 6)}) interval=${intervalMin}m ts=${ts}\nhttps://wcwd.badjoke-lab.com/`;
   }
   if (type === "summary_fail") {
-    return `[WCWD] Summary fetch failed repeatedly. interval=${intervalMin}m ts=${ts}\nhttps://wcwd.pages.dev/`;
+    return `[WCWD] Summary fetch failed repeatedly. interval=${intervalMin}m ts=${ts}\nhttps://wcwd.badjoke-lab.com/`;
   }
   if (type === "daily_summary") {
-    return message || `[WCWD] Daily summary: ${ts}\nhttps://wcwd.pages.dev/`;
+    return message || `[WCWD] Daily summary: ${ts}\nhttps://wcwd.badjoke-lab.com/`;
   }
   if (type === "health_change") {
-    return `[WCWD] Health change: ${message}\nhttps://wcwd.pages.dev/`;
+    return `[WCWD] Health change: ${message}\nhttps://wcwd.badjoke-lab.com/`;
   }
-  return `[WCWD] Alert: ${type} interval=${intervalMin}m ts=${ts}\nhttps://wcwd.pages.dev/`;
+  return `[WCWD] Alert: ${type} interval=${intervalMin}m ts=${ts}\nhttps://wcwd.badjoke-lab.com/`;
 }
 
 async function sendDiscordAlert(env, key, message) {
@@ -562,7 +564,7 @@ async function maybeGenerateDailySummary(env, list) {
   await env.HIST.put(`daily:${today}`, JSON.stringify(summary));
   await env.HIST.put(DAILY_LATEST_KEY, JSON.stringify(summary));
 
-  const message = `[WCWD] Daily summary ${today}\nHealth mode: ${summary.health.mode} (N:${summary.health.counts.NORMAL} W:${summary.health.counts.WARN} A:${summary.health.counts.ALERT})\nTPS max/min: ${fmtNum(summary.tps.max, 0)} / ${fmtNum(summary.tps.min, 0)}\nGas max: ${fmtNum(summary.gas.max, 6)}\nWLD change: USD ${fmtNum(summary.wld.usd_change, 6)} / JPY ${fmtNum(summary.wld.jpy_change, 2)}\nhttps://wcwd.pages.dev/`;
+  const message = `[WCWD] Daily summary ${today}\nHealth mode: ${summary.health.mode} (N:${summary.health.counts.NORMAL} W:${summary.health.counts.WARN} A:${summary.health.counts.ALERT})\nTPS max/min: ${fmtNum(summary.tps.max, 0)} / ${fmtNum(summary.tps.min, 0)}\nGas max: ${fmtNum(summary.gas.max, 6)}\nWLD change: USD ${fmtNum(summary.wld.usd_change, 6)} / JPY ${fmtNum(summary.wld.jpy_change, 2)}\nhttps://wcwd.badjoke-lab.com/`;
   const result = await sendDiscordAlert(env, ALERT_TYPES.daily_summary, message);
   if (!result.ok) console.log("Daily summary skipped", result);
   return summary;
@@ -746,6 +748,21 @@ export default {
         const latest = await getLatestSnapshot(env);
         if (!latest) return json({ ok: false, reason: "no_data" }, {}, origin);
         return json(latest, {}, origin);
+      }
+
+      if (pathname === "/api/version") {
+        if (request.method !== "GET") return errorJson("version", "method_not_allowed", 405, origin);
+        const workerVersion = env.WORKER_VERSION || UNKNOWN_VERSION;
+        const deployedAt = env.DEPLOYED_AT || new Date().toISOString();
+        return json(
+          {
+            ok: true,
+            worker_version: workerVersion,
+            deployed_at: deployedAt,
+          },
+          {},
+          origin
+        );
       }
 
       if (pathname === "/api/list") {

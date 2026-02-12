@@ -1,6 +1,8 @@
 <!doctype html>
 <html lang="en" data-lang="en">
 <head>
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
@@ -10,11 +12,39 @@
   <!-- ✅ History Worker base (frontend fetches from here) -->
   <meta name="wcwd-history-base" content="https://wcwd-history.badjoke-lab.workers.dev" />
 
+    <link rel="stylesheet" href="/assets/common.css" />
   <link rel="stylesheet" href="./style.css" />
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="WCWD">
+  <meta property="og:description" content="World Chain quick dashboard: server-observed history (Workers Cron + KV) + Phase 0 best-effort metrics.">
+  <!-- WCWD SEO: canonical + OpenGraph + Twitter -->
+  <link rel="canonical" href="https://wcwd.badjoke-lab.com/">
+  <meta property="og:site_name" content="WCWD">
+  <meta property="og:url" content="https://wcwd.badjoke-lab.com/">
+  <meta property="og:image" content="https://wcwd.badjoke-lab.com/og.png">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="WCWD — World Chain / WLD Dashboard">
+  <meta name="twitter:description" content="World Chain quick dashboard: server-observed history (Workers Cron + KV) + Phase 0 best-effort metrics.">
+
 </head>
 
 <body>
-  <main class="wrap">
+<header class="header">
+  <div class="container">
+    <a class="brand" href="/">WCWD</a>
+    <nav class="nav">
+      <a href="/">Dashboard</a>
+      <a href="/dev/">Dev Hub</a>
+      <a href="/world-id/">World ID</a>
+      <a href="/world-chain/">World Chain</a>
+      <a href="/infra/status/">Status</a>
+      <a href="/mini-apps/preflight/">Preflight</a>
+    </nav>
+  </div>
+</header>
+
+
+<main class="wrap">
     <header class="hero">
       <h1>WCWD — World Chain / WLD Dashboard</h1>
 
@@ -31,7 +61,42 @@
       </p>
     </header>
 
+    
     <section class="card">
+      <p class="card-title">Quick Links</p>
+      <p class="muted small">Start here: Dev Hub is the sitemap for all pages.</p>
+
+      <div class="grid">
+        <div class="col-6">
+          <div class="label">Dev Hub (Sitemap)</div>
+          <p class="muted small">All pages + search + copy URLs.</p>
+          <p><a class="btn" href="/dev/">Open Dev Hub</a></p>
+        </div>
+
+        <div class="col-6">
+          <div class="label">Hubs</div>
+          <p class="muted small">World ID / World Chain hub pages.</p>
+          <p style="display:flex;gap:8px;flex-wrap:wrap;">
+            <a class="btn btn-ghost" href="/world-id/">World ID</a>
+            <a class="btn btn-ghost" href="/world-chain/">World Chain</a>
+          </p>
+        </div>
+
+        <div class="col-6">
+          <div class="label">Infra</div>
+          <p class="muted small">Endpoint checker.</p>
+          <p><a class="btn btn-ghost" href="/infra/status/">Status</a></p>
+        </div>
+
+        <div class="col-6">
+          <div class="label">Mini Apps</div>
+          <p class="muted small">Preflight checks.</p>
+          <p><a class="btn btn-ghost" href="/mini-apps/preflight/">Preflight</a></p>
+        </div>
+      </div>
+    </section>
+
+<section class="card">
       <h2>Health</h2>
       <div class="grid">
         <div class="metric">
@@ -181,6 +246,60 @@
       <div class="note" id="noteHistory">—</div>
     </section>
 
+    <section class="card" id="ecosystem">
+      <h2>Ecosystem</h2>
+      <p class="muted">World Chain (chainId=480) ecosystem list curated in ecosystem.json. Verified items show by default.</p>
+      <ul class="eco-legend">
+        <li><span class="eco-verify verified">✅ Verified on World Chain</span></li>
+        <li><span class="eco-verify offchain">⚪ Offchain (World official)</span></li>
+        <li><span class="eco-verify unverified">⚠ Unverified / Cross-chain</span></li>
+      </ul>
+
+      <div class="eco-hot">
+        <div class="eco-hot-head">
+          <h3>Hot</h3>
+          <div class="note">Top 5 items with hot=true (sorted by hot_rank, verified filter applies).</div>
+        </div>
+        <div id="ecoHotList" class="eco-hot-list"></div>
+        <div class="note" id="ecoHotEmpty">No hot items yet</div>
+      </div>
+
+      <div class="eco-filters">
+        <div class="tabs" role="tablist" aria-label="Ecosystem types">
+          <button class="tab-btn active" type="button" data-eco-type="all">All</button>
+          <button class="tab-btn" type="button" data-eco-type="token">Tokens</button>
+          <button class="tab-btn" type="button" data-eco-type="dapp">dApps</button>
+          <button class="tab-btn" type="button" data-eco-type="infra">Infra</button>
+          <button class="tab-btn" type="button" data-eco-type="oracle">Oracles</button>
+        </div>
+        <div class="eco-inputs">
+          <input id="ecoSearch" type="search" placeholder="Search by name, symbol, tag, description" />
+          <select id="ecoCategory"></select>
+          <label class="eco-toggle">
+            <input id="ecoShowAll" type="checkbox" />
+            <span>Show unverified/cross-chain</span>
+          </label>
+        </div>
+        <div class="note" id="ecoTagState">Tag filter: none</div>
+      </div>
+
+      <div class="note error" id="ecoError" role="alert"></div>
+      <div id="ecoList" class="eco-list"></div>
+      <div class="note" id="ecoEmpty">No items match the filters.</div>
+
+      <div class="eco-pr">
+        <h3>Add via PR</h3>
+        <p class="muted">
+          1. Edit ecosystem.json and add your project entry. 2. Open a PR with a short description.
+          3. Once merged, it appears here automatically.
+        </p>
+        <p class="note">Note: Projects without World Chain (chainId=480) verification are hidden by default.</p>
+        <p>
+          <a href="https://github.com/badjoke-lab/wcwd/blob/main/ecosystem.json" target="_blank" rel="noopener">Edit ecosystem.json on GitHub</a>
+        </p>
+      </div>
+    </section>
+
     <section class="card">
       <h2>7d Series (history)</h2>
       <p class="muted">
@@ -279,5 +398,23 @@
   </main>
 
   <script src="./app.js" defer></script>
+  <script src="/assets/common.js"></script>
+<footer class="site-footer">
+  <div class="container footer-inner">
+    <div class="footer-row">
+      <span class="muted">Not financial advice. Estimates may differ from execution.</span>
+    </div>
+    <div class="footer-row">
+      <span class="muted">Data sources vary by page (see page notes).</span>
+    </div>
+    <div class="footer-row">
+      <span class="muted">Build:</span>
+      <span class="build" data-build>local</span>
+      <span class="sep">·</span>
+      <a href="https://github.com/badjoke-lab/wcwd" class="muted">GitHub</a>
+    </div>
+  </div>
+</footer>
+
 </body>
 </html>

@@ -511,11 +511,7 @@ function drawSparkline(canvas, series) {
 }
 
 async function loadSeries(metric, canvas, noteEl, errors, intervalMin) {
-<<<<<<< HEAD
-  const url = api(`/api/series?metric=${metric}&period=7d&step=1h`);
-=======
   const url = `${API_BASE}/api/series?metric=${metric}&period=7d&step=1h`;
->>>>>>> origin/main
   try {
     const { json, headers } = await fetchJsonWithMeta(url, { timeoutMs: 8000 });
     const points = Array.isArray(json?.points) ? json.points : [];
@@ -674,11 +670,7 @@ async function loadAll() {
   let latest = null;
   let meta = null;
   let intervalMin = loadStoredInterval();
-<<<<<<< HEAD
-  let source = HISTORY_ORIGIN;
-=======
   let source = isLocalMode() ? "worker-direct" : "pages-proxy";
->>>>>>> origin/main
   let historyOk = false;
 
   const applyHistoryNote = () => {
@@ -687,11 +679,7 @@ async function loadAll() {
   };
 
   try {
-<<<<<<< HEAD
-    const { json, headers } = await fetchJsonWithMeta(api(`/api/list?limit=${SAFE_REQUEST_LIMIT}`), { timeoutMs: 8000 });
-=======
     const { json, headers } = await fetchJsonWithMeta(`${API_BASE}/api/list?limit=${SAFE_REQUEST_LIMIT}`, { timeoutMs: 8000 });
->>>>>>> origin/main
     const headerInterval = Number(headers.get("x-wcwd-interval-min"));
     const proxyHeader = headers.get("x-wcwd-proxy");
     const pagesHeader = headers.get("x-wcwd-pages-version");
@@ -732,17 +720,10 @@ async function loadAll() {
 
   const sourceLabel = source === "cache" ? `cache (${HISTORY_ORIGIN})` : HISTORY_ORIGIN;
   if (latest) {
-<<<<<<< HEAD
-    const okLabel = source === "cache" ? "History OK (cache)." : "History OK.";
-    UI.noteHistory.textContent = `${okLabel} points=${hist.length} interval=${fmtNum(intervalMin, 0)}min mode=${isLite ? "lite" : "full"} source=${sourceLabel}`;
-  } else {
-    UI.noteHistory.textContent = `History unavailable. points=${hist.length} interval=${fmtNum(intervalMin, 0)}min mode=${isLite ? "lite" : "full"} source=${sourceLabel} — Try again later / enable ?lite=1 / reduce points`;
-=======
     const okLabel = historyOk ? "History OK." : "History OK (cache).";
     historyNoteBase = `${okLabel} points=${hist.length} interval=${fmtNum(intervalMin, 0)}min mode=${isLite ? "lite" : "full"} source=${source}`;
   } else {
     historyNoteBase = `History unavailable. points=${hist.length} interval=${fmtNum(intervalMin, 0)}min mode=${isLite ? "lite" : "full"} source=${source} — Try again later / enable ?lite=1 / reduce points`;
->>>>>>> origin/main
   }
   applyHistoryNote();
 
@@ -813,11 +794,7 @@ async function loadAll() {
   }
 
   try {
-<<<<<<< HEAD
-    const { json } = await fetchJsonWithMeta(api("/api/health"), { timeoutMs: 8000 });
-=======
     const { json } = await fetchJsonWithMeta(`${API_BASE}/api/health`, { timeoutMs: 8000 });
->>>>>>> origin/main
     health = json;
     renderHealth(health);
   } catch (e) {
@@ -826,13 +803,8 @@ async function loadAll() {
   }
 
   try {
-<<<<<<< HEAD
-    const { json } = await fetchJsonWithMeta(api("/api/events?limit=50"), { timeoutMs: 8000 });
-    events = Array.isArray(json) ? json : (Array.isArray(json?.events) ? json.events : []);
-=======
     const { json } = await fetchJsonWithMeta(`${API_BASE}/api/events?limit=50`, { timeoutMs: 8000 });
     events = Array.isArray(json) ? json : [];
->>>>>>> origin/main
     renderEvents(events);
   } catch (e) {
     errors.push(`Events fetch failed: ${(e && e.message) ? e.message : String(e)}`);
@@ -840,11 +812,7 @@ async function loadAll() {
   }
 
   try {
-<<<<<<< HEAD
-    const { json } = await fetchJsonWithMeta(api("/api/daily/latest"), { timeoutMs: 8000 });
-=======
     const { json } = await fetchJsonWithMeta(`${API_BASE}/api/daily/latest`, { timeoutMs: 8000 });
->>>>>>> origin/main
     daily = json;
     renderDaily(daily);
   } catch (e) {
