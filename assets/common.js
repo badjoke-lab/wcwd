@@ -135,7 +135,7 @@
     // 初期は閉じる
     setOpen(false);
 
-    btn.addEventListener(    btn.adunction(){
+    btn.addEventListener('click', function(){
       var open = nav.classList.contains('is-open');
       setOpen(!open);
     });
@@ -167,3 +167,4 @@
     });
   }catch(_){}
 })();
+
