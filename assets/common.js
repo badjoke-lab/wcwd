@@ -118,3 +118,53 @@
     bindCopyButton,
   };
 })();
+
+/* WCWD common.js: mobile nav */
+(function(){
+  try{
+    var btn = document.querySelector('[data-nav-toggle]');
+    var nav = document.querySelector('[data-site-nav]');
+    if(!btn || !nav) return;
+
+    function setOpen(open){
+      nav.classList.toggle('is-open', !!open);
+      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+      document.body.classList.toggle('nav-open', !!open);
+    }
+
+    // 初期は閉じる
+    setOpen(false);
+
+    btn.addEventListener('click', function(){
+      var open = nav.classList.contains('is-open');
+      setOpen(!open);
+    });
+
+    // 背景クリックで閉じる（navの外側）
+    document.addEventListener('click', function(e){
+      if(!nav.classList.contains('is-open')) return;
+      var t = e.target;
+      if(btn.contains(t) || nav.contains(t)) return;
+      setOpen(false);
+    });
+
+    // ESCで閉じる
+    document.addEventListener('keydown', function(e){
+      if(e.key === 'Escape' && nav.classList.contains('is-open')) setOpen(false);
+    });
+
+    // リンククリックで閉じる（モバイル想定）
+    nav.addEventListener('click', function(e){
+      var a = e.target && e.target.closest ? e.target.closest('a') : null;
+      if(a) setOpen(false);
+    });
+
+    // 画面が広がったら強制クローズ（折返し事故防止）
+    window.addEventListener('resize', function(){
+      if(window.matchMedia && window.matchMedia('(min-width: 768px)').matches){
+        setOpen(false);
+      }
+    });
+  }catch(_){}
+})();
+
