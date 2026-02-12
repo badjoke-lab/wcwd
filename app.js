@@ -1,9 +1,19 @@
 /* WCWD frontend (static) — uses History Worker /api/list */
 
-const HISTORY_BASE = (() => {
-  const meta = document.querySelector('meta[name="wcwd-history-base"]');
-  const v = meta?.getAttribute("content")?.trim();
-  return v || "https://wcwd-history.badjoke-lab.workers.dev";
+const WORKER_BASE = "https://wcwd-history.badjoke-lab.workers.dev";
+
+function isLocalMode() {
+  const h = location.hostname;
+  return h === "localhost" || h === "127.0.0.1" || h === "" || location.protocol === "file:";
+}
+
+const API_BASE = (() => {
+  if (isLocalMode()) {
+    const meta = document.querySelector('meta[name="wcwd-history-base"]');
+    const v = meta?.getAttribute("content")?.trim();
+    return v || WORKER_BASE;
+  }
+  return "";
 })();
 const HISTORY_ORIGIN = HISTORY_BASE.replace(/\/+$/, "");
 const api = (path) => `${HISTORY_ORIGIN}${path.startsWith("/") ? path : `/${path}`}`;
@@ -12,6 +22,7 @@ const DEFAULT_INTERVAL_MIN = 15;
 const INTERVAL_STORAGE_KEY = "wcwd-interval-min";
 const HISTORY_CACHE_KEY = "wcwd-history-cache-v1";
 const SAFE_REQUEST_LIMIT = 288;
+const UNKNOWN_VERSION = "unknown";
 
 const UI = {
   status: document.getElementById("status"),
@@ -64,13 +75,305 @@ const UI = {
   dailyWldUsdChange: document.getElementById("dailyWldUsdChange"),
   dailyWldJpyChange: document.getElementById("dailyWldJpyChange"),
 
+  ecoHotList: document.getElementById("ecoHotList"),
+  ecoHotEmpty: document.getElementById("ecoHotEmpty"),
+  ecoList: document.getElementById("ecoList"),
+  ecoEmpty: document.getElementById("ecoEmpty"),
+  ecoSearch: document.getElementById("ecoSearch"),
+  ecoCategory: document.getElementById("ecoCategory"),
+  ecoShowAll: document.getElementById("ecoShowAll"),
+  ecoTagState: document.getElementById("ecoTagState"),
+  ecoError: document.getElementById("ecoError"),
+  ecoTabs: Array.from(document.querySelectorAll("[data-eco-type]")),
+
   raw: document.getElementById("raw"),
   errors: document.getElementById("errors"),
 };
 
-function isLocalMode() {
-  const h = location.hostname;
-  return h === "localhost" || h === "127.0.0.1" || h === "" || location.protocol === "file:";
+const ECO_STATE = {
+  typeTab: "all",
+  query: "",
+  category: "all",
+  tag: "",
+  showUnverified: false,
+};
+
+let ECO_ITEMS = [];
+
+function setEcoError(message) {
+  if (!UI.ecoError) return;
+  UI.ecoError.textContent = message || "";
+  UI.ecoError.style.display = message ? "block" : "none";
+}
+
+function ecoTypeLabel(type) {
+  if (type === "token") return "Token";
+  if (type === "dapp") return "dApp";
+  if (type === "infra") return "Infra";
+  if (type === "oracle") return "Oracle";
+  if (type === "offchain") return "Offchain";
+  return "—";
+}
+
+function isWorldChainVerified(item) {
+  const contracts = Array.isArray(item?.contracts) ? item.contracts : [];
+  const hasWorldChainContract = contracts.some((contract) => Number(contract?.chainId) === 480);
+  const explorer = item?.links?.explorer;
+  const hasWorldscanLink = typeof explorer === "string" && explorer.includes("worldscan.org/address/");
+  const isOffchainVerified = item?.type === "offchain" && item?.offchain_verified === true;
+  return hasWorldChainContract || hasWorldscanLink || isOffchainVerified;
+}
+
+function ecoVerificationInfo(item) {
+  if (item?.type === "offchain" && item?.offchain_verified === true) {
+    return { label: "⚪ Offchain (World official)", className: "offchain" };
+  }
+  if (isWorldChainVerified(item)) {
+    return { label: "✅ Verified on World Chain", className: "verified" };
+  }
+  return { label: "⚠ Unverified / Cross-chain", className: "unverified" };
+}
+
+function normalizeText(value) {
+  return String(value || "").toLowerCase();
+}
+
+function matchesQuery(item, query) {
+  if (!query) return true;
+  const q = normalizeText(query);
+  const haystack = [
+    item?.name,
+    item?.symbol,
+    item?.description,
+    ...(Array.isArray(item?.tags) ? item.tags : []),
+  ]
+    .map(normalizeText)
+    .join(" ");
+  return haystack.includes(q);
+}
+
+function matchesCategory(item, category) {
+  if (!category || category === "all") return true;
+  return item?.category === category;
+}
+
+function matchesType(item, typeTab) {
+  if (!typeTab || typeTab === "all") return true;
+  if (typeTab === "infra") {
+    return item?.type === "infra" || item?.type === "offchain";
+  }
+  return item?.type === typeTab;
+}
+
+function matchesTag(item, tag) {
+  if (!tag) return true;
+  const tags = Array.isArray(item?.tags) ? item.tags : [];
+  return tags.includes(tag);
+}
+
+function setActiveTab(typeTab) {
+  if (!UI.ecoTabs?.length) return;
+  UI.ecoTabs.forEach((btn) => {
+    btn.classList.toggle("active", btn.dataset.ecoType === typeTab);
+  });
+}
+
+function updateTagState() {
+  if (!UI.ecoTagState) return;
+  UI.ecoTagState.textContent = ECO_STATE.tag ? `Tag filter: ${ECO_STATE.tag}` : "Tag filter: none";
+}
+
+function renderEcoLinks(links) {
+  const container = document.createElement("div");
+  container.className = "eco-links";
+  const linkDefs = [
+    ["Official", links?.official],
+    ["App", links?.app],
+    ["Docs", links?.docs],
+    ["Explorer", links?.explorer],
+  ];
+  for (const [label, url] of linkDefs) {
+    if (!url) continue;
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.target = "_blank";
+    anchor.rel = "noopener";
+    anchor.textContent = label;
+    container.appendChild(anchor);
+  }
+  return container;
+}
+
+function renderEcoCard(item) {
+  const card = document.createElement("div");
+  card.className = "eco-card";
+
+  const title = document.createElement("h4");
+  title.textContent = item?.symbol ? `${item.name} (${item.symbol})` : item?.name || "—";
+  card.appendChild(title);
+
+  const meta = document.createElement("div");
+  meta.className = "eco-meta";
+  const badge = document.createElement("span");
+  badge.className = "eco-badge";
+  badge.textContent = ecoTypeLabel(item?.type);
+  const verify = ecoVerificationInfo(item);
+  const verifyBadge = document.createElement("span");
+  verifyBadge.className = `eco-verify ${verify.className}`;
+  verifyBadge.textContent = verify.label;
+  const cat = document.createElement("span");
+  cat.className = "note";
+  cat.textContent = item?.category || "—";
+  meta.appendChild(badge);
+  meta.appendChild(verifyBadge);
+  meta.appendChild(cat);
+  card.appendChild(meta);
+
+  if (item?.description) {
+    const desc = document.createElement("div");
+    desc.className = "note";
+    desc.textContent = item.description;
+    card.appendChild(desc);
+  }
+
+  const tags = Array.isArray(item?.tags) ? item.tags : [];
+  if (tags.length) {
+    const tagWrap = document.createElement("div");
+    tagWrap.className = "eco-tags";
+    tags.forEach((tag) => {
+      const tagBtn = document.createElement("button");
+      tagBtn.type = "button";
+      tagBtn.className = "eco-tag";
+      tagBtn.textContent = tag;
+      if (ECO_STATE.tag === tag) {
+        tagBtn.classList.add("active");
+      }
+      tagBtn.addEventListener("click", () => {
+        ECO_STATE.tag = ECO_STATE.tag === tag ? "" : tag;
+        updateTagState();
+        renderEcosystem();
+      });
+      tagWrap.appendChild(tagBtn);
+    });
+    card.appendChild(tagWrap);
+  }
+
+  const links = renderEcoLinks(item?.links || {});
+  if (links.childElementCount) {
+    card.appendChild(links);
+  }
+
+  return card;
+}
+
+function renderHotList() {
+  if (!UI.ecoHotList || !UI.ecoHotEmpty) return;
+  UI.ecoHotList.innerHTML = "";
+  const hotItems = ECO_ITEMS.filter((item) => item?.hot)
+    .filter((item) => (ECO_STATE.showUnverified ? true : isWorldChainVerified(item)))
+    .sort((a, b) => (a.hot_rank ?? 999) - (b.hot_rank ?? 999))
+    .slice(0, 5);
+  if (!hotItems.length) {
+    UI.ecoHotEmpty.style.display = "block";
+    return;
+  }
+  UI.ecoHotEmpty.style.display = "none";
+  hotItems.forEach((item) => UI.ecoHotList.appendChild(renderEcoCard(item)));
+}
+
+function renderEcosystem() {
+  if (!UI.ecoList || !UI.ecoEmpty) return;
+  setActiveTab(ECO_STATE.typeTab);
+  updateTagState();
+  renderHotList();
+  UI.ecoList.innerHTML = "";
+
+  const filtered = ECO_ITEMS.filter((item) => (
+    (ECO_STATE.showUnverified ? true : isWorldChainVerified(item))
+    && matchesType(item, ECO_STATE.typeTab)
+    && matchesCategory(item, ECO_STATE.category)
+    && matchesTag(item, ECO_STATE.tag)
+    && matchesQuery(item, ECO_STATE.query)
+  ));
+
+  if (!filtered.length) {
+    UI.ecoEmpty.style.display = "block";
+    return;
+  }
+  UI.ecoEmpty.style.display = "none";
+  filtered.forEach((item) => UI.ecoList.appendChild(renderEcoCard(item)));
+}
+
+function updateEcoCategories() {
+  if (!UI.ecoCategory) return;
+  const categories = Array.from(new Set(ECO_ITEMS.map((item) => item?.category).filter(Boolean))).sort();
+  UI.ecoCategory.innerHTML = "";
+  const allOpt = document.createElement("option");
+  allOpt.value = "all";
+  allOpt.textContent = "All categories";
+  UI.ecoCategory.appendChild(allOpt);
+  categories.forEach((cat) => {
+    const opt = document.createElement("option");
+    opt.value = cat;
+    opt.textContent = cat;
+    UI.ecoCategory.appendChild(opt);
+  });
+  if (!categories.includes(ECO_STATE.category)) {
+    ECO_STATE.category = "all";
+  }
+  UI.ecoCategory.value = ECO_STATE.category;
+}
+
+function bindEcoControls() {
+  if (UI.ecoTabs?.length) {
+    UI.ecoTabs.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        ECO_STATE.typeTab = btn.dataset.ecoType || "all";
+        renderEcosystem();
+      });
+    });
+  }
+  if (UI.ecoShowAll) {
+    UI.ecoShowAll.checked = ECO_STATE.showUnverified;
+    UI.ecoShowAll.addEventListener("change", (event) => {
+      ECO_STATE.showUnverified = event.target.checked;
+      renderEcosystem();
+    });
+  }
+  if (UI.ecoSearch) {
+    UI.ecoSearch.addEventListener("input", (event) => {
+      ECO_STATE.query = event.target.value.trim();
+      renderEcosystem();
+    });
+  }
+  if (UI.ecoCategory) {
+    UI.ecoCategory.addEventListener("change", (event) => {
+      ECO_STATE.category = event.target.value || "all";
+      renderEcosystem();
+    });
+  }
+}
+
+async function loadEcosystem() {
+  if (!UI.ecoList || !UI.ecoEmpty) return;
+  setEcoError("");
+  UI.ecoList.textContent = "Loading...";
+  UI.ecoEmpty.style.display = "none";
+  try {
+    const res = await fetch("./ecosystem.json", { headers: { accept: "application/json" } });
+    if (!res.ok) throw new Error(`HTTP ${res.status} ${res.statusText}`);
+    const json = await res.json();
+    if (!Array.isArray(json)) throw new Error("ecosystem.json must be an array");
+    ECO_ITEMS = json;
+    updateEcoCategories();
+    renderEcosystem();
+  } catch (e) {
+    setEcoError(`Ecosystem unavailable: ${(e && e.message) ? e.message : String(e)}`);
+    ECO_ITEMS = [];
+    UI.ecoList.innerHTML = "";
+    if (UI.ecoHotList) UI.ecoHotList.innerHTML = "";
+    if (UI.ecoHotEmpty) UI.ecoHotEmpty.style.display = "block";
+  }
 }
 
 function fmtNum(n, digits = 0) {
@@ -91,6 +394,13 @@ function fmtJpy(n, digits = 2) {
 function pct(n, digits = 2) {
   if (n === null || n === undefined || Number.isNaN(n)) return "—";
   return `${Number(n).toFixed(digits)}%`;
+}
+
+function shortSha(sha) {
+  if (!sha) return UNKNOWN_VERSION;
+  const trimmed = String(sha).trim();
+  if (!trimmed || trimmed === UNKNOWN_VERSION) return UNKNOWN_VERSION;
+  return trimmed.length > 7 ? trimmed.slice(0, 7) : trimmed;
 }
 
 function loadStoredInterval() {
@@ -201,7 +511,11 @@ function drawSparkline(canvas, series) {
 }
 
 async function loadSeries(metric, canvas, noteEl, errors, intervalMin) {
+<<<<<<< HEAD
   const url = api(`/api/series?metric=${metric}&period=7d&step=1h`);
+=======
+  const url = `${API_BASE}/api/series?metric=${metric}&period=7d&step=1h`;
+>>>>>>> origin/main
   try {
     const { json, headers } = await fetchJsonWithMeta(url, { timeoutMs: 8000 });
     const points = Array.isArray(json?.points) ? json.points : [];
@@ -350,18 +664,43 @@ async function loadAll() {
   let health = null;
   let events = [];
   let daily = null;
+  let pagesVersion = null;
+  let workerVersion = null;
+  let historyNoteBase = "";
+  let versionNote = "";
 
   // History (server observed)
   let hist = [];
   let latest = null;
   let meta = null;
   let intervalMin = loadStoredInterval();
+<<<<<<< HEAD
   let source = HISTORY_ORIGIN;
+=======
+  let source = isLocalMode() ? "worker-direct" : "pages-proxy";
+>>>>>>> origin/main
   let historyOk = false;
 
+  const applyHistoryNote = () => {
+    const parts = [historyNoteBase, versionNote].filter(Boolean);
+    UI.noteHistory.textContent = parts.join(" ");
+  };
+
   try {
+<<<<<<< HEAD
     const { json, headers } = await fetchJsonWithMeta(api(`/api/list?limit=${SAFE_REQUEST_LIMIT}`), { timeoutMs: 8000 });
+=======
+    const { json, headers } = await fetchJsonWithMeta(`${API_BASE}/api/list?limit=${SAFE_REQUEST_LIMIT}`, { timeoutMs: 8000 });
+>>>>>>> origin/main
     const headerInterval = Number(headers.get("x-wcwd-interval-min"));
+    const proxyHeader = headers.get("x-wcwd-proxy");
+    const pagesHeader = headers.get("x-wcwd-pages-version");
+    if (proxyHeader && proxyHeader.toLowerCase() === "pages") {
+      source = "pages-proxy";
+    } else if (!isLocalMode()) {
+      source = "worker-direct";
+    }
+    pagesVersion = pagesHeader || pagesVersion;
     intervalMin = Number.isFinite(headerInterval) && headerInterval > 0 ? headerInterval : DEFAULT_INTERVAL_MIN;
     storeInterval(intervalMin);
 
@@ -379,7 +718,7 @@ async function loadAll() {
     if (cached?.hist?.length) {
       hist = cached.hist;
       intervalMin = cached.intervalMin;
-      source = "cache";
+      // keep source unchanged; data is from cache fallback
     }
   }
 
@@ -393,11 +732,19 @@ async function loadAll() {
 
   const sourceLabel = source === "cache" ? `cache (${HISTORY_ORIGIN})` : HISTORY_ORIGIN;
   if (latest) {
+<<<<<<< HEAD
     const okLabel = source === "cache" ? "History OK (cache)." : "History OK.";
     UI.noteHistory.textContent = `${okLabel} points=${hist.length} interval=${fmtNum(intervalMin, 0)}min mode=${isLite ? "lite" : "full"} source=${sourceLabel}`;
   } else {
     UI.noteHistory.textContent = `History unavailable. points=${hist.length} interval=${fmtNum(intervalMin, 0)}min mode=${isLite ? "lite" : "full"} source=${sourceLabel} — Try again later / enable ?lite=1 / reduce points`;
+=======
+    const okLabel = historyOk ? "History OK." : "History OK (cache).";
+    historyNoteBase = `${okLabel} points=${hist.length} interval=${fmtNum(intervalMin, 0)}min mode=${isLite ? "lite" : "full"} source=${source}`;
+  } else {
+    historyNoteBase = `History unavailable. points=${hist.length} interval=${fmtNum(intervalMin, 0)}min mode=${isLite ? "lite" : "full"} source=${source} — Try again later / enable ?lite=1 / reduce points`;
+>>>>>>> origin/main
   }
+  applyHistoryNote();
 
   // Render from history latest
   try {
@@ -466,7 +813,11 @@ async function loadAll() {
   }
 
   try {
+<<<<<<< HEAD
     const { json } = await fetchJsonWithMeta(api("/api/health"), { timeoutMs: 8000 });
+=======
+    const { json } = await fetchJsonWithMeta(`${API_BASE}/api/health`, { timeoutMs: 8000 });
+>>>>>>> origin/main
     health = json;
     renderHealth(health);
   } catch (e) {
@@ -475,8 +826,13 @@ async function loadAll() {
   }
 
   try {
+<<<<<<< HEAD
     const { json } = await fetchJsonWithMeta(api("/api/events?limit=50"), { timeoutMs: 8000 });
     events = Array.isArray(json) ? json : (Array.isArray(json?.events) ? json.events : []);
+=======
+    const { json } = await fetchJsonWithMeta(`${API_BASE}/api/events?limit=50`, { timeoutMs: 8000 });
+    events = Array.isArray(json) ? json : [];
+>>>>>>> origin/main
     renderEvents(events);
   } catch (e) {
     errors.push(`Events fetch failed: ${(e && e.message) ? e.message : String(e)}`);
@@ -484,13 +840,31 @@ async function loadAll() {
   }
 
   try {
+<<<<<<< HEAD
     const { json } = await fetchJsonWithMeta(api("/api/daily/latest"), { timeoutMs: 8000 });
+=======
+    const { json } = await fetchJsonWithMeta(`${API_BASE}/api/daily/latest`, { timeoutMs: 8000 });
+>>>>>>> origin/main
     daily = json;
     renderDaily(daily);
   } catch (e) {
     errors.push(`Daily summary fetch failed: ${(e && e.message) ? e.message : String(e)}`);
     renderDaily(null);
   }
+
+  try {
+    const { json, headers } = await fetchJsonWithMeta(`${API_BASE}/api/version`, { timeoutMs: 6000 });
+    workerVersion = json?.worker_version || workerVersion;
+    pagesVersion = pagesVersion || headers.get("x-wcwd-pages-version");
+  } catch (e) {
+    errors.push(`Version fetch failed: ${(e && e.message) ? e.message : String(e)}`);
+  }
+
+  if (isLocalMode() && !pagesVersion) {
+    pagesVersion = "local";
+  }
+  versionNote = `pages=${shortSha(pagesVersion)} worker=${shortSha(workerVersion)}`;
+  applyHistoryNote();
 
   try {
     UI.raw.textContent = JSON.stringify(
@@ -521,3 +895,5 @@ async function loadAll() {
 UI.reload?.addEventListener("click", () => loadAll());
 
 loadAll();
+bindEcoControls();
+loadEcosystem();
