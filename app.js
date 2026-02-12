@@ -15,6 +15,8 @@ const API_BASE = (() => {
   }
   return "";
 })();
+const HISTORY_ORIGIN = HISTORY_BASE.replace(/\/+$/, "");
+const api = (path) => `${HISTORY_ORIGIN}${path.startsWith("/") ? path : `/${path}`}`;
 
 const DEFAULT_INTERVAL_MIN = 15;
 const INTERVAL_STORAGE_KEY = "wcwd-interval-min";
@@ -521,14 +523,15 @@ async function loadSeries(metric, canvas, noteEl, errors, intervalMin) {
       ? intervalJson
       : (Number.isFinite(intervalHeader) ? intervalHeader : intervalMin);
     if (noteEl) {
-      noteEl.textContent = `7d series OK. metric=${metric} step=${step} agg=${agg} interval=${fmtNum(intervalValue, 0)}m points=${points.length} source=wcwd-history`;
+      const pointsNote = points.length < 2 ? " points不足" : "";
+      noteEl.textContent = `7d series OK. metric=${metric} step=${step} agg=${agg} interval=${fmtNum(intervalValue, 0)}m points=${points.length}${pointsNote} source=${HISTORY_ORIGIN}`;
     }
     drawSparkline(canvas, points.map((p) => p?.v));
     return { metric, agg, step, interval_min: intervalValue, points };
   } catch (e) {
     errors.push(`7d series fetch failed (${metric}): ${(e && e.message) ? e.message : String(e)}`);
     if (noteEl) {
-      noteEl.textContent = `7d series unavailable. metric=${metric} step=1h agg=avg interval=${fmtNum(intervalMin, 0)}m source=wcwd-history`;
+      noteEl.textContent = `7d series unavailable. metric=${metric} step=1h agg=avg interval=${fmtNum(intervalMin, 0)}m points不足 source=${HISTORY_ORIGIN}`;
     }
     drawSparkline(canvas, []);
     return null;
@@ -715,6 +718,7 @@ async function loadAll() {
   latest = hist[hist.length - 1] || null;
   setStatusText(historyOk);
 
+  const sourceLabel = source === "cache" ? `cache (${HISTORY_ORIGIN})` : HISTORY_ORIGIN;
   if (latest) {
     const okLabel = historyOk ? "History OK." : "History OK (cache).";
     historyNoteBase = `${okLabel} points=${hist.length} interval=${fmtNum(intervalMin, 0)}min mode=${isLite ? "lite" : "full"} source=${source}`;
@@ -740,7 +744,7 @@ async function loadAll() {
       UI.wldMc.textContent = "—";
       UI.wldVol.textContent = "—";
       UI.wldSpark7d.textContent = "—";
-      UI.chartWld7d.textContent = "—";
+      drawSparkline(UI.chartWld7d, []);
 
       // Activity (approx from snapshot)
       const tokenPct = latest.token_pct;
@@ -775,8 +779,18 @@ async function loadAll() {
     if (tpsSeries) seriesMeta.tps = { points: tpsSeries.points.length, agg: tpsSeries.agg, step: tpsSeries.step };
     const wldSeries = await loadSeries("wld_usd", UI.seriesWld7d, UI.noteSeriesWld7d, errors, intervalMin);
     if (wldSeries) seriesMeta.wld_usd = { points: wldSeries.points.length, agg: wldSeries.agg, step: wldSeries.step };
+
+    if (wldSeries?.points?.length >= 2) {
+      UI.wldSpark7d.textContent = `points=${wldSeries.points.length} source=${HISTORY_ORIGIN}`;
+      drawSparkline(UI.chartWld7d, wldSeries.points.map((p) => p?.v));
+    } else {
+      UI.wldSpark7d.textContent = `points不足 source=${HISTORY_ORIGIN}`;
+      drawSparkline(UI.chartWld7d, []);
+    }
   } catch (e) {
     errors.push(`7d series render failed: ${(e && e.message) ? e.message : String(e)}`);
+    UI.wldSpark7d.textContent = `points不足 source=${HISTORY_ORIGIN}`;
+    drawSparkline(UI.chartWld7d, []);
   }
 
   try {
