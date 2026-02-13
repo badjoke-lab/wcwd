@@ -162,3 +162,11 @@ pre code { white-space: pre-wrap; }
 .table-wrap { max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
 table { width: 100%; border-collapse: collapse; }
 th, td { vertical-align: top; }
+
+/* --- common header (T02) --- */
+.header { position: sticky; top: 0; z-index: 50; background: var(--bg, #fff); border-bottom: 1px solid rgba(0,0,0,.08); }
+.header-inner { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-top: 10px; padding-bottom: 10px; }
+.brand { font-weight: 700; text-decoration: none; color: inherit; }
+.nav { display: flex; flex-wrap: wrap; gap: 10px; }
+.nav a { text-decoration: none; color: inherit; opacity: .85; }
+.nav a:hover { opacity: 1; text-decoration: underline; }
