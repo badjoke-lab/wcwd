@@ -1,3 +1,58 @@
+// WCWD-HEADER-INJECT:START
+(function () {
+  function buildHeader() {
+    var header = document.createElement("header");
+    header.className = "header";
+    header.setAttribute("data-wcwd-header", "1");
+    header.innerHTML = `
+      <div class="container header-inner">
+        <a class="brand" href="/">WCWD</a>
+        <nav class="nav">
+          <a href="/hub/">Hub</a>
+          <a href="/dev/">Dev</a>
+          <a href="/infra/status/">Infra</a>
+          <a href="/world-chain/">World Chain</a>
+          <a href="/world-chain/sell-impact/">Sell Impact</a>
+          <a href="/world-id/">World ID</a>
+          <a href="/mini-apps/preflight/">Mini Apps</a>
+          <a href="https://github.com/badjoke-lab/wcwd" target="_blank" rel="noopener">GitHub</a>
+        </nav>
+      </div>
+    `;
+    return header;
+  }
+
+  function removeLegacyHeaders() {
+    // 念のため残骸があれば消す（HTMLから消したが保険）
+    var hs = Array.prototype.slice.call(document.querySelectorAll("header.header"));
+    for (var i=0;i<hs.length;i++) {
+      var h = hs[i];
+      if (h.getAttribute("data-wcwd-header") === "1") continue;
+      h.remove();
+    }
+  }
+
+  function ensureHeader() {
+    if (document.querySelector('header.header[data-wcwd-header="1"]')) return;
+    removeLegacyHeaders();
+    var header = buildHeader();
+    document.body.insertBefore(header, document.body.firstChild);
+  }
+
+  function init() {
+    // common.js が body末尾ロードでも確実に注入
+    try { ensureHeader(); } catch(e) {}
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
+})();
+// WCWD-HEADER-INJECT:END
+
+
 /* WCWD common.js (Spec v3)
    Shared helpers: clipboard, localStorage, status banner, optional escaping.
    No external deps. */
