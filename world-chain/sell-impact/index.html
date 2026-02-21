@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WCWD — Sell Impact</title>
+  <meta name="description" content="Estimate sell impact for WLD on World Chain (best-effort). Pulls pool snapshots and models impact." />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/assets/common.css" />
+  <link rel="stylesheet" href="/style.css" />
+
+  <!-- WCWD SEO: canonical + OpenGraph + Twitter -->
+  <link rel="canonical" href="https://wcwd.badjoke-lab.com/world-chain/sell-impact/">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="WCWD">
+  <meta property="og:title" content="WCWD — Sell Impact">
+  <meta property="og:description" content="Estimate sell impact for WLD on World Chain (best-effort).">
+  <meta property="og:url" content="https://wcwd.badjoke-lab.com/world-chain/sell-impact/">
+  <meta property="og:image" content="https://wcwd.badjoke-lab.com/og.png">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="WCWD — Sell Impact">
+  <meta name="twitter:description" content="Estimate sell impact for WLD on World Chain (best-effort).">
+</head>
+<body>
+<section class="hero">
+    <div class="container">
+      <h1>Sell Impact (WLD)</h1>
+      <p class="lead">Best-effort estimate using public pool snapshots. Not financial advice.</p>
+      <p class="muted small">
+        Source: GeckoTerminal public API snapshots. Model: constant-product approximation (works as a rough gauge even for concentrated liquidity).
+      </p>
+    </div>
+  </section>
+
+  <main class="container">
+    <section class="card">
+      <p class="card-title">Inputs</p>
+
+      <div class="grid">
+        <div class="col-6">
+          <label class="label" for="amountWld">Sell amount (WLD)</label>
+          <input id="amountWld" class="input" inputmode="decimal" placeholder="e.g. 1000" value="1000" />
+          <div class="muted small">We estimate selling WLD into USDC.e in a selected pool.</div>
+        </div>
+
+        <div class="col-6">
+          <label class="label" for="poolSel">Pool</label>
+          <select id="poolSel" class="select">
+            <option value="0xc19bc89ac024426f5a23c5bb8bc91d8017c90684">USDC.e/WLD (0.3%) — recommended</option>
+            <option value="0x610e319b3a3ab56a0ed5562927d37c233774ba39">USDC.e/WLD (1%)</option>
+            <option value="0x02371da6173cf95623da4189e68912233cc7107c">USDC.e/WLD (0.05%) — thin</option>
+          </select>
+          <div class="muted small">We pick among known WLD↔USDC.e pools on World Chain.</div>
+        </div>
+      </div>
+
+      <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:12px;">
+        <button id="btnEstimate" class="btn">Estimate</button>
+        <button id="btnMaxUnder" class="btn btn-ghost">Max sell under…</button>
+        <button id="btnSplit" class="btn btn-ghost">Split compare (10 / 50)</button>
+      </div>
+
+      <div id="err" class="muted small" style="margin-top:10px;"></div>
+    </section>
+
+    <section class="card">
+      <p class="card-title">Result</p>
+
+      <div class="grid">
+        <div class="col-6">
+          <div class="label">Estimated receive (USDC.e)</div>
+          <div id="outUsd" style="font-size:28px; font-weight:700;">—</div>
+          <div class="muted small">After fees + impact (best-effort).</div>
+        </div>
+        <div class="col-6">
+          <div class="label">Impact</div>
+          <div id="impact" style="font-size:28px; font-weight:700;">—</div>
+          <div class="muted small">Price change approximation.</div>
+        </div>
+      </div>
+
+      <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
+        <span class="pill" id="riskPill">Risk: —</span>
+        <span class="pill" id="poolPill">Pool: —</span>
+        <span class="pill" id="liqPill">Liquidity: —</span>
+      </div>
+
+      <details style="margin-top:12px;">
+        <summary class="muted">Debug</summary>
+        <pre id="debug" class="code" style="white-space:pre-wrap; overflow:auto; max-height:320px;">—</pre>
+      </details>
+    </section>
+
+    <section class="card">
+      <p class="card-title">Notes</p>
+      <ul class="list">
+        <li><span class="muted">This is a best-effort estimate; concentrated liquidity pools can differ.</span></li>
+        <li><span class="muted">We fetch snapshots and cache briefly to reduce load.</span></li>
+        <li><span class="muted">If API is rate-limited, retry after a short wait.</span></li>
+      </ul>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container">
+      <p class="muted">WCWD is best-effort. Not financial advice.</p>
+      <p class="muted"><a href="https://github.com/badjoke-lab/wcwd" target="_blank" rel="noopener">GitHub</a></p>
+    </div>
+  </footer>
+
+  <script src="/assets/common.js"></script>
+  <script src="./sell-impact.js"></script>
+</body>
+</html>
