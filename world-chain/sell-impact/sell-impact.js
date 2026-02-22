@@ -371,8 +371,17 @@ async function runSplitUI(){
     const s10Usd = outPrice ? s10.outAmount * outPrice : 0;
     const s50Usd = outPrice ? s50.outAmount * outPrice : 0;
 
-    if (outEl) outEl.textContent =
-      `Once: $${fmt(onceUsd,2)} · Split10: $${fmt(s10Usd,2)} · Split50: $${fmt(s50Usd,2)} (best-effort)`;
+    const d10 = s10Usd - onceUsd;
+    const d50 = s50Usd - onceUsd;
+    const same10 = Math.abs(d10) < 0.01;
+    const same50 = Math.abs(d50) < 0.01;
+
+    const s10line = same10 ? `Split10: $${fmt(s10Usd,2)} (≈ same)` :
+      `Split10: $${fmt(s10Usd,2)} (${d10>=0?"+":"-"}$${fmt(Math.abs(d10),2)})`;
+    const s50line = same50 ? `Split50: $${fmt(s50Usd,2)} (≈ same)` :
+      `Split50: $${fmt(s50Usd,2)} (${d50>=0?"+":"-"}$${fmt(Math.abs(d50),2)})`;
+
+    if (outEl) outEl.textContent = `Once: $${fmt(onceUsd,2)} · ${s10line} · ${s50line} (best-effort)`;
   }catch(e){
     if (outEl) outEl.textContent = `API error: ${e.message || String(e)}`;
   }finally{
@@ -380,12 +389,4 @@ async function runSplitUI(){
   }
 }
 
-function init(){
-  $("btnEstimate")?.addEventListener("click", runEstimate);
-  $("btnMaxUnder")?.addEventListener("click", runMaxUnderUI);
-  $("btnSplit")?.addEventListener("click", runSplitUI);
-  $("btnMaxUnder2")?.addEventListener("click", runMaxUnderUI);
-  $("btnSplit2")?.addEventListener("click", runSplitUI);
-  runEstimate().catch(()=>{});
-}
 document.addEventListener("DOMContentLoaded", init);
