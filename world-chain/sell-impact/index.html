@@ -92,6 +92,32 @@
       </details>
     </section>
 
+    
+    <section class="card">
+      <p class="card-title">Tools</p>
+
+      <div class="grid">
+        <div class="col-6">
+          <div class="label">Max sell under X% impact</div>
+          <div class="muted small">Enter target impact and compute max WLD amount (best-effort).</div>
+          <div style="display:flex; gap:10px; align-items:center; margin-top:10px;">
+            <input id="maxImpactPct" class="input" inputmode="decimal" placeholder="e.g. 1" value="1" />
+            <button id="btnMaxUnder2" class="btn btn-ghost">Compute</button>
+          </div>
+          <div id="maxOut" class="muted small" style="margin-top:10px;">—</div>
+        </div>
+
+        <div class="col-6">
+          <div class="label">Split compare</div>
+          <div class="muted small">Compare sell-once vs split into 10 / 50 parts.</div>
+          <div style="display:flex; gap:10px; margin-top:10px;">
+            <button id="btnSplit2" class="btn btn-ghost">Run</button>
+          </div>
+          <div id="splitOut" class="muted small" style="margin-top:10px;">—</div>
+        </div>
+      </div>
+    </section>
+
     <section class="card">
       <p class="card-title">Notes</p>
       <ul class="list">
