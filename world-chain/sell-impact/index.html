@@ -25,7 +25,7 @@
 <body>
 <section class="hero">
     <div class="container">
-      <h1>Sell Impact (WLD)</h1>
+      <h1>Sell Impact (Token)</h1>
       <p class="lead">Best-effort estimate using public pool snapshots. Not financial advice.</p>
       <p class="muted small">
         Source: GeckoTerminal public API snapshots. Model: constant-product approximation (works as a rough gauge even for concentrated liquidity).
@@ -34,24 +34,32 @@
   </section>
 
   <main class="container">
+    
     <section class="card">
       <p class="card-title">Inputs</p>
 
       <div class="grid">
         <div class="col-6">
-          <label class="label" for="amountWld">Sell amount (WLD)</label>
-          <input id="amountWld" class="input" inputmode="decimal" placeholder="e.g. 1000" value="1000" />
-          <div class="muted small">We estimate selling WLD into USDC.e in a selected pool.</div>
+          <label class="label" for="tokenAddr">Token address (World Chain)</label>
+          <input id="tokenAddr" class="input" spellcheck="false" autocapitalize="off" autocomplete="off"
+                 placeholder="0x... (paste ERC-20 address)" value="" />
+          <div class="muted small">Paste ERC-20 address. We auto-pick a pool (prefers USDC.e exits when available).</div>
         </div>
 
         <div class="col-6">
+          <label class="label" for="amountWld">Sell amount (token units)</label>
+          <input id="amountWld" class="input" inputmode="decimal" placeholder="e.g. 1000" value="1000" />
+          <div class="muted small">We estimate selling the token into the selected pool’s counter-asset (best-effort).</div>
+        </div>
+      </div>
+
+      <div class="grid" style="margin-top:12px;">
+        <div class="col-12">
           <label class="label" for="poolSel">Pool</label>
           <select id="poolSel" class="select">
-            <option value="0xc19bc89ac024426f5a23c5bb8bc91d8017c90684">USDC.e/WLD (0.3%) — recommended</option>
-            <option value="0x610e319b3a3ab56a0ed5562927d37c233774ba39">USDC.e/WLD (1%)</option>
-            <option value="0x02371da6173cf95623da4189e68912233cc7107c">USDC.e/WLD (0.05%) — thin</option>
+            <option value="">Loading pools…</option>
           </select>
-          <div class="muted small">We pick among known WLD↔USDC.e pools on World Chain.</div>
+          <div class="muted small">Pools are fetched from GeckoTerminal for this token and ranked by activity (24h volume), then liquidity, then lower fee.</div>
         </div>
       </div>
 
@@ -64,12 +72,31 @@
       <div id="err" class="muted small" style="margin-top:10px;"></div>
     </section>
 
+
+    
+      <div id="conclusionCard" class="card" style="margin-bottom:12px;">
+        <p class="card-title">Conclusion</p>
+        <div class="grid">
+          <div class="col-6">
+            <div class="label">Recommended max (5% impact)</div>
+            <div id="recMax5" style="font-size:22px; font-weight:700;">—</div>
+            <div class="muted small">Best-effort. Uses current selected pool.</div>
+          </div>
+          <div class="col-6">
+            <div class="label">Your input risk</div>
+            <div id="riskSummary" style="font-size:22px; font-weight:700;">—</div>
+            <div class="muted small">Shown from latest estimate.</div>
+          </div>
+        </div>
+        <div class="muted small" id="conclusionNote" style="margin-top:8px;">—</div>
+      </div>
+
     <section class="card">
       <p class="card-title">Result</p>
 
       <div class="grid">
         <div class="col-6">
-          <div class="label">Estimated receive (USDC.e)</div>
+          <div class="label">Estimated receive (counter-asset)</div>
           <div id="outUsd" style="font-size:28px; font-weight:700;">—</div>
           <div class="muted small">After fees + impact (best-effort).</div>
         </div>
@@ -99,7 +126,7 @@
       <div class="grid">
         <div class="col-6">
           <div class="label">Max sell under X% impact</div>
-          <div class="muted small">Enter target impact and compute max WLD amount (best-effort).</div>
+          <div class="muted small">Enter target impact and compute max sell amount (token units, best-effort).</div>
           <div style="display:flex; gap:10px; align-items:center; margin-top:10px;">
             <input id="maxImpactPct" class="input" inputmode="decimal" placeholder="e.g. 1" value="1" />
             <button id="btnMaxUnder2" class="btn btn-ghost">Compute</button>
@@ -109,7 +136,7 @@
 
         <div class="col-6">
           <div class="label">Split compare</div>
-          <div class="muted small">Compare sell-once vs split into 10 / 50 parts.</div>
+          <div class="muted small">Compare “one-shot” vs “immediate sequential splits” in the SAME pool (no time delay). <span id="splitNote">This is NOT a time-weighted execution model.</span></div>
           <div style="display:flex; gap:10px; margin-top:10px;">
             <button id="btnSplit2" class="btn btn-ghost">Run</button>
           </div>

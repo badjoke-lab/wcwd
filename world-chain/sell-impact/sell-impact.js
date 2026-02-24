@@ -1,37 +1,47 @@
 /**
- * WCWD Sell Impact (best-effort)
- * GeckoTerminal pool snapshot → constant-product approximation
+ * WCWD Sell Impact (best-effort) — Any token on World Chain
  *
- * GeckoTerminal /pools response provides:
- * - name: "USDC.e / WLD 0.3%"
- * - pool_fee_percentage: "0.3"
- * - reserve_in_usd
- * - base_token_price_usd / quote_token_price_usd
+ * Input:
+ * - token contract address (0x...)
+ * - sell amount (token units)
  *
- * It does NOT provide token reserves. We infer reserves from reserve_in_usd and prices (50/50 USD split).
- * This is a rough gauge, especially for Uniswap v3 concentrated liquidity.
+ * Flow:
+ * 1) GET /networks/world-chain/tokens/{tokenAddr}/pools
+ * 2) Filter dead pools, rank by 24h volume desc, then liquidity desc, then lower fee
+ * 3) Prefer pools that include an anchor asset (USDC.e by default)
+ * 4) Pick top pool (user can change)
+ * 5) GET /networks/world-chain/pools/{poolAddr}
+ * 6) Estimate receive/impact using constant-product approximation (rough gauge)
+ *
+ * Notes:
+ * - GT pool snapshot does NOT provide reserves. We infer reserves from reserve_in_usd + prices (50/50 USD split).
+ * - Uniswap v3 concentrated liquidity can differ significantly. This is a rough gauge.
  */
 
 const GT_BASE = "https://api.geckoterminal.com/api/v2";
 const GT_ACCEPT = "application/json;version=20230203";
 const NETWORK = "world-chain";
 
-const POOLS = {
-  "0xc19bc89ac024426f5a23c5bb8bc91d8017c90684": { feeBps: 30,  label: "USDC.e/WLD 0.3%" },
-  "0x610e319b3a3ab56a0ed5562927d37c233774ba39": { feeBps: 100, label: "USDC.e/WLD 1%" },
-  "0x02371da6173cf95623da4189e68912233cc7107c": { feeBps: 5,   label: "USDC.e/WLD 0.05%" },
+// Preferred exit assets (anchors) on World Chain
+// - USDC.e (from USDC.e/WLD pools): 0x79a02482a880bce3f13e09da970dc34db4cd24d1
+// - WETH  (from WETH/WLD pools):   0x4200000000000000000000000000000000000006
+const ANCHORS = {
+  "USDC.e": "0x79a02482a880bce3f13e09da970dc34db4cd24d1",
+  "WETH":   "0x4200000000000000000000000000000000000006",
 };
+let preferredAnchor = "USDC.e";
 
 const CACHE_NS = "wcwd:sellimpact:";
 const POOL_TTL_MS = 30_000;
+const POOL_LIST_TTL_MS = 30_000;
 const QUOTE_TTL_MS = 8_000;
 
 let lastFailAt = 0;
 let failCount = 0;
+let tokenInputTimer = null;
 
 function $(id){ return document.getElementById(id); }
 function num(x){ const n = Number(x); return Number.isFinite(n) ? n : 0; }
-
 function fmt(n, d=2){
   if (!Number.isFinite(Number(n))) return "—";
   return Number(n).toLocaleString(undefined, { maximumFractionDigits: d });
@@ -57,7 +67,6 @@ function cacheSet(key, val, ttlMs){
     localStorage.setItem(CACHE_NS + key, JSON.stringify({ exp: Date.now() + ttlMs, val }));
   }catch{}
 }
-
 async function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
 
 async function fetchJson(url){
@@ -76,54 +85,168 @@ async function fetchJson(url){
   return await res.json();
 }
 
-function parsePairSymbols(poolName){
-  // "USDC.e / WLD 0.3%" -> ["USDC.e","WLD"]
-  const s = String(poolName || "");
-  const m = s.match(/^(.+?)\s*\/\s*(.+?)(?:\s+\d|$)/);
-  if (!m) return ["USDC.e","WLD"];
-  const a = (m[1] || "").trim();
-  const b = (m[2] || "").trim();
-  return [a || "USDC.e", b || "WLD"];
+function parseTokenAddrFromId(id){
+  // "world-chain_0x...." -> "0x...."
+  const s = String(id || "");
+  const i = s.indexOf("_0x");
+  if (i >= 0) return s.slice(i+1).toLowerCase();
+  if (s.startsWith("0x")) return s.toLowerCase();
+  return "";
 }
 
 function inferReserves(reserveUsd, basePriceUsd, quotePriceUsd){
-  // assume ~50/50 USD value split
   const half = reserveUsd / 2;
   const base = (basePriceUsd > 0) ? (half / basePriceUsd) : 0;
   const quote = (quotePriceUsd > 0) ? (half / quotePriceUsd) : 0;
   return { baseReserve: base, quoteReserve: quote };
 }
 
-async function getPoolSnapshot(poolAddr){
-  const ck = `pool:${poolAddr}`;
+function riskLabel(impact){
+  if (!Number.isFinite(impact)) return { label:"—", level:"muted" };
+  if (impact < 0.005) return { label:"Safe", level:"ok" };
+  if (impact < 0.02)  return { label:"Caution", level:"warn" };
+  return { label:"Danger", level:"bad" };
+}
+
+function pillSet(el, txt){ if (el) el.textContent = txt; }
+function riskPillStyle(el, level){
+  if (!el) return;
+  el.classList.remove("pill-ok","pill-warn","pill-bad");
+  if (level === "ok") el.classList.add("pill-ok");
+  if (level === "warn") el.classList.add("pill-warn");
+  if (level === "bad") el.classList.add("pill-bad");
+}
+(function ensurePillStyles(){
+  const css = `
+.pill{display:inline-block;padding:6px 10px;border-radius:999px;border:1px solid rgba(0,0,0,.12);font-size:12px}
+.pill-ok{border-color:rgba(0,128,0,.25)}
+.pill-warn{border-color:rgba(200,140,0,.35)}
+.pill-bad{border-color:rgba(200,0,0,.35)}
+`;
+  const st = document.createElement("style");
+  st.textContent = css;
+  document.head.appendChild(st);
+})();
+
+function setButtonsDisabled(disabled){
+  const ids = ["btnEstimate","btnMaxUnder","btnSplit","btnMaxUnder2","btnSplit2","btnMax1","btnMax2","btnMax5"];
+  for (const id of ids){
+    const el = $(id);
+    if (el) el.disabled = !!disabled;
+  }
+}
+
+async function listPoolsByToken(tokenAddr){
+  const addr = String(tokenAddr || "").trim().toLowerCase();
+  if (!addr.startsWith("0x") || addr.length < 42) throw new Error("Bad token address");
+
+  const ck = `pools:${addr}:${preferredAnchor}`;
   const cached = cacheGet(ck);
   if (cached) return cached;
 
-  const url = `${GT_BASE}/networks/${NETWORK}/pools/${poolAddr}`;
+  const url = `${GT_BASE}/networks/${NETWORK}/tokens/${addr}/pools`;
   const j = await fetchJson(url);
-  const a = (j && j.data && j.data.attributes) ? j.data.attributes : {};
+
+  const data = Array.isArray(j?.data) ? j.data : [];
+  const pools = data.map(d => {
+    const a = d?.attributes || {};
+    const r = d?.relationships || {};
+    const baseId = r?.base_token?.data?.id || "";
+    const quoteId = r?.quote_token?.data?.id || "";
+    return {
+      poolAddr: String(a.address || "").toLowerCase(),
+      name: String(a.name || a.pool_name || "").trim(),
+      reserveUsd: num(a.reserve_in_usd),
+      vol24: num(a.volume_usd?.h24),
+      feePct: num(a.pool_fee_percentage),
+      feeBps: Math.round(num(a.pool_fee_percentage) * 100),
+      dexId: String(r?.dex?.data?.id || ""),
+      baseAddr: parseTokenAddrFromId(baseId),
+      quoteAddr: parseTokenAddrFromId(quoteId),
+    };
+  }).filter(x =>
+    x.poolAddr &&
+    x.reserveUsd > 0 &&
+    x.vol24 > 0 &&     // dead pools out
+    x.feeBps <= 1000   // >10% out
+  );
+
+  // Rank: 24h volume desc, then liquidity desc, then lower fee
+  pools.sort((a,b) => (b.vol24 - a.vol24) || (b.reserveUsd - a.reserveUsd) || (a.feeBps - b.feeBps));
+
+  // Prefer anchor-containing pools
+  const anchorAddr = (ANCHORS[preferredAnchor] || "").toLowerCase();
+  const anchored = anchorAddr ? pools.filter(p => (p.baseAddr === anchorAddr) || (p.quoteAddr === anchorAddr)) : [];
+  const finalPools = anchored.length ? anchored : pools;
+
+  cacheSet(ck, finalPools, POOL_LIST_TTL_MS);
+  return finalPools;
+}
+
+function setPoolOptions(pools){
+  const sel = $("poolSel");
+  if (!sel) return;
+
+  sel.innerHTML = "";
+  if (!pools.length){
+    const opt = document.createElement("option");
+    opt.value = "";
+    opt.textContent = "No pools found";
+    sel.appendChild(opt);
+    return;
+  }
+
+  for (const p of pools.slice(0, 20)){
+    const opt = document.createElement("option");
+    opt.value = p.poolAddr;
+    const dex = p.dexId ? ` · ${p.dexId}` : "";
+    opt.textContent = `${p.name || p.poolAddr} (24h $${fmt(p.vol24,0)} · liq $${fmt(p.reserveUsd,0)} · fee ${fmt(p.feePct,2)}%${dex})`;
+    sel.appendChild(opt);
+  }
+}
+
+async function getPoolSnapshot(poolAddr){
+  const addr = String(poolAddr || "").toLowerCase();
+  const ck = `pool:${addr}`;
+  const cached = cacheGet(ck);
+  if (cached) return cached;
+
+  const url = `${GT_BASE}/networks/${NETWORK}/pools/${addr}`;
+  const j = await fetchJson(url);
+
+  const a = j?.data?.attributes || {};
+  const r = j?.data?.relationships || {};
 
   const reserveUsd = num(a.reserve_in_usd);
   const basePriceUsd = num(a.base_token_price_usd);
   const quotePriceUsd = num(a.quote_token_price_usd);
 
-  const [symBase, symQuote] = parsePairSymbols(a.name || "");
+  const baseId = r?.base_token?.data?.id || "";
+  const quoteId = r?.quote_token?.data?.id || "";
+  const baseAddr = parseTokenAddrFromId(baseId);
+  const quoteAddr = parseTokenAddrFromId(quoteId);
 
-  // fee
-  let feeBps = (POOLS[poolAddr] && POOLS[poolAddr].feeBps) || 0;
+  const name = String(a.name || "").trim();
+  const m = name.match(/^(.+?)\s*\/\s*(.+?)(?:\s+\d|$)/);
+  const symBase = (m?.[1] || "BASE").trim();
+  const symQuote = (m?.[2] || "QUOTE").trim();
+
+  let feeBps = 0;
+  const pct = num(a.pool_fee_percentage);
+  if (pct > 0) feeBps = Math.round(pct * 100);
   if (!feeBps){
-    const pct = num(a.pool_fee_percentage);
-    if (pct > 0) feeBps = Math.round(pct * 100); // 0.3% -> 30 bps
+    const mm = name.match(/(\d+(?:\.\d+)?)%/);
+    if (mm) feeBps = Math.round(Number(mm[1]) * 100);
   }
 
   const inferred = inferReserves(reserveUsd, basePriceUsd, quotePriceUsd);
 
   const out = {
-    poolLabel: (POOLS[poolAddr] && POOLS[poolAddr].label) || String(a.name || poolAddr),
+    poolLabel: name || addr,
     feeBps,
     reserveUsd,
-    base: { symbol: symBase, reserve: inferred.baseReserve, priceUsd: basePriceUsd },
-    quote:{ symbol: symQuote, reserve: inferred.quoteReserve, priceUsd: quotePriceUsd },
+    base: { symbol: symBase, addr: baseAddr, reserve: inferred.baseReserve, priceUsd: basePriceUsd },
+    quote:{ symbol: symQuote, addr: quoteAddr, reserve: inferred.quoteReserve, priceUsd: quotePriceUsd },
     raw: a
   };
 
@@ -131,17 +254,17 @@ async function getPoolSnapshot(poolAddr){
   return out;
 }
 
-function quoteImpact({ pool, sellAmount, sellSymbol="WLD" }){
+function quoteImpact({ pool, sellAmount, sellTokenAddr }){
   const fee = (pool.feeBps || 0) / 10_000;
+  const sellAddr = String(sellTokenAddr || "").trim().toLowerCase();
 
   let inSide, outSide;
-  if (pool.base.symbol === sellSymbol){
+  if (sellAddr && pool.base.addr === sellAddr){
     inSide = pool.base; outSide = pool.quote;
-  } else if (pool.quote.symbol === sellSymbol){
+  } else if (sellAddr && pool.quote.addr === sellAddr){
     inSide = pool.quote; outSide = pool.base;
   } else {
-    // fallback: assume quote is sell token
-    inSide = pool.quote; outSide = pool.base;
+    inSide = pool.quote; outSide = pool.base; // fallback
   }
 
   const reserveIn = num(inSide.reserve);
@@ -150,9 +273,7 @@ function quoteImpact({ pool, sellAmount, sellSymbol="WLD" }){
     return { ok:false, reason:"no_liquidity_or_bad_input" };
   }
 
-  const amountIn = sellAmount;
-  const amountInEff = amountIn * (1 - fee);
-
+  const amountInEff = sellAmount * (1 - fee);
   const out = (reserveOut * amountInEff) / (reserveIn + amountInEff);
 
   const priceBefore = reserveOut / reserveIn;
@@ -170,48 +291,40 @@ function quoteImpact({ pool, sellAmount, sellSymbol="WLD" }){
     impact,
     fee,
     priceBefore,
-    priceAfter
+    priceAfter,
+    inAddr: inSide.addr,
+    outAddr: outSide.addr
   };
 }
 
-function riskLabel(impact){
-  if (!Number.isFinite(impact)) return { label:"—", level:"muted" };
-  if (impact < 0.005) return { label:"Safe", level:"ok" };
-  if (impact < 0.02)  return { label:"Caution", level:"warn" };
-  return { label:"Danger", level:"bad" };
-}
+function maxSellUnder(pool, sellTokenAddr, targetImpact){
+  const sellAddr = String(sellTokenAddr || "").trim().toLowerCase();
+  const sellReserve = (sellAddr && pool.base.addr === sellAddr) ? pool.base.reserve :
+                      (sellAddr && pool.quote.addr === sellAddr) ? pool.quote.reserve :
+                      Math.max(pool.base.reserve, pool.quote.reserve);
 
-function maxSellUnder(pool, targetImpact){
-  const wldReserve = (pool.base.symbol === "WLD") ? pool.base.reserve :
-                     (pool.quote.symbol === "WLD") ? pool.quote.reserve :
-                     Math.max(pool.base.reserve, pool.quote.reserve);
-  let lo = 0, hi = Math.max(1, wldReserve);
+  let lo = 0, hi = Math.max(1, sellReserve);
   let best = 0;
 
   for (let i=0; i<28; i++){
     const mid = (lo + hi) / 2;
-    const q = quoteImpact({ pool, sellAmount: mid, sellSymbol:"WLD" });
-    if (!q.ok){
-      hi = mid;
-      continue;
-    }
-    if (q.impact <= targetImpact){
-      best = mid;
-      lo = mid;
-    } else {
-      hi = mid;
-    }
+    const q = quoteImpact({ pool, sellAmount: mid, sellTokenAddr });
+    if (!q.ok){ hi = mid; continue; }
+    if (q.impact <= targetImpact){ best = mid; lo = mid; }
+    else { hi = mid; }
   }
   return best;
 }
 
-function splitCompare(pool, total, parts){
+function splitCompare(pool, sellTokenAddr, total, parts){
   const per = total / parts;
   let sumOut = 0;
 
   const cur = JSON.parse(JSON.stringify(pool));
+  const sellAddr = String(sellTokenAddr || "").trim().toLowerCase();
+
   for (let i=0; i<parts; i++){
-    const q = quoteImpact({ pool: cur, sellAmount: per, sellSymbol:"WLD" });
+    const q = quoteImpact({ pool: cur, sellAmount: per, sellTokenAddr: sellAddr });
     if (!q.ok) return { ok:false };
 
     sumOut += q.outAmount;
@@ -219,7 +332,7 @@ function splitCompare(pool, total, parts){
     const fee = (cur.feeBps || 0) / 10_000;
     const eff = per * (1 - fee);
 
-    const inIsBase = (cur.base.symbol === "WLD");
+    const inIsBase = (sellAddr && cur.base.addr === sellAddr);
     if (inIsBase){
       cur.base.reserve += eff;
       cur.quote.reserve -= q.outAmount;
@@ -231,46 +344,81 @@ function splitCompare(pool, total, parts){
   return { ok:true, outAmount: sumOut };
 }
 
-function pillSet(el, txt){ if (el) el.textContent = txt; }
-function riskPillStyle(el, level){
-  if (!el) return;
-  el.classList.remove("pill-ok","pill-warn","pill-bad");
-  if (level === "ok") el.classList.add("pill-ok");
-  if (level === "warn") el.classList.add("pill-warn");
-  if (level === "bad") el.classList.add("pill-bad");
+
+function updateConclusionCard({ best5, impact, inSymbol, outSymbol }){
+  const rec = document.getElementById("recMax5");
+  const rs  = document.getElementById("riskSummary");
+  const note = document.getElementById("conclusionNote");
+
+  if (rec) rec.textContent = Number.isFinite(best5) ? `${fmt(best5, 6)} ${inSymbol}` : "—";
+
+  if (rs){
+    if (!Number.isFinite(impact)) rs.textContent = "—";
+    else if (impact >= 0.5) rs.textContent = `DON’T (${fmtPct(impact)} impact)`;
+    else if (impact >= 0.2) rs.textContent = `High (${fmtPct(impact)} impact)`;
+    else if (impact >= 0.05) rs.textContent = `Caution (${fmtPct(impact)} impact)`;
+    else rs.textContent = `OK (${fmtPct(impact)} impact)`;
+  }
+
+  if (note){
+    note.textContent = Number.isFinite(best5)
+      ? `5% impact max is an estimate. Receive asset depends on selected pool (${outSymbol}).`
+      : `Best-effort estimate. Receive asset depends on selected pool (${outSymbol}).`;
+  }
 }
 
-(function ensurePillStyles(){
-  const css = `
-.pill{display:inline-block;padding:6px 10px;border-radius:999px;border:1px solid rgba(0,0,0,.12);font-size:12px}
-.pill-ok{border-color:rgba(0,128,0,.25)}
-.pill-warn{border-color:rgba(200,140,0,.35)}
-.pill-bad{border-color:rgba(200,0,0,.35)}
-`;
-  const st = document.createElement("style");
-  st.textContent = css;
-  document.head.appendChild(st);
-})();
 
-function quoteCacheKey(poolAddr, amt){ return `quote:${poolAddr}:${String(amt)}`; }
+function quoteCacheKey(poolAddr, tokenAddr, amt){
+  return `quote:${String(poolAddr||"")}:${String(tokenAddr||"")}:${String(amt)}`;
+}
 
-function setButtonsDisabled(disabled){
-  const ids = ["btnEstimate","btnMaxUnder","btnSplit","btnMaxUnder2","btnSplit2"];
-  for (const id of ids){
-    const el = $(id);
-    if (el) el.disabled = !!disabled;
+async function loadPoolsForToken(){
+  try{
+    setErr("");
+    const addr = $("tokenAddr")?.value || "";
+    if (!String(addr).trim()){
+      setPoolOptions([]);
+      setErr("Enter token address to load pools.");
+      return;
+    }
+    const pools = await listPoolsByToken(addr);
+    setPoolOptions(pools);
+    if (!pools.length){
+      setErr("No pools found for this token.");
+    }
+  }catch(e){
+    setPoolOptions([]);
+    setErr(`Pool lookup error: ${e.message || String(e)}`);
   }
+}
+
+function scheduleReloadPools(){
+  if (tokenInputTimer) clearTimeout(tokenInputTimer);
+  tokenInputTimer = setTimeout(() => {
+    loadPoolsForToken().then(() => runEstimate()).catch(()=>{});
+  }, 300);
 }
 
 async function runEstimate(){
   setErr("");
   setButtonsDisabled(true);
 
+  const tokenAddr = String($("tokenAddr")?.value || "").trim().toLowerCase();
   const amt = Number(String($("amountWld")?.value || "").trim());
   const poolAddr = $("poolSel")?.value;
 
-  if (!(amt > 0) || !poolAddr){
-    setErr("Enter a positive WLD amount.");
+  if (!tokenAddr.startsWith("0x") || tokenAddr.length < 42){
+    setErr("Enter a valid token address (0x...).");
+    setButtonsDisabled(false);
+    return;
+  }
+  if (!(amt > 0)){
+    setErr("Enter a positive sell amount.");
+    setButtonsDisabled(false);
+    return;
+  }
+  if (!poolAddr){
+    setErr("No pool selected.");
     setButtonsDisabled(false);
     return;
   }
@@ -278,22 +426,25 @@ async function runEstimate(){
   try{
     const pool = await getPoolSnapshot(poolAddr);
 
-    const qk = quoteCacheKey(poolAddr, amt);
+    const qk = quoteCacheKey(poolAddr, tokenAddr, amt);
     const qc = cacheGet(qk);
     let q = qc;
     if (!q){
-      q = quoteImpact({ pool, sellAmount: amt, sellSymbol:"WLD" });
+      q = quoteImpact({ pool, sellAmount: amt, sellTokenAddr: tokenAddr });
       cacheSet(qk, q, QUOTE_TTL_MS);
     }
 
     if (!q.ok){
-      setErr("No liquidity or missing pool data (try another pool).");
+      setErr("Cannot quote with current data (try a different pool).");
       const dbg = $("debug"); if (dbg) dbg.textContent = JSON.stringify({ pool, q }, null, 2);
       return;
     }
 
     const outUsdEl = $("outUsd");
-    if (outUsdEl) outUsdEl.textContent = q.outUsd ? `$${fmt(q.outUsd, 2)}` : `${fmt(q.outAmount, 6)} ${q.outSymbol}`;
+    if (outUsdEl){
+      const isUsdLike = /USDC|USD/i.test(q.outSymbol || "");
+      outUsdEl.textContent = isUsdLike ? `$${fmt(q.outAmount, 2)}` : `${fmt(q.outAmount, 6)} ${q.outSymbol}`;
+    }
     const impactEl = $("impact");
     if (impactEl) impactEl.textContent = fmtPct(q.impact);
 
@@ -301,7 +452,7 @@ async function runEstimate(){
     pillSet($("riskPill"), `Risk: ${r.label}`);
     riskPillStyle($("riskPill"), r.level);
 
-    pillSet($("poolPill"), `Pool: ${pool.poolLabel}`);
+    pillSet($("poolPill"), `Pool: ${pool.poolLabel} (anchor ${preferredAnchor})`);
     pillSet($("liqPill"), `Liquidity: ${pool.reserveUsd ? "$" + fmt(pool.reserveUsd,0) : "—"}`);
 
     const dbg = $("debug");
@@ -317,20 +468,28 @@ async function runMaxUnderUI(){
   setErr("");
   setButtonsDisabled(true);
 
+  const tokenAddr = String($("tokenAddr")?.value || "").trim().toLowerCase();
   const poolAddr = $("poolSel")?.value;
   const targetPct = Number(String($("maxImpactPct")?.value || "").trim());
   const outEl = $("maxOut");
+  const rec = document.getElementById("recMax5");
 
+  if (!tokenAddr.startsWith("0x") || tokenAddr.length < 42){
+    if (outEl) outEl.textContent = "Invalid token address.";
+    setButtonsDisabled(false);
+    return;
+  }
   if (!poolAddr || !(targetPct > 0)){
-    if (outEl) outEl.textContent = "Invalid target.";
+    if (outEl) outEl.textContent = "Invalid target or pool.";
     setButtonsDisabled(false);
     return;
   }
 
   try{
     const pool = await getPoolSnapshot(poolAddr);
-    const best = maxSellUnder(pool, targetPct / 100);
-    if (outEl) outEl.textContent = `Max sell under ${fmt(targetPct,2)}% impact ≈ ${fmt(best, 2)} WLD (best-effort)`;
+    const best = maxSellUnder(pool, tokenAddr, targetPct / 100);
+    if (outEl) outEl.textContent = `Max sell under ${fmt(targetPct,2)}% impact ≈ ${fmt(best, 6)} (token units, best-effort)`;
+    if (rec && Math.abs(targetPct - 5) < 1e-9) rec.textContent = `${fmt(best, 6)} (token units)`;
   }catch(e){
     if (outEl) outEl.textContent = `API error: ${e.message || String(e)}`;
   }finally{
@@ -342,12 +501,18 @@ async function runSplitUI(){
   setErr("");
   setButtonsDisabled(true);
 
-  const amt = Number(String($("amountWld")?.value || "").trim());
+  const tokenAddr = String($("tokenAddr")?.value || "").trim().toLowerCase();
   const poolAddr = $("poolSel")?.value;
+  const amt = Number(String($("amountWld")?.value || "").trim());
   const outEl = $("splitOut");
 
+  if (!tokenAddr.startsWith("0x") || tokenAddr.length < 42){
+    if (outEl) outEl.textContent = "Invalid token address.";
+    setButtonsDisabled(false);
+    return;
+  }
   if (!poolAddr || !(amt > 0)){
-    if (outEl) outEl.textContent = "Enter a positive WLD amount.";
+    if (outEl) outEl.textContent = "Enter amount and select pool.";
     setButtonsDisabled(false);
     return;
   }
@@ -355,9 +520,9 @@ async function runSplitUI(){
   try{
     const pool = await getPoolSnapshot(poolAddr);
 
-    const once = quoteImpact({ pool, sellAmount: amt, sellSymbol:"WLD" });
-    const s10 = splitCompare(pool, amt, 10);
-    const s50 = splitCompare(pool, amt, 50);
+    const once = quoteImpact({ pool, sellAmount: amt, sellTokenAddr: tokenAddr });
+    const s10 = splitCompare(pool, tokenAddr, amt, 10);
+    const s50 = splitCompare(pool, tokenAddr, amt, 50);
 
     if (!once.ok || !s10.ok || !s50.ok){
       if (outEl) outEl.textContent = "Split compare failed (missing data).";
@@ -386,6 +551,33 @@ async function runSplitUI(){
     if (outEl) outEl.textContent = `API error: ${e.message || String(e)}`;
   }finally{
     setButtonsDisabled(false);
+  }
+}
+
+function init(){
+  // Wire buttons (if present)
+  $("btnEstimate")?.addEventListener("click", runEstimate);
+  $("btnMaxUnder")?.addEventListener("click", runMaxUnderUI);
+  $("btnSplit")?.addEventListener("click", runSplitUI);
+  $("btnMaxUnder2")?.addEventListener("click", runMaxUnderUI);
+  $("btnSplit2")?.addEventListener("click", runSplitUI);
+
+  $("btnMax1")?.addEventListener("click", () => { const i=$("maxImpactPct"); if(i){ i.value="1"; } runMaxUnderUI(); });
+  $("btnMax2")?.addEventListener("click", () => { const i=$("maxImpactPct"); if(i){ i.value="2"; } runMaxUnderUI(); });
+  $("btnMax5")?.addEventListener("click", () => { const i=$("maxImpactPct"); if(i){ i.value="5"; } runMaxUnderUI(); });
+
+  // tokenAddr input: reload pool list + estimate
+  $("tokenAddr")?.addEventListener("input", scheduleReloadPools);
+  $("tokenAddr")?.addEventListener("change", () => { loadPoolsForToken().then(()=>runEstimate()).catch(()=>{}); });
+
+  $("poolSel")?.addEventListener("change", () => runEstimate().catch(()=>{}));
+
+  // initial: if token already present, load + estimate
+  if (String($("tokenAddr")?.value || "").trim()){
+    loadPoolsForToken().then(()=>runEstimate()).catch(()=>{});
+  } else {
+    // show instruction
+    setErr("Enter token address to load pools.");
   }
 }
 
