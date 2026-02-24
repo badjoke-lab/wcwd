@@ -76,20 +76,24 @@
     
       <div id="conclusionCard" class="card" style="margin-bottom:12px;">
         <p class="card-title">Conclusion</p>
-        <div class="grid">
-          <div class="col-6">
-            <div class="label">Recommended max (5% impact)</div>
-            <div id="recMax5" style="font-size:22px; font-weight:700;">—</div>
-            <div class="muted small">Best-effort. Uses current selected pool.</div>
-          </div>
-          <div class="col-6">
-            <div class="label">Your input risk</div>
-            <div id="riskSummary" style="font-size:22px; font-weight:700;">—</div>
-            <div class="muted small">Shown from latest estimate.</div>
-          </div>
-        </div>
-        <div class="muted small" id="conclusionNote" style="margin-top:8px;">—</div>
+  <div class="grid">
+    <div class="col-6">
+      <div class="label">Recommended max (5% impact)</div>
+      <div id="recMax5" style="font-size:22px; font-weight:700;">—</div>
+      <div id="conclusionNote" class="muted small" style="margin-top:6px;">
+        Best-effort. Uses current selected pool.
       </div>
+    </div>
+
+    <div class="col-6">
+      <div class="label">Your input risk</div>
+      <div id="riskSummary" style="font-size:22px; font-weight:700;">—</div>
+      <div class="muted small" style="margin-top:6px;">
+        Shown from latest estimate.
+      </div>
+    </div>
+  </div>
+</section>
 
     <section class="card">
       <p class="card-title">Result</p>
@@ -118,6 +122,8 @@
         <pre id="debug" class="code" style="white-space:pre-wrap; overflow:auto; max-height:320px;">—</pre>
       </details>
     </section>
+
+
 
     
     <section class="card">
