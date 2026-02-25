@@ -3,104 +3,56 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>WCWD — World ID</title>
-  <meta name="description" content="World ID hub: verify and migration tools." />
+  <title>WCWD — World ID Hub</title>
+  <meta name="description" content="World ID builder hub for wizard, debugger, and playground tools." />
   <link rel="icon" href="/favicon.ico" sizes="any" />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="/assets/common.css" />
   <link rel="stylesheet" href="/style.css" />
-  <meta property="og:type" content="website">
-  <meta property="og:title" content="WCWD">
-  <meta property="og:description" content="World ID hub: verify and migration tools.">
-  <!-- WCWD SEO: canonical + OpenGraph + Twitter -->
-  <link rel="canonical" href="https://wcwd.badjoke-lab.com/world-id/">
-  <meta property="og:site_name" content="WCWD">
-  <meta property="og:url" content="https://wcwd.badjoke-lab.com/world-id/">
-  <meta property="og:image" content="https://wcwd.badjoke-lab.com/og.png">
-  <meta name="twitter:card" content="summary">
-  <meta name="twitter:title" content="WCWD — World ID">
-  <meta name="twitter:description" content="World ID hub: verify and migration tools.">
-
 </head>
 <body>
   <header class="header">
-  <div class="container header-inner">
-    <a class="brand" href="/">WCWD</a>
-    <nav class="nav">
-      <a href="/hub/">Hub</a>
-      <a href="/dev/">Dev</a>
-      <a href="/infra/status/">Infra</a>
-      <a href="/world-chain/">World Chain</a>
-      <a href="/world-id/">World ID</a>
-      <a href="/mini-apps/preflight/">Mini Apps</a>
-      <a href="https://github.com/badjoke-lab/wcwd" target="_blank" rel="noopener">GitHub</a>
-    </nav>
-  </div>
-</header>
-<header class="header">
-  <div class="container">
-    <a class="brand" href="/">WCWD</a>
-    <nav class="nav">
-      <a href="/">Dashboard</a>
-      <a href="/dev/">Dev Hub</a>
-      <a href="/world-id/">World ID</a>
-      <a href="/world-chain/">World Chain</a>
-      <a href="/infra/status/">Status</a>
-      <a href="/mini-apps/preflight/">Preflight</a>
-    </nav>
-  </div>
-</header>
-<section class="hero">
-  <div class="container">
-    <h1>World ID</h1>
-    <p class="lead">Verify and migration helpers + key links.</p>
-  </div>
-</section>
+    <div class="container">
+      <a class="brand" href="/">WCWD</a>
+      <nav class="nav">
+        <a href="/">Home</a>
+        <a href="/world-id/" aria-current="page">World ID</a>
+        <a href="/about/">About</a>
+        <a href="/donate/">Donate</a>
+      </nav>
+    </div>
+  </header>
 
-
-
-
-<main class="container">
-    <h1>World ID</h1>
-    <p class="muted small">
-      Hub page for World ID related tools/pages in this repo.
-    </p>
+  <main class="container">
+    <h1>World ID Hub</h1>
+    <p class="muted">Builder-focused entry point for integration, debugging, and request testing flows.</p>
 
     <section class="card">
-      <p class="card-title">Pages</p>
-
-      <div class="grid">
-        <div class="col-6">
-          <div class="label">Verify</div>
-          <p class="muted small">Proof verification playground / reference page.</p>
-          <p><a class="btn" href="/world-id/verify/">Open Verify</a></p>
-        </div>
-
-        <div class="col-6">
-          <div class="label">Migration</div>
-          <p class="muted small">Migration helpers / notes page.</p>
-          <p><a class="btn" href="/world-id/migration/">Open Migration</a></p>
-        </div>
-      </div>
+      <p class="card-title">Wizard</p>
+      <p class="muted small">For building integration scaffolds with frontend/backend snippets, env templates, and setup checklist guidance.</p>
+      <p><a class="btn" href="/world-id/wizard/">Open Wizard</a></p>
     </section>
 
     <section class="card">
-      <p class="card-title">Docs</p>
-      <ul class="list">
-        <li><a target="_blank" rel="noreferrer" href="https://docs.world.org/world-id">docs.world.org — World ID</a></li>
-        <li><a target="_blank" rel="noreferrer" href="https://docs.world.org/">docs.world.org — root</a></li>
-      </ul>
-      <p class="muted small">Docs links are external. This page is only a hub inside WCWD.</p>
+      <p class="card-title">Debugger</p>
+      <p class="muted small">For integration debugging: inspect proof payloads, run validations, and view categorized diagnosis output.</p>
+      <p><a class="btn" href="/world-id/debugger/">Open Debugger</a></p>
     </section>
+
+    <section class="card">
+      <p class="card-title">Playground</p>
+      <p class="muted small">For testing verifier endpoints: create curl/fetch requests and evaluate request/response behavior including CORS constraints.</p>
+      <p><a class="btn" href="/world-id/playground/">Open Playground</a></p>
+    </section>
+
+    <p><a href="/">Back to Home</a></p>
   </main>
 
-  
-<footer class="footer">
-  <div class="container">
-    <p class="muted">WCWD is best-effort. Not financial advice.</p>
-    <p class="muted"><a href="https://github.com/badjoke-lab/wcwd" target="_blank" rel="noopener">GitHub</a></p>
-  </div>
-</footer>
+  <footer class="footer">
+    <div class="container">
+      <p class="muted">WCWD is best-effort. Not financial advice.</p>
+    </div>
+  </footer>
 
   <script src="/assets/common.js"></script>
 </body>
