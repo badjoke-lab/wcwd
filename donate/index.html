@@ -9,20 +9,32 @@
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="/assets/common.css" />
   <link rel="stylesheet" href="/style.css" />
+<!-- WCWD:HEAD:GA4:BEGIN -->
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-0D84H0D66W"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-0D84H0D66W');
+</script>
+<!-- WCWD:HEAD:GA4:END -->
 </head>
 <body>
-  <header class="header">
-    <div class="container">
-      <a class="brand" href="/">WCWD</a>
-      <nav class="nav">
-        <a href="/">Home</a>
-        <a href="/about/">About</a>
-        <a href="/donate/" aria-current="page">Donate</a>
-        <a href="/world-id/">World ID</a>
-      </nav>
-    </div>
-  </header>
-
+<!-- WCWD:HEADER:BEGIN -->
+<header class="header">
+  <div class="container header-inner">
+    <a class="brand" href="/">WCWD</a>
+    <nav class="nav" data-site-nav>
+      <a href="/">Home</a>
+      <a href="/world-chain/">World Chain</a>
+      <a href="/world-id/">World ID</a>
+      <a href="/about/">About</a>
+      <a href="/donate/">Donate</a>
+    </nav>
+  </div>
+</header>
+<!-- WCWD:HEADER:END -->
   <main class="container">
     <h1>Donate</h1>
     <p>
@@ -44,13 +56,38 @@
       </div>
     </section>
   </main>
-
-  <footer class="footer">
-    <div class="container">
-      <p class="muted">Thank you for supporting WCWD.</p>
+<!-- WCWD:FOOTER:BEGIN -->
+<footer class="footer">
+  <div class="container">
+    <div class="grid">
+      <section class="col-3">
+        <p class="card-title">Site</p>
+        <p><a href="/">Home</a></p>
+        <p><a href="/world-chain/">World Chain</a></p>
+        <p><a href="/world-id/">World ID</a></p>
+        <p><a href="/about/">About</a></p>
+        <p><a href="/donate/">Donate</a></p>
+      </section>
+      <section class="col-3">
+        <p class="card-title">Legal</p>
+        <p><a href="/about/#disclaimer">Disclaimer</a></p>
+        <p><a href="/about/#privacy">Privacy</a></p>
+        <p><a href="https://docs.google.com/forms/d/e/1FAIpQLScdv3WFVHmQO_mz-p4_HJv1RyJItghrG6A0SGQ5ec4R2NBNOw/viewform?usp=pp_url&amp;entry.148248220=WCWD" target="_blank" rel="noopener noreferrer">Contact</a></p>
+      </section>
+      <section class="col-3">
+        <p class="card-title">External</p>
+        <p><a href="https://github.com/badjoke-lab/wcwd" target="_blank" rel="noopener noreferrer">GitHub</a></p>
+        <p><a href="https://x.com/badjoke_lab" target="_blank" rel="noopener noreferrer">X</a></p>
+      </section>
+      <section class="col-3">
+        <p class="card-title">Signature</p>
+        <p>Built by BadJoke-Lab</p>
+        <p>© 2026 WCWD</p>
+      </section>
     </div>
-  </footer>
-
+  </div>
+</footer>
+<!-- WCWD:FOOTER:END -->
   <script src="/assets/common.js"></script>
   <script>
     (function () {
