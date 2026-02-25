@@ -37,31 +37,135 @@
 <!-- WCWD:HEADER:END -->
   <main class="container">
     <h1>About WCWD</h1>
-    <p>
-      WCWD is a practical, text-first resource for exploring the World ecosystem with a focus on builder-friendly references and lightweight tools.
-      The site collects notes, links, and simple utilities for World Chain and World ID flows.
-      It is maintained as a best-effort project and will continue to evolve as the ecosystem changes.
-    </p>
-    <p>
-      Contact: <a target="_blank" rel="noopener noreferrer" href="https://docs.google.com/forms/d/e/1FAIpQLScdv3WFVHmQO_mz-p4_HJv1RyJItghrG6A0SGQ5ec4R2NBNOw/viewform?usp=pp_url&amp;entry.148248220=WCWD">Google Form</a>
-    </p>
 
-    <section id="disclaimer" class="card">
+    <h2>What is WCWD?</h2>
+    <p>WCWD (World Chain / World ID Dashboard) is a lightweight, builder-focused toolkit for the World ecosystem.</p>
+    <p>It provides a text-first dashboard for monitoring World Chain network conditions and token-related metrics, along with practical tools to help integrate and validate World ID.</p>
+    <p>The interface avoids heavy UI patterns and wallet connections, focusing instead on clarity and speed — so you can check what you need and move on.</p>
+    <p><strong>All features are currently available for free.</strong></p>
+
+    <h2>What WCWD Provides</h2>
+    <p>WCWD is structured around two main areas:</p>
+    <ul>
+      <li>World Chain dashboards</li>
+      <li>World ID integration tools</li>
+    </ul>
+
+    <h1>World Chain Section</h1>
+
+    <h3>/world-chain/</h3>
+    <p>A high-level dashboard for viewing World Chain network conditions.</p>
+    <ul>
+      <li>TPS, gas metrics, and address statistics</li>
+      <li>Quick WLD price reference</li>
+      <li>Sample token ratio indicators</li>
+      <li>Ecosystem project listings</li>
+    </ul>
+    <p>The dashboard is designed to remain lightweight and avoid unnecessary indexing dependencies wherever possible.</p>
+
+    <h3>/world-chain/sell-impact/</h3>
+    <p>A simple simulation tool to estimate the potential price impact of selling WLD.</p>
+    <ul>
+      <li>Input sell amount</li>
+      <li>View estimated slippage</li>
+      <li>Approximate impact calculation</li>
+    </ul>
+    <p>This tool provides rough estimates only and does not constitute financial advice.</p>
+
+    <h3>/world-chain/oracles/</h3>
+    <p>A reference page for oracle data available within the World Chain ecosystem.</p>
+    <ul>
+      <li>Price feed listings</li>
+      <li>Data source overview</li>
+      <li>Implementation considerations</li>
+    </ul>
+    <p>Designed as a practical reference for builders selecting oracle feeds.</p>
+
+    <h3>/world-chain/paymaster/</h3>
+    <p>A structured overview of gas abstraction and paymaster concepts.</p>
+    <ul>
+      <li>Core paymaster principles</li>
+      <li>Example use cases</li>
+      <li>Implementation considerations</li>
+    </ul>
+    <p>This section functions primarily as documentation and architectural guidance.</p>
+
+    <h1>World ID Section</h1>
+
+    <h3>/world-id/</h3>
+    <p>An overview of World ID integration and access to related tools.</p>
+    <p>World ID enables proof of personhood. WCWD focuses on helping builders implement and validate it effectively.</p>
+
+    <h3>/world-id/wizard/</h3>
+    <p>An integration wizard that generates World ID implementation snippets.</p>
+    <ul>
+      <li>Environment selection (Web, Next.js, Node/Express, Cloudflare Workers, etc.)</li>
+      <li>Frontend snippet generation</li>
+      <li>Backend verification example code</li>
+      <li>Environment variable templates</li>
+    </ul>
+    <p>All output blocks include copy buttons for immediate use.</p>
+
+    <h3>/world-id/debugger/</h3>
+    <p>An offline proof JSON analyzer for World ID.</p>
+    <ul>
+      <li>Structural validation</li>
+      <li>Missing field detection</li>
+      <li>Basic format checks</li>
+      <li>Categorized diagnostic hints</li>
+    </ul>
+    <p>This tool performs local structural checks only and does not call external APIs.</p>
+
+    <h3>/world-id/playground/</h3>
+    <p>A verifier endpoint testing tool.</p>
+    <ul>
+      <li>Generates curl, fetch, and axios request examples</li>
+      <li>Allows manual testing against your own verifier endpoint</li>
+      <li>Displays response output</li>
+      <li>Clearly explains CORS failures when applicable</li>
+    </ul>
+    <p>Designed for local and development-stage validation.</p>
+
+    <h1>Design Philosophy</h1>
+    <p>WCWD is built around the following principles:</p>
+    <ul>
+      <li>Text-first design</li>
+      <li>Static architecture</li>
+      <li>No wallet dependency</li>
+      <li>Lightweight and fast</li>
+      <li>Builder-oriented</li>
+      <li>Not an official replacement for World documentation</li>
+    </ul>
+    <p>This site is an independent reference project and does not provide financial advice or official support.</p>
+
+    <h1>Who This Is For</h1>
+    <ul>
+      <li>Developers building on World Chain</li>
+      <li>Builders integrating World ID</li>
+      <li>Anyone who wants a concise overview of ecosystem status</li>
+    </ul>
+
+    <h1>How WCWD Is Run</h1>
+    <p>WCWD is currently fully free to use.</p>
+    <p>It is maintained as an independent project without ads or subscription models.</p>
+    <p>Beyond basic hosting and infrastructure costs, future improvements — such as enhanced historical data or more precise analytics — may require external indexing services or third-party data providers.</p>
+    <p>These enhancements are intended to make WCWD a more practical and reliable tool for builders.</p>
+    <p>If you would like to support the continued development and expansion of WCWD, please consider contributing:</p>
+    <p>👉 <strong>Donate WCWD</strong></p>
+    <p><a class="btn" href="/donate/">Donate WCWD</a></p>
+
+    <h1>Final Note</h1>
+    <p>WCWD is not meant to be a heavy portal.</p>
+    <p>It aims to be a lightweight workbench —<br />just what you need, nothing more.</p>
+
+    <section id="disclaimer">
       <h2>Disclaimer</h2>
-      <p>
-        This site is provided on a best-effort basis for informational and development support purposes.
-        It is not financial advice, legal advice, or an official product guide.
-        Accuracy and availability are not guaranteed.
-      </p>
+      <p>This website is an independent reference project and does not provide financial advice or official support.</p>
     </section>
 
-    <section id="privacy" class="card">
+    <section id="privacy">
       <h2>Privacy</h2>
-      <p>
-        WCWD may use minimal analytics to understand overall usage patterns.
-        By default, the site does not collect user PII directly.
-        This privacy statement is minimal for now and will be updated later.
-      </p>
+      <p>WCWD does not collect personal data beyond basic analytics. No wallet connections are required to use the tools.</p>
     </section>
   </main>
 <!-- WCWD:FOOTER:BEGIN -->
