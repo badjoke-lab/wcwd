@@ -4,8 +4,8 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 
-  <title>WCWD — World Chain / WLD Dashboard</title>
-  <meta name="description" content="World Chain quick dashboard: server-observed history (Workers Cron + KV) + Phase 0 best-effort metrics." />
+  <title>WCWD — World Chain &amp; World ID Builder Toolkit</title>
+  <meta name="description" content="WCWD offers lightweight World Chain dashboards and World ID builder tools, free to use, donation-supported, and best-effort for explorers and developers." />
 
   <!-- ✅ History Worker base (frontend fetches from here) -->
   <meta name="wcwd-history-base" content="https://wcwd-history.badjoke-lab.workers.dev" />
@@ -40,6 +40,55 @@
 </header>
 <!-- WCWD:HEADER:END -->
   <main class="wrap">
+    <section class="card" aria-labelledby="home-intro-title">
+      <h1 id="home-intro-title">WCWD</h1>
+      <p>World Chain dashboards + World ID builder tools.</p>
+      <p class="muted">Free to use • Donation-supported • Best-effort (not official).</p>
+
+      <div class="grid" aria-label="Primary navigation">
+        <div class="col-4"><a class="btn" href="/world-chain/" style="display:block;text-align:center;">Explore World Chain</a></div>
+        <div class="col-4"><a class="btn secondary" href="/world-id/" style="display:block;text-align:center;">Explore World ID</a></div>
+        <div class="col-4"><a class="btn ghost" href="/about/" style="display:block;text-align:center;">Read About</a></div>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="feature-overview-title">
+      <h2 id="feature-overview-title">Feature overview</h2>
+      <div class="eco-hot-list">
+        <article class="card">
+          <h3>World Chain</h3>
+          <ul>
+            <li>Overview dashboard</li>
+            <li>Sell impact</li>
+            <li>Oracles</li>
+            <li>Paymaster</li>
+          </ul>
+          <p><a class="btn secondary" href="/world-chain/">Open World Chain</a></p>
+        </article>
+
+        <article class="card">
+          <h3>World ID</h3>
+          <ul>
+            <li>Wizard</li>
+            <li>Debugger</li>
+            <li>Playground</li>
+          </ul>
+          <p><a class="btn secondary" href="/world-id/">Open World ID</a></p>
+        </article>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="quick-links-title">
+      <h2 id="quick-links-title">Quick links</h2>
+      <div class="row">
+        <a class="btn ghost" href="/world-chain/sell-impact/">Sell Impact</a>
+        <a class="btn ghost" href="/world-id/wizard/">Wizard</a>
+        <a class="btn ghost" href="/world-id/debugger/">Debugger</a>
+        <a class="btn ghost" href="/world-id/playground/">Playground</a>
+      </div>
+    </section>
+
+    <section id="dashboard">
     <header class="hero">
       <h1>WCWD — World Chain / WLD Dashboard</h1>
 
@@ -363,6 +412,7 @@
       <p class="muted">
         Phase 0 limitations: no indexer, no historical chain-wide breakdown. Token share is “sample-based token-tx share (approx)”.
       </p>
+    </section>
     </section>
   </main>
 <!-- WCWD:FOOTER:BEGIN -->
