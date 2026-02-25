@@ -171,7 +171,10 @@
       reportOut.value = reportLines.join('\n');
     }
 
-    analyzeBtn.addEventListener('click', analyze);
+    analyzeBtn.addEventListener('click', function () {
+      window.WorldIdTools.track('debugger_analyze');
+      analyze();
+    });
     proofInput.addEventListener('input', saveState);
     copyReportBtn.addEventListener('click', function () {
       var statusEl = $('copyStatus');

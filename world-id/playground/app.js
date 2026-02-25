@@ -159,7 +159,10 @@
     });
 
     $('btnGenerate').addEventListener('click', generateExamples);
-    $('btnRun').addEventListener('click', runTest);
+    $('btnRun').addEventListener('click', function () {
+      window.WorldIdTools.track('playground_run');
+      runTest();
+    });
 
     wireCopy('copyCurl', 'curlOut', 'copyCurlStatus');
     wireCopy('copyFetch', 'fetchOut', 'copyFetchStatus');

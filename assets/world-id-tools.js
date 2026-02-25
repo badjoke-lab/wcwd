@@ -65,11 +65,18 @@
     }
   }
 
+  function track(eventName) {
+    if (typeof gtag === 'function') {
+      gtag('event', eventName);
+    }
+  }
+
   window.WorldIdTools = {
     copyToClipboard: copyToClipboard,
     safeJsonParse: safeJsonParse,
     prettyJson: prettyJson,
     saveFormState: saveFormState,
     loadFormState: loadFormState,
+    track: track,
   };
 })();
