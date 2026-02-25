@@ -301,7 +301,10 @@
         saveState();
       }
 
-      document.getElementById('generate').addEventListener('click', generate);
+      document.getElementById('generate').addEventListener('click', function () {
+        tools.track('wizard_generate');
+        generate();
+      });
 
       document.getElementById('useExample').addEventListener('click', function (event) {
         event.preventDefault();
