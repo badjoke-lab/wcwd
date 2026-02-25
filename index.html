@@ -40,9 +40,9 @@
 </header>
 <!-- WCWD:HEADER:END -->
   <main class="wrap">
-    <section class="card" aria-labelledby="home-intro-title">
+    <section class="card home-hero" aria-labelledby="home-intro-title">
       <h1 id="home-intro-title">WCWD</h1>
-      <p>World Chain dashboards + World ID builder tools.</p>
+      <p>WCWD means <strong>World Chain / World ID Dashboard</strong>.</p>
       <p class="muted">Free to use • Donation-supported • Best-effort (not official).</p>
 
       <div class="grid" aria-label="Primary navigation">
@@ -52,9 +52,9 @@
       </div>
     </section>
 
-    <section class="card" aria-labelledby="feature-overview-title">
+    <section class="card feature-overview" aria-labelledby="feature-overview-title">
       <h2 id="feature-overview-title">Feature overview</h2>
-      <div class="eco-hot-list">
+      <div class="eco-hot-list feature-cards">
         <article class="card">
           <h3>World Chain</h3>
           <ul>
@@ -78,9 +78,9 @@
       </div>
     </section>
 
-    <section class="card" aria-labelledby="quick-links-title">
+    <section class="card quick-links" aria-labelledby="quick-links-title">
       <h2 id="quick-links-title">Quick links</h2>
-      <div class="row">
+      <div class="row quick-links-row">
         <a class="btn ghost" href="/world-chain/sell-impact/">Sell Impact</a>
         <a class="btn ghost" href="/world-id/wizard/">Wizard</a>
         <a class="btn ghost" href="/world-id/debugger/">Debugger</a>
@@ -88,21 +88,20 @@
       </div>
     </section>
 
-    <section id="dashboard">
+    <section id="dashboard" class="dashboard-section">
     <header class="hero">
-      <h1>WCWD — World Chain / WLD Dashboard</h1>
+      <h1>World Chain Monitor (Phase 0)</h1>
 
-      <p class="lead">Phase 0: RPC + optional APIs (Etherscan / CoinGecko). No indexer. No wallet connect.</p>
-      <p class="lead">✅ History: Cloudflare Workers Cron + KV (server-side sampling, interval from worker, default ~15 min).</p>
+      <p class="lead">RPC + optional public APIs. No indexer, no wallet connect. Some metrics may be unavailable.</p>
+      <p class="lead">History: sampled by Cloudflare Workers Cron + KV (default ~15 min).</p>
+      <p class="muted">Some metrics require an indexer and may be unavailable in Phase 0.</p>
 
       <div class="actions">
         <button id="reload" type="button">Reload</button>
         <div class="status">Status: <strong id="status">—</strong></div>
       </div>
 
-      <p class="muted">
-        This dashboard provides “best-effort” signals. Some metrics are unavailable without an indexer.
-      </p>
+      <p class="muted">This dashboard provides best-effort signals for quick checks.</p>
     </header>
 
     <section class="card">
