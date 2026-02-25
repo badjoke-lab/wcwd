@@ -1,4 +1,8 @@
 User-agent: *
 Allow: /
+Disallow: /dev/
+Disallow: /infra/
+Disallow: /mini-apps/
+Disallow: /hub/
 
 Sitemap: https://wcwd.badjoke-lab.com/sitemap.xml

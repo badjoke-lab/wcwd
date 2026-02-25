@@ -1,43 +1,47 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://wcwd.badjoke-lab.com/dev/</loc>
-    <lastmod>2026-02-12T15:17:31Z</lastmod>
-  </url>
-  <url>
     <loc>https://wcwd.badjoke-lab.com/</loc>
-    <lastmod>2026-02-12T15:17:31Z</lastmod>
+    <lastmod>2026-02-25</lastmod>
   </url>
   <url>
-    <loc>https://wcwd.badjoke-lab.com/infra/status/</loc>
-    <lastmod>2026-02-12T15:17:31Z</lastmod>
+    <loc>https://wcwd.badjoke-lab.com/about/</loc>
+    <lastmod>2026-02-25</lastmod>
   </url>
   <url>
-    <loc>https://wcwd.badjoke-lab.com/mini-apps/preflight/</loc>
-    <lastmod>2026-02-12T15:17:31Z</lastmod>
+    <loc>https://wcwd.badjoke-lab.com/donate/</loc>
+    <lastmod>2026-02-25</lastmod>
   </url>
   <url>
     <loc>https://wcwd.badjoke-lab.com/world-chain/</loc>
-    <lastmod>2026-02-12T15:17:31Z</lastmod>
+    <lastmod>2026-02-25</lastmod>
+  </url>
+  <url>
+    <loc>https://wcwd.badjoke-lab.com/world-chain/sell-impact/</loc>
+    <lastmod>2026-02-25</lastmod>
   </url>
   <url>
     <loc>https://wcwd.badjoke-lab.com/world-chain/oracles/</loc>
-    <lastmod>2026-02-12T15:17:31Z</lastmod>
+    <lastmod>2026-02-25</lastmod>
   </url>
   <url>
     <loc>https://wcwd.badjoke-lab.com/world-chain/paymaster/</loc>
-    <lastmod>2026-02-12T15:17:31Z</lastmod>
+    <lastmod>2026-02-25</lastmod>
   </url>
   <url>
     <loc>https://wcwd.badjoke-lab.com/world-id/</loc>
-    <lastmod>2026-02-12T15:17:31Z</lastmod>
+    <lastmod>2026-02-25</lastmod>
   </url>
   <url>
-    <loc>https://wcwd.badjoke-lab.com/world-id/migration/</loc>
-    <lastmod>2026-02-12T15:17:31Z</lastmod>
+    <loc>https://wcwd.badjoke-lab.com/world-id/wizard/</loc>
+    <lastmod>2026-02-25</lastmod>
   </url>
   <url>
-    <loc>https://wcwd.badjoke-lab.com/world-id/verify/</loc>
-    <lastmod>2026-02-12T15:17:31Z</lastmod>
+    <loc>https://wcwd.badjoke-lab.com/world-id/debugger/</loc>
+    <lastmod>2026-02-25</lastmod>
+  </url>
+  <url>
+    <loc>https://wcwd.badjoke-lab.com/world-id/playground/</loc>
+    <lastmod>2026-02-25</lastmod>
   </url>
 </urlset>

@@ -2,13 +2,23 @@ from __future__ import annotations
 
 from pathlib import Path
 from datetime import datetime, timezone
-import re
 
 REPO = Path(__file__).resolve().parents[1]
 
-EXCLUDE_DIRS = {
-    ".git", ".wrangler", "node_modules", ".next", ".cache", ".DS_Store"
-}
+PUBLIC_ROUTE_ALLOWLIST = [
+    "/",
+    "/about/",
+    "/donate/",
+    "/world-chain/",
+    "/world-chain/sell-impact/",
+    "/world-chain/oracles/",
+    "/world-chain/paymaster/",
+    "/world-id/",
+    "/world-id/wizard/",
+    "/world-id/debugger/",
+    "/world-id/playground/",
+]
+
 
 def guess_base_url() -> str:
     cname = REPO / "CNAME"
@@ -19,44 +29,15 @@ def guess_base_url() -> str:
     # fallback（既定のbase URL想定）
     return "https://wcwd.badjoke-lab.com/"
 
-def should_skip(path: Path) -> bool:
-    parts = set(path.parts)
-    if parts & EXCLUDE_DIRS:
-        return True
-    # 隠しディレクトリ一括除外（.dev.vars などを含む）
-    for p in path.parts:
-        if p.startswith(".") and p not in {".well-known"}:
-            return True
-    return False
-
-def url_for(file_path: Path, base_url: str) -> str:
-    rel = file_path.relative_to(REPO)
-    # "dir/index.html" は "dir/" にする
-    if rel.name == "index.html":
-        rel_url = str(rel.parent).replace("\\", "/")
-        if rel_url == ".":
-            rel_url = ""
-        else:
-            rel_url = rel_url.rstrip("/") + "/"
-    else:
-        rel_url = str(rel).replace("\\", "/")
-    return base_url + rel_url
 
 def main() -> None:
     base_url = guess_base_url()
-
-    html_files: list[Path] = []
-    for p in REPO.rglob("*.html"):
-        if should_skip(p):
-            continue
-        html_files.append(p)
 
     # ルート index.html が無い場合はエラー
     if not (REPO / "index.html").exists():
         raise SystemExit("ERROR: repo root index.html not found")
 
-    # URLを作って重複排除
-    urls = sorted({url_for(p, base_url) for p in html_files})
+    urls = [base_url + route.lstrip("/") for route in PUBLIC_ROUTE_ALLOWLIST]
 
     # lastmod は“生成日”で統一（静的サイトのため）
     lastmod = datetime.now(timezone.utc).strftime("%Y-%m-%d")
@@ -75,6 +56,10 @@ def main() -> None:
     robots = []
     robots.append("User-agent: *")
     robots.append("Allow: /")
+    robots.append("Disallow: /dev/")
+    robots.append("Disallow: /infra/")
+    robots.append("Disallow: /mini-apps/")
+    robots.append("Disallow: /hub/")
     robots.append("")
     robots.append(f"Sitemap: {base_url}sitemap.xml")
     (REPO / "robots.txt").write_text("\n".join(robots) + "\n", encoding="utf-8")
@@ -82,6 +67,7 @@ def main() -> None:
     print("Generated: sitemap.xml, robots.txt")
     print("Base URL:", base_url)
     print("URL count:", len(urls))
+
 
 if __name__ == "__main__":
     main()
