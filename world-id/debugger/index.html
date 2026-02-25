@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>WCWD — World ID Debugger</title>
-  <meta name="description" content="World ID debugger placeholder." />
+  <meta name="description" content="Inspect and diagnose World ID proof JSON structure safely in-browser." />
   <link rel="icon" href="/favicon.ico" sizes="any" />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="/assets/common.css" />
@@ -35,18 +35,46 @@
   </div>
 </header>
 <!-- WCWD:HEADER:END -->
+
   <main class="container">
     <h1>World ID Debugger</h1>
-    <p class="status info">Status: Coming soon</p>
-    <p>
-      Debugger will accept pasted proof JSON and run validation checks to surface actionable issues.
-      Diagnosis output will be categorized so teams can quickly identify integration errors vs data issues.
-    </p>
-    <ul>
-      <li>Paste proof JSON input</li>
-      <li>Validation pipeline and check summary</li>
-      <li>Categorized diagnosis (configuration, proof, transport, server)</li>
-    </ul>
+    <p class="muted small">Paste proof JSON to analyze shape, required keys, type mismatches, and likely causes. This tool is static and runs entirely in your browser.</p>
+
+    <section class="card">
+      <p class="card-title">Input</p>
+      <div class="form">
+        <div>
+          <div class="label">Proof JSON</div>
+          <textarea id="proofJson" class="textarea" placeholder='{"proof": {...}, "nullifier_hash": "...", "merkle_root": "..."}'></textarea>
+        </div>
+        <div class="row">
+          <button id="btnAnalyze" class="btn" type="button">Analyze</button>
+          <button id="btnCopyReport" class="btn secondary" type="button">Copy report</button>
+          <span id="copyStatus" class="muted small"> </span>
+        </div>
+      </div>
+    </section>
+
+    <section class="card output">
+      <p class="card-title">Parsed summary</p>
+      <div id="parseSummary"></div>
+    </section>
+
+    <section class="card output">
+      <p class="card-title">Validation results (minimal expected shape)</p>
+      <div id="validationSummary"></div>
+    </section>
+
+    <section class="card output">
+      <p class="card-title">Diagnosis</p>
+      <div id="diagnosisSummary"></div>
+    </section>
+
+    <section class="card output">
+      <p class="card-title">Report text</p>
+      <textarea id="reportText" class="textarea" readonly></textarea>
+    </section>
+
     <p><a href="/world-id/">Back to World ID hub</a> · <a href="/">Home</a></p>
   </main>
 <!-- WCWD:FOOTER:BEGIN -->
@@ -83,5 +111,7 @@
 <!-- WCWD:FOOTER:END -->
 
   <script src="/assets/common.js"></script>
+  <script src="/assets/world-id-tools.js"></script>
+  <script src="./app.js"></script>
 </body>
 </html>

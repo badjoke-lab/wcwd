@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>WCWD — World ID Playground</title>
-  <meta name="description" content="World ID verifier playground placeholder." />
+  <meta name="description" content="Generate verifier request examples and optionally run browser-based fetch tests for World ID proofs." />
   <link rel="icon" href="/favicon.ico" sizes="any" />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="/assets/common.css" />
@@ -35,19 +35,69 @@
   </div>
 </header>
 <!-- WCWD:HEADER:END -->
+
   <main class="container">
     <h1>World ID Playground</h1>
-    <p class="status info">Status: Coming soon</p>
-    <p>
-      Playground will let you enter your verifier endpoint URL and generate request templates for common testing workflows.
-      It will also support optional test execution while highlighting browser CORS limitations.
-    </p>
-    <ul>
-      <li>Verifier URL input</li>
-      <li>Generated curl and fetch examples</li>
-      <li>Optional test request execution path</li>
-      <li>CORS notes and troubleshooting hints</li>
-    </ul>
+    <p class="muted small">Build test requests for your verifier endpoint. Examples always generate locally; browser fetch can fail due to CORS and will show a friendly message.</p>
+
+    <section class="card">
+      <p class="card-title">Inputs</p>
+      <div class="form">
+        <div>
+          <div class="label">Verifier URL (full URL required)</div>
+          <input id="verifierUrl" class="input" placeholder="https://your-api.example.com/world-id/verify" />
+          <div id="urlStatus" class="status warn">Enter a full URL (http/https). Example: https://your-api.example.com/world-id/verify</div>
+        </div>
+
+        <div>
+          <div class="label">Proof JSON</div>
+          <textarea id="proofJson" class="textarea" placeholder='{"proof": {...}, "nullifier_hash": "...", "merkle_root": "..."}'></textarea>
+          <div id="proofStatus" class="status warn">Paste valid JSON to enable Run test.</div>
+        </div>
+
+        <div class="row">
+          <button id="btnGenerate" class="btn secondary" type="button">Generate examples</button>
+          <button id="btnRun" class="btn" type="button" disabled>Run test (fetch)</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <p class="card-title">Generated examples</p>
+      <div class="output">
+        <div>
+          <div class="label">curl</div>
+          <textarea id="curlOut" class="textarea" readonly></textarea>
+          <div class="row" style="margin-top:8px;">
+            <button id="copyCurl" class="btn ghost" type="button">Copy curl</button><span id="copyCurlStatus" class="muted small"></span>
+          </div>
+        </div>
+
+        <div>
+          <div class="label">fetch</div>
+          <textarea id="fetchOut" class="textarea" readonly></textarea>
+          <div class="row" style="margin-top:8px;">
+            <button id="copyFetch" class="btn ghost" type="button">Copy fetch</button><span id="copyFetchStatus" class="muted small"></span>
+          </div>
+        </div>
+
+        <div>
+          <div class="label">axios</div>
+          <textarea id="axiosOut" class="textarea" readonly></textarea>
+          <div class="row" style="margin-top:8px;">
+            <button id="copyAxios" class="btn ghost" type="button">Copy axios</button><span id="copyAxiosStatus" class="muted small"></span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <p class="card-title">Run result</p>
+      <div id="runStatus" class="status info">Ready.</div>
+      <p><strong>Status code:</strong> <span id="resultCode">-</span></p>
+      <textarea id="resultBody" class="textarea" readonly placeholder="Response body will appear here."></textarea>
+    </section>
+
     <p><a href="/world-id/">Back to World ID hub</a> · <a href="/">Home</a></p>
   </main>
 <!-- WCWD:FOOTER:BEGIN -->
@@ -84,5 +134,7 @@
 <!-- WCWD:FOOTER:END -->
 
   <script src="/assets/common.js"></script>
+  <script src="/assets/world-id-tools.js"></script>
+  <script src="./app.js"></script>
 </body>
 </html>
