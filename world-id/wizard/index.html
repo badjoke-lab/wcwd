@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>WCWD — World ID Wizard</title>
-  <meta name="description" content="World ID integration wizard placeholder." />
+  <meta name="description" content="Static World ID integration wizard for frontend/backend template outputs." />
   <link rel="icon" href="/favicon.ico" sizes="any" />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="/assets/common.css" />
@@ -37,17 +37,81 @@
 <!-- WCWD:HEADER:END -->
   <main class="container">
     <h1>World ID Wizard</h1>
-    <p class="status info">Status: Coming soon</p>
-    <p>
-      Wizard will guide builders through integration and generate the main implementation outputs in one flow.
-      It is focused on reducing setup mistakes and making handoff between frontend and backend clearer.
-    </p>
-    <ul>
-      <li>Frontend snippet output</li>
-      <li>Backend verifier snippet output</li>
-      <li>Required environment variables template</li>
-      <li>Pre-launch integration checklist</li>
-    </ul>
+    <p class="muted small">Integration template generator for static hosting. This wizard does not perform cryptographic verification; it generates implementation scaffolding.</p>
+
+    <section class="card">
+      <p class="card-title">Inputs</p>
+      <div class="form">
+        <div class="grid">
+          <div class="col-6">
+            <div class="label">Environment</div>
+            <select id="env" class="select">
+              <option value="web">Web</option>
+              <option value="nextjs">Next.js</option>
+              <option value="express">Node (Express)</option>
+              <option value="workers">Cloudflare Workers</option>
+            </select>
+          </div>
+          <div class="col-6">
+            <div class="label">Action name</div>
+            <input id="action" class="input" value="verifyWorldIdProof" />
+          </div>
+        </div>
+
+        <div class="grid">
+          <div class="col-6">
+            <div class="label">Verifier URL or endpoint path</div>
+            <input id="verifier" class="input" placeholder="/api/verify-world-id" />
+          </div>
+          <div class="col-6">
+            <div class="label">Project/App ID (optional)</div>
+            <input id="appId" class="input" placeholder="app_staging_xxx" />
+          </div>
+        </div>
+
+        <div class="row">
+          <button id="generate" class="btn" type="button">Generate</button>
+          <a href="#" id="useExample" class="small">Use example</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <p class="card-title">1) Frontend snippet</p>
+      <pre><code id="frontendOut"></code></pre>
+      <div class="row">
+        <button class="btn secondary" data-copy-target="frontendOut" type="button">Copy</button>
+        <span id="frontendStatus" class="muted small"></span>
+      </div>
+    </section>
+
+    <section class="card">
+      <p class="card-title">2) Backend snippet</p>
+      <pre><code id="backendOut"></code></pre>
+      <div class="row">
+        <button class="btn secondary" data-copy-target="backendOut" type="button">Copy</button>
+        <span id="backendStatus" class="muted small"></span>
+      </div>
+    </section>
+
+    <section class="card">
+      <p class="card-title">3) Env var template</p>
+      <pre><code id="envOut"></code></pre>
+      <div class="row">
+        <button class="btn secondary" data-copy-target="envOut" type="button">Copy</button>
+        <span id="envStatus" class="muted small"></span>
+      </div>
+    </section>
+
+    <section class="card">
+      <p class="card-title">4) Checklist</p>
+      <pre><code id="checklistOut"></code></pre>
+      <div class="row">
+        <button class="btn secondary" data-copy-target="checklistOut" type="button">Copy</button>
+        <span id="checklistStatus" class="muted small"></span>
+      </div>
+    </section>
+
     <p><a href="/world-id/">Back to World ID hub</a> · <a href="/">Home</a></p>
   </main>
 <!-- WCWD:FOOTER:BEGIN -->
@@ -84,5 +148,187 @@
 <!-- WCWD:FOOTER:END -->
 
   <script src="/assets/common.js"></script>
+  <script src="/assets/world-id-tools.js"></script>
+  <script>
+    (function () {
+      var STORAGE_KEY = 'wcwd:world-id-wizard:v1';
+      var tools = window.WorldIdTools;
+      var fields = {
+        env: document.getElementById('env'),
+        verifier: document.getElementById('verifier'),
+        action: document.getElementById('action'),
+        appId: document.getElementById('appId')
+      };
+
+      var outputs = {
+        frontend: document.getElementById('frontendOut'),
+        backend: document.getElementById('backendOut'),
+        env: document.getElementById('envOut'),
+        checklist: document.getElementById('checklistOut')
+      };
+
+      function getState() {
+        return {
+          env: fields.env.value,
+          verifier: fields.verifier.value.trim(),
+          action: fields.action.value.trim(),
+          appId: fields.appId.value.trim()
+        };
+      }
+
+      function saveState() {
+        tools.saveFormState(STORAGE_KEY, getState());
+      }
+
+      function fillFromState(state) {
+        if (!state || typeof state !== 'object') return;
+        if (state.env) fields.env.value = state.env;
+        if (typeof state.verifier === 'string') fields.verifier.value = state.verifier;
+        if (typeof state.action === 'string') fields.action.value = state.action;
+        if (typeof state.appId === 'string') fields.appId.value = state.appId;
+      }
+
+      function renderFrontendSnippet(state) {
+        var endpoint = state.verifier || '/api/verify-world-id';
+        var payload = {
+          action: state.action || 'verifyWorldIdProof',
+          proof: '<proof>',
+          merkle_root: '<merkle_root>',
+          nullifier_hash: '<nullifier_hash>',
+          signal: '<signal>'
+        };
+
+        return [
+          "const verifierEndpoint = '" + endpoint + "';",
+          "const payload = " + tools.prettyJson(payload) + ';',
+          '',
+          'const response = await fetch(verifierEndpoint, {',
+          "  method: 'POST',",
+          "  headers: { 'Content-Type': 'application/json' },",
+          '  body: JSON.stringify(payload)',
+          '});',
+          '',
+          'if (!response.ok) {',
+          "  throw new Error('Verifier request failed');",
+          '}',
+          '',
+          'const result = await response.json();',
+          '// Handle verifier result in UI (do not log sensitive payloads in production).'
+        ].join('\n');
+      }
+
+      function renderBackendSnippet(state) {
+        var action = state.action || 'verifyWorldIdProof';
+        var endpoint = state.verifier || '/api/verify-world-id';
+        var appId = state.appId || '<app_id_optional>';
+        var snippets = {
+          web: [
+            '// Backend service required even for plain Web frontend.',
+            "// Expected endpoint: " + endpoint,
+            '',
+            "// In your backend route handler:",
+            'const { proof, merkle_root, nullifier_hash, signal } = requestBody;',
+            "const action = '" + action + "';",
+            "const appId = process.env.WORLD_ID_APP_ID || '" + appId + "';",
+            '',
+            '// Send payload to your verifier implementation/service.',
+            'return { status: "todo", action, appId };'
+          ],
+          nextjs: [
+            '// app/api/verify-world-id/route.ts',
+            'export async function POST(req: Request) {',
+            '  const body = await req.json();',
+            "  const action = '" + action + "';",
+            "  const appId = process.env.WORLD_ID_APP_ID || '" + appId + "';",
+            '  // TODO: validate body shape and call your verifier.',
+            '  return Response.json({ ok: true, action, appId, note: "template only" });',
+            '}'
+          ],
+          express: [
+            "app.post('" + endpoint + "', async (req, res) => {",
+            '  const { proof, merkle_root, nullifier_hash, signal } = req.body || {};',
+            "  const action = '" + action + "';",
+            "  const appId = process.env.WORLD_ID_APP_ID || '" + appId + "';",
+            '  // TODO: validate input and call your verifier implementation.',
+            '  res.json({ ok: true, action, appId, template: true });',
+            '});'
+          ],
+          workers: [
+            "export default {",
+            '  async fetch(request, env) {',
+            "    if (request.method === 'POST' && new URL(request.url).pathname === '" + endpoint + "') {",
+            '      const body = await request.json();',
+            "      const action = '" + action + "';",
+            "      const appId = env.WORLD_ID_APP_ID || '" + appId + "';",
+            '      // TODO: validate payload and call verifier service.',
+            "      return Response.json({ ok: true, action, appId, template: true });",
+            '    }',
+            "    return new Response('Not found', { status: 404 });",
+            '  }',
+            '};'
+          ]
+        };
+
+        return (snippets[state.env] || snippets.web).join('\n');
+      }
+
+      function renderEnvTemplate() {
+        return [
+          '# Fill values in deployment settings (do not commit secrets).',
+          'WORLD_ID_APP_ID=<your_app_or_project_id>',
+          'WORLD_ID_VERIFIER_URL=<your_verifier_service_url>',
+          'WORLD_ID_ENVIRONMENT=<staging_or_production>'
+        ].join('\n');
+      }
+
+      function renderChecklist(state) {
+        var endpoint = state.verifier || '/api/verify-world-id';
+        return [
+          '- CORS: allow only trusted frontend origins for ' + endpoint + '.',
+          '- HTTPS: enforce TLS for client and verifier requests in every environment.',
+          '- Payload size: set request body size limits to prevent abuse.',
+          '- Logging redaction: avoid printing proof payloads, tokens, or identifiers.',
+          '- Staging: validate end-to-end behavior in staging before production rollout.'
+        ].join('\n');
+      }
+
+      function generate() {
+        var state = getState();
+        outputs.frontend.textContent = renderFrontendSnippet(state);
+        outputs.backend.textContent = renderBackendSnippet(state);
+        outputs.env.textContent = renderEnvTemplate();
+        outputs.checklist.textContent = renderChecklist(state);
+        saveState();
+      }
+
+      document.getElementById('generate').addEventListener('click', generate);
+
+      document.getElementById('useExample').addEventListener('click', function (event) {
+        event.preventDefault();
+        fields.env.value = 'workers';
+        fields.verifier.value = '/verify/world-id';
+        fields.action.value = 'verifyWorldIdProof';
+        fields.appId.value = 'app_staging_example';
+        generate();
+      });
+
+      Object.keys(fields).forEach(function (key) {
+        fields[key].addEventListener('input', saveState);
+        fields[key].addEventListener('change', saveState);
+      });
+
+      document.querySelectorAll('[data-copy-target]').forEach(function (button) {
+        button.addEventListener('click', function () {
+          var targetId = button.getAttribute('data-copy-target');
+          var outputNode = document.getElementById(targetId);
+          var statusNode = document.getElementById(targetId.replace('Out', 'Status'));
+          tools.copyToClipboard(outputNode ? outputNode.textContent : '', statusNode);
+        });
+      });
+
+      fillFromState(tools.loadFormState(STORAGE_KEY));
+      generate();
+    })();
+  </script>
 </body>
 </html>
