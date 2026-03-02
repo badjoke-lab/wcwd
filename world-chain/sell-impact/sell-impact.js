@@ -651,8 +651,33 @@ function init(){
   $("btnMax5")?.addEventListener("click", () => { const i=$("maxImpactPct"); if(i){ i.value="5"; } runMaxUnderUI(); });
 
   // tokenAddr input: reload pool list + estimate
-  $("tokenAddr")?.addEventListener("input", scheduleReloadPools);
-  $("tokenAddr")?.addEventListener("change", () => { loadPoolsForToken().then(()=>runEstimate()).catch(()=>{}); });
+  $("tokenAddr")?.addEventListener("input", () => {
+  const token = String($("tokenAddr")?.value || "").trim();
+  const amt = String($("amountWld")?.value || "").trim();
+  // token changed => clear pool param to avoid stale deep-link
+  setQueryParams({ token, amt, pool: "" });
+  scheduleReloadPools();
+});
+  $("tokenAddr")?.addEventListener("change", () => {
+  const token = String($("tokenAddr")?.value || "").trim();
+  const amt = String($("amountWld")?.value || "").trim();
+  setQueryParams({ token, amt, pool: "" });
+  loadPoolsForToken().then(()=>runEstimate()).catch(()=>{});
+});
+  // amount input: keep URL shareable; clear pool because quote depends on amt
+  $("amountWld")?.addEventListener("input", () => {
+    const token = String($("tokenAddr")?.value || "").trim();
+    const amt = String($("amountWld")?.value || "").trim();
+    if (token) setQueryParams({ token, amt, pool: "" });
+    runEstimate().catch(()=>{});
+  });
+  $("amountWld")?.addEventListener("change", () => {
+    const token = String($("tokenAddr")?.value || "").trim();
+    const amt = String($("amountWld")?.value || "").trim();
+    if (token) setQueryParams({ token, amt, pool: "" });
+    runEstimate().catch(()=>{});
+  });
+
 
   $("poolSel")?.addEventListener("change", () => {
   const token = String($("tokenAddr")?.value || "").trim();
