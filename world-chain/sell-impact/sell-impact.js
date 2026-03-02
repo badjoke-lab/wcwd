@@ -41,7 +41,11 @@ let failCount = 0;
 let tokenInputTimer = null;
 
 function $(id){ return document.getElementById(id); }
-function num(x){ const n = Number(x); return Number.isFinite(n) ? n : 0; }
+function num(x){
+  // Accept numbers + numeric strings (e.g. "1", "0.3"). Treat null/"" as 0.
+  const n = Number.parseFloat(String(x ?? "").trim());
+  return Number.isFinite(n) ? n : 0;
+}
 function fmt(n, d=2){
   if (!Number.isFinite(Number(n))) return "—";
   return Number(n).toLocaleString(undefined, { maximumFractionDigits: d });
@@ -158,8 +162,19 @@ async function listPoolsByToken(tokenAddr){
       name: String(a.name || a.pool_name || "").trim(),
       reserveUsd: num(a.reserve_in_usd),
       vol24: num(a.volume_usd?.h24),
-      feePct: num(a.pool_fee_percentage),
-      feeBps: Math.round(num(a.pool_fee_percentage) * 100),
+      // token pools endpoint may omit pool_fee_percentage; fallback to parsing "... 0.3%" / "... 1%" from name
+      feePct: (() => {
+        const direct = num(a.pool_fee_percentage);
+        if (direct > 0) return direct;
+        const nm = String(a.name || a.pool_name || "").match(/(\d+(?:\.\d+)?)%/);
+        return nm ? Number(nm[1]) : 0;
+      })(),
+      feeBps: (() => {
+        const direct = num(a.pool_fee_percentage);
+        if (direct > 0) return Math.round(direct * 100);
+        const nm = String(a.name || a.pool_name || "").match(/(\d+(?:\.\d+)?)%/);
+        return nm ? Math.round(Number(nm[1]) * 100) : 0;
+      })(),
       dexId: String(r?.dex?.data?.id || ""),
       baseAddr: parseTokenAddrFromId(baseId),
       quoteAddr: parseTokenAddrFromId(quoteId),
@@ -200,7 +215,7 @@ function setPoolOptions(pools){
     const opt = document.createElement("option");
     opt.value = p.poolAddr;
     const dex = p.dexId ? ` · ${p.dexId}` : "";
-    opt.textContent = `${p.name || p.poolAddr} (24h $${fmt(p.vol24,0)} · liq $${fmt(p.reserveUsd,0)} · fee ${fmt(p.feePct,2)}%${dex})`;
+    opt.textContent = `${p.name || p.poolAddr} (24h $${fmt(p.vol24,0)} · liq $${fmt(p.reserveUsd,0)} · fee ${Number.isFinite(p.feePct)?p.feePct.toFixed(2):"?"}%${dex})`;
     sel.appendChild(opt);
   }
 }
