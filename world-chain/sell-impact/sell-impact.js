@@ -18,7 +18,7 @@
  * - Uniswap v3 concentrated liquidity can differ significantly. This is a rough gauge.
  */
 
-const GT_BASE = "https://api.geckoterminal.com/api/v2";
+const GT_BASE = "/api/gt";
 const GT_ACCEPT = "application/json;version=20230203";
 const NETWORK = "world-chain";
 
@@ -88,7 +88,14 @@ function cacheSet(key, val, ttlMs){
 }
 async function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
 
+let gtBackoffUntil = 0; // epoch ms; after HTTP 429, stop calling GT until this time
+
 async function fetchJson(url, { signal } = {}){
+  const now0 = Date.now();
+  if (now0 < gtBackoffUntil) {
+    throw new Error(`HTTP 429 Too Many Requests (backoff active until ${new Date(gtBackoffUntil).toISOString()})`);
+  }
+
   const now = Date.now();
   if (failCount > 0 && (now - lastFailAt) < Math.min(2500, 500 * failCount)){
     await sleep(Math.min(2500, 500 * failCount));
@@ -110,7 +117,12 @@ async function fetchJson(url, { signal } = {}){
     clearTimeout(timeout);
     if (signal) signal.removeEventListener("abort", onAbort);
   }
-  if (!res.ok){
+    if (!res.ok){
+    if (res.status === 429) {
+      // Strong backoff for GT rate limit
+      gtBackoffUntil = Date.now() + 30_000;
+    }
+
     lastFailAt = Date.now();
     failCount = Math.min(6, failCount + 1);
     const txt = await res.text().catch(() => "");
