@@ -217,6 +217,16 @@ function setPoolOptions(pools){
     const dex = p.dexId ? ` · ${p.dexId}` : "";
     opt.textContent = `${p.name || p.poolAddr} (24h $${fmt(p.vol24,0)} · liq $${fmt(p.reserveUsd,0)} · fee ${Number.isFinite(p.feePct)?p.feePct.toFixed(2):"?"}%${dex})`;
     sel.appendChild(opt);
+
+  // auto-pick pool (deep-link or first available)
+  try {
+    const desired = String(window.__sellImpactDesiredPool || "").trim();
+    if (desired) sel.value = desired;
+    if (!sel.value) {
+      const first = Array.from(sel.options || []).find(o => o && o.value && !o.disabled);
+      if (first) sel.value = first.value;
+    }
+  } catch (e) {}
   }
 }
 
@@ -622,6 +632,8 @@ function init(){
   bindExamples();
 
   const qp = getQueryParams();
+  // stash deep-link desired pool for later option selection
+  window.__sellImpactDesiredPool = qp.pool || "";
   const tokenEl = document.getElementById("tokenAddr");
   const amtEl = document.getElementById("amountWld");
   if (qp.token && tokenEl) tokenEl.value = qp.token;
