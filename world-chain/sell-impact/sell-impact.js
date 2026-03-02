@@ -569,7 +569,64 @@ async function runSplitUI(){
   }
 }
 
+function getQueryParams(){
+  const sp = new URLSearchParams(location.search);
+  return {
+    token: (sp.get("token") || "").trim(),
+    amt: (sp.get("amt") || "").trim(),
+    pool: (sp.get("pool") || "").trim(),
+  };
+}
+function setQueryParams({ token, amt, pool }){
+  const sp = new URLSearchParams(location.search);
+  if (token !== undefined) {
+    if (String(token).trim()) sp.set("token", String(token).trim());
+    else sp.delete("token");
+  }
+  if (amt !== undefined) {
+    if (String(amt).trim()) sp.set("amt", String(amt).trim());
+    else sp.delete("amt");
+  }
+  if (pool !== undefined) {
+    if (String(pool).trim()) sp.set("pool", String(pool).trim());
+    else sp.delete("pool");
+  }
+  const q = sp.toString();
+  const url = q ? `${location.pathname}?${q}` : location.pathname;
+  history.replaceState(null, "", url);
+}
+function bindExamples(){
+  const wrap = document.getElementById("exExamples");
+  if (!wrap) return;
+  wrap.addEventListener("click", (e) => {
+    const btn = e.target && e.target.closest && e.target.closest("button[data-ex-token]");
+    if (!btn) return;
+    const token = String(btn.getAttribute("data-ex-token") || "").trim();
+    const amt = String(btn.getAttribute("data-ex-amt") || "1000").trim();
+
+    const t = document.getElementById("tokenAddr");
+    const a = document.getElementById("amountWld");
+    if (t) t.value = token;
+    if (a) a.value = amt;
+
+    setQueryParams({ token, amt, pool: "" });
+
+    // pools -> estimate
+    Promise.resolve()
+      .then(() => loadPoolsForToken())
+      .then(() => runEstimate())
+      .catch(() => {});
+  });
+}
 function init(){
+  bindExamples();
+
+  const qp = getQueryParams();
+  const tokenEl = document.getElementById("tokenAddr");
+  const amtEl = document.getElementById("amountWld");
+  if (qp.token && tokenEl) tokenEl.value = qp.token;
+  if (qp.amt && amtEl) amtEl.value = qp.amt;
+
   // Wire buttons (if present)
   $("btnEstimate")?.addEventListener("click", runEstimate);
   $("btnMaxUnder")?.addEventListener("click", runMaxUnderUI);
@@ -585,7 +642,13 @@ function init(){
   $("tokenAddr")?.addEventListener("input", scheduleReloadPools);
   $("tokenAddr")?.addEventListener("change", () => { loadPoolsForToken().then(()=>runEstimate()).catch(()=>{}); });
 
-  $("poolSel")?.addEventListener("change", () => runEstimate().catch(()=>{}));
+  $("poolSel")?.addEventListener("change", () => {
+  const token = String($("tokenAddr")?.value || "").trim();
+  const amt = String($("amountWld")?.value || "").trim();
+  const pool = String($("poolSel")?.value || "").trim();
+  if (token) setQueryParams({ token, amt, pool });
+  runEstimate().catch(()=>{});
+});
 
   // initial: if token already present, load + estimate
   if (String($("tokenAddr")?.value || "").trim()){
@@ -593,6 +656,16 @@ function init(){
   } else {
     // show instruction
     setErr("Enter token address to load pools.");
+  }
+
+  /* deep-link boot */
+  if (qp.token) {
+    loadPoolsForToken()
+      .then(() => {
+        if (qp.pool && $("poolSel")) $("poolSel").value = qp.pool;
+      })
+      .then(() => runEstimate())
+      .catch(() => {});
   }
 }
 
