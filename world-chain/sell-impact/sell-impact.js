@@ -39,6 +39,12 @@ const QUOTE_TTL_MS = 8_000;
 let lastFailAt = 0;
 let failCount = 0;
 let tokenInputTimer = null;
+let loadPoolsSeq = 0;
+let estimateSeq = 0;
+let pendingEstimateCount = 0;
+let pendingPoolsCount = 0;
+
+const FETCH_TIMEOUT_MS = 15_000;
 
 function $(id){ return document.getElementById(id); }
 function num(x){
@@ -56,6 +62,15 @@ function fmtPct(frac){
   return (p < 1 ? p.toFixed(2) : p.toFixed(1)) + "%";
 }
 function setErr(msg){ const e = $("err"); if (e) e.textContent = msg || ""; }
+function setBusy(type, busy){
+  if (type === "estimate"){
+    pendingEstimateCount = Math.max(0, pendingEstimateCount + (busy ? 1 : -1));
+  }
+  if (type === "pools"){
+    pendingPoolsCount = Math.max(0, pendingPoolsCount + (busy ? 1 : -1));
+  }
+  setButtonsDisabled((pendingEstimateCount + pendingPoolsCount) > 0);
+}
 
 function cacheGet(key){
   try{
@@ -73,12 +88,28 @@ function cacheSet(key, val, ttlMs){
 }
 async function sleep(ms){ return new Promise(r => setTimeout(r, ms)); }
 
-async function fetchJson(url){
+async function fetchJson(url, { signal } = {}){
   const now = Date.now();
   if (failCount > 0 && (now - lastFailAt) < Math.min(2500, 500 * failCount)){
     await sleep(Math.min(2500, 500 * failCount));
   }
-  const res = await fetch(url, { headers: { "Accept": GT_ACCEPT } });
+  const ctl = new AbortController();
+  const timeout = setTimeout(() => ctl.abort(new Error(`Request timeout after ${FETCH_TIMEOUT_MS}ms`)), FETCH_TIMEOUT_MS);
+  const onAbort = () => ctl.abort(signal.reason || new Error("Aborted"));
+  if (signal) signal.addEventListener("abort", onAbort, { once: true });
+
+  let res;
+  try {
+    res = await fetch(url, { headers: { "Accept": GT_ACCEPT }, signal: ctl.signal });
+  } catch (e) {
+    if (ctl.signal.aborted){
+      throw new Error(signal?.aborted ? "Request aborted (stale operation)" : `Request timeout after ${FETCH_TIMEOUT_MS}ms`);
+    }
+    throw e;
+  } finally {
+    clearTimeout(timeout);
+    if (signal) signal.removeEventListener("abort", onAbort);
+  }
   if (!res.ok){
     lastFailAt = Date.now();
     failCount = Math.min(6, failCount + 1);
@@ -140,7 +171,7 @@ function setButtonsDisabled(disabled){
   }
 }
 
-async function listPoolsByToken(tokenAddr){
+async function listPoolsByToken(tokenAddr, { signal } = {}){
   const addr = String(tokenAddr || "").trim().toLowerCase();
   if (!addr.startsWith("0x") || addr.length < 42) throw new Error("Bad token address");
 
@@ -149,7 +180,7 @@ async function listPoolsByToken(tokenAddr){
   if (cached) return cached;
 
   const url = `${GT_BASE}/networks/${NETWORK}/tokens/${addr}/pools`;
-  const j = await fetchJson(url);
+  const j = await fetchJson(url, { signal });
 
   const data = Array.isArray(j?.data) ? j.data : [];
   const pools = data.map(d => {
@@ -398,22 +429,29 @@ function quoteCacheKey(poolAddr, tokenAddr, amt){
 }
 
 async function loadPoolsForToken(){
+  const reqId = ++loadPoolsSeq;
+  setBusy("pools", true);
   try{
     setErr("");
     const addr = $("tokenAddr")?.value || "";
     if (!String(addr).trim()){
-      setPoolOptions([]);
+      if (reqId === loadPoolsSeq) setPoolOptions([]);
       setErr("Enter token address to load pools.");
       return;
     }
     const pools = await listPoolsByToken(addr);
+    if (reqId !== loadPoolsSeq) return;
     setPoolOptions(pools);
     if (!pools.length){
       setErr("No pools found for this token.");
     }
   }catch(e){
+    console.error("loadPoolsForToken failed", e);
+    if (reqId !== loadPoolsSeq) return;
     setPoolOptions([]);
     setErr(`Pool lookup error: ${e.message || String(e)}`);
+  }finally{
+    setBusy("pools", false);
   }
 }
 
@@ -425,8 +463,9 @@ function scheduleReloadPools(){
 }
 
 async function runEstimate(){
+  const reqId = ++estimateSeq;
   setErr("");
-  setButtonsDisabled(true);
+  setBusy("estimate", true);
 
   const tokenAddr = String($("tokenAddr")?.value || "").trim().toLowerCase();
   const amt = Number(String($("amountWld")?.value || "").trim());
@@ -434,17 +473,14 @@ async function runEstimate(){
 
   if (!tokenAddr.startsWith("0x") || tokenAddr.length < 42){
     setErr("Enter a valid token address (0x...).");
-    setButtonsDisabled(false);
     return;
   }
   if (!(amt > 0)){
     setErr("Enter a positive sell amount.");
-    setButtonsDisabled(false);
     return;
   }
   if (!poolAddr){
     setErr("No pool selected.");
-    setButtonsDisabled(false);
     return;
   }
 
@@ -465,6 +501,8 @@ async function runEstimate(){
       return;
     }
 
+    if (reqId !== estimateSeq) return;
+
     const outUsdEl = $("outUsd");
     if (outUsdEl){
       const isUsdLike = /USDC|USD/i.test(q.outSymbol || "");
@@ -483,9 +521,10 @@ async function runEstimate(){
     const dbg = $("debug");
     if (dbg) dbg.textContent = JSON.stringify({ pool, q }, null, 2);
   }catch(e){
+    console.error("runEstimate failed", e);
     setErr(`API error: ${e.message || String(e)}`);
   }finally{
-    setButtonsDisabled(false);
+    setBusy("estimate", false);
   }
 }
 
@@ -625,7 +664,10 @@ function bindExamples(){
     Promise.resolve()
       .then(() => loadPoolsForToken())
       .then(() => runEstimate())
-      .catch(() => {});
+      .catch((err) => {
+        console.error("Examples flow failed", err);
+        setErr(`Examples flow failed: ${err?.message || String(err)}`);
+      });
   });
 }
 function init(){
@@ -662,20 +704,29 @@ function init(){
   const token = String($("tokenAddr")?.value || "").trim();
   const amt = String($("amountWld")?.value || "").trim();
   setQueryParams({ token, amt, pool: "" });
-  loadPoolsForToken().then(()=>runEstimate()).catch(()=>{});
+  loadPoolsForToken().then(()=>runEstimate()).catch((err)=>{
+    console.error("token change flow failed", err);
+    setErr(`Token change failed: ${err?.message || String(err)}`);
+  });
 });
   // amount input: keep URL shareable; clear pool because quote depends on amt
   $("amountWld")?.addEventListener("input", () => {
     const token = String($("tokenAddr")?.value || "").trim();
     const amt = String($("amountWld")?.value || "").trim();
     if (token) setQueryParams({ token, amt, pool: "" });
-    runEstimate().catch(()=>{});
+    runEstimate().catch((err)=>{
+      console.error("amount input estimate failed", err);
+      setErr(`Estimate failed: ${err?.message || String(err)}`);
+    });
   });
   $("amountWld")?.addEventListener("change", () => {
     const token = String($("tokenAddr")?.value || "").trim();
     const amt = String($("amountWld")?.value || "").trim();
     if (token) setQueryParams({ token, amt, pool: "" });
-    runEstimate().catch(()=>{});
+    runEstimate().catch((err)=>{
+      console.error("amount change estimate failed", err);
+      setErr(`Estimate failed: ${err?.message || String(err)}`);
+    });
   });
 
 
@@ -684,12 +735,18 @@ function init(){
   const amt = String($("amountWld")?.value || "").trim();
   const pool = String($("poolSel")?.value || "").trim();
   if (token) setQueryParams({ token, amt, pool });
-  runEstimate().catch(()=>{});
+  runEstimate().catch((err)=>{
+    console.error("pool change estimate failed", err);
+    setErr(`Estimate failed: ${err?.message || String(err)}`);
+  });
 });
 
   // initial: if token already present, load + estimate
   if (String($("tokenAddr")?.value || "").trim()){
-    loadPoolsForToken().then(()=>runEstimate()).catch(()=>{});
+    loadPoolsForToken().then(()=>runEstimate()).catch((err)=>{
+      console.error("initial load flow failed", err);
+      setErr(`Initial load failed: ${err?.message || String(err)}`);
+    });
   } else {
     // show instruction
     setErr("Enter token address to load pools.");
@@ -702,7 +759,10 @@ function init(){
         if (qp.pool && $("poolSel")) $("poolSel").value = qp.pool;
       })
       .then(() => runEstimate())
-      .catch(() => {});
+      .catch((err) => {
+        console.error("deep-link boot failed", err);
+        setErr(`Deep-link boot failed: ${err?.message || String(err)}`);
+      });
   }
 }
 
