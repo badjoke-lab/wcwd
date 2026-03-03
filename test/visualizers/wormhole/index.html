@@ -83,8 +83,8 @@
   <script>
     const shell = window.VisualizerShell.createShell({
       title: 'WORMHOLE',
-      description: 'Inflow/outflow visualizer shell for monitoring directional movement over time.',
-      hint: '吸い込み＝流入 / 噴出＝流出。太いほど大口。',
+      description: 'Approximate inflow/outflow shell using free-tier sampled bridge activity.',
+      hint: '吸い込み＝流入 / 噴出＝流出。free-tier sampling / approximate. Not accounting-grade.',
       state: { kind: 'empty', message: 'Waiting for first payload.' }
     });
     window.WormholeDemo.bootstrap(shell);
