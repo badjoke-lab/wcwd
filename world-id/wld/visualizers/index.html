@@ -3,12 +3,13 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>WCWD — World ID Hub</title>
-  <meta name="description" content="World ID builder hub for wizard, debugger, and playground tools." />
+  <title>WCWD — WLD Visualizers Hub</title>
+  <meta name="description" content="WLD Visualizers hub for Metro Map, Human vs Bot Flow, Planet System, and Wormhole." />
   <link rel="icon" href="/favicon.ico" sizes="any" />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="/assets/common.css" />
   <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="/world-id/wld/visualizers/style.css" />
 <!-- WCWD:HEAD:GA4:BEGIN -->
 <!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-0D84H0D66W"></script>
@@ -36,34 +37,40 @@
 </header>
 <!-- WCWD:HEADER:END -->
   <main class="container">
-    <h1>World ID Hub</h1>
-    <p class="muted">Builder-focused entry point for integration, debugging, and request testing flows.</p>
+    <h1>WLD Visualizers Hub</h1>
+    <p class="muted">Entry point for four visualizer concepts. The detailed rendering layer will be implemented in follow-up pull requests.</p>
 
-    <section class="card">
-      <p class="card-title">Wizard</p>
-      <p class="muted small">For building integration scaffolds with frontend/backend snippets, env templates, and setup checklist guidance.</p>
-      <p><a class="btn" href="/world-id/wizard/">Open Wizard</a></p>
+    <section class="visualizer-grid" aria-label="WLD visualizer list">
+      <article class="visualizer-card">
+        <span class="visualizer-badge">WLD-V1</span>
+        <h2>METRO MAP</h2>
+        <p class="muted small">Route-oriented overview for following representative movement paths.</p>
+        <a class="btn secondary" href="/world-id/wld/visualizers/metro/">Open</a>
+      </article>
+
+      <article class="visualizer-card">
+        <span class="visualizer-badge">WLD-V2</span>
+        <h2>Human vs Bot Flow</h2>
+        <p class="muted small">Trend-focused view to compare flow patterns in a compact timeline.</p>
+        <a class="btn secondary" href="/world-id/wld/visualizers/human-vs-bot/">Open</a>
+      </article>
+
+      <article class="visualizer-card">
+        <span class="visualizer-badge">WLD-V3</span>
+        <h2>PLANET SYSTEM</h2>
+        <p class="muted small">Ecosystem-style layout to inspect the balance of related activity groups.</p>
+        <a class="btn secondary" href="/world-id/wld/visualizers/planet/">Open</a>
+      </article>
+
+      <article class="visualizer-card">
+        <span class="visualizer-badge">WLD-V4</span>
+        <h2>WORMHOLE</h2>
+        <p class="muted small">Inflow and outflow perspective for observing directional movement volume.</p>
+        <a class="btn secondary" href="/world-id/wld/visualizers/wormhole/">Open</a>
+      </article>
     </section>
 
-    <section class="card">
-      <p class="card-title">Debugger</p>
-      <p class="muted small">For integration debugging: inspect proof payloads, run validations, and view categorized diagnosis output.</p>
-      <p><a class="btn" href="/world-id/debugger/">Open Debugger</a></p>
-    </section>
-
-    <section class="card">
-      <p class="card-title">Playground</p>
-      <p class="muted small">For testing verifier endpoints: create curl/fetch requests and evaluate request/response behavior including CORS constraints.</p>
-      <p><a class="btn" href="/world-id/playground/">Open Playground</a></p>
-    </section>
-
-    <section class="card">
-      <p class="card-title">WLD Visualizers</p>
-      <p class="muted small">For exploring concept visualizers (Metro Map, Human vs Bot Flow, Planet System, Wormhole) from a single entry point.</p>
-      <p><a class="btn" href="/world-id/wld/visualizers/">Open Visualizers Hub</a></p>
-    </section>
-
-    <p><a href="/">Back to Home</a></p>
+    <p><a href="/world-id/">Back to World ID Hub</a></p>
   </main>
 <!-- WCWD:FOOTER:BEGIN -->
 <footer class="footer">
