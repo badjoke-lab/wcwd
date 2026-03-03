@@ -1,0 +1,91 @@
+.visualizer-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.visualizer-card {
+  border: 1px solid #e5e5e5;
+  border-radius: 14px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 180px;
+}
+
+.visualizer-card h2 {
+  font-size: 16px;
+  margin: 0;
+}
+
+.visualizer-badge {
+  display: inline-flex;
+  align-self: flex-start;
+  border: 1px solid #cfcfcf;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #444;
+}
+
+.visualizer-card .btn {
+  margin-top: auto;
+  width: 100%;
+  text-align: center;
+}
+
+.visualizer-shell {
+  border: 1px solid #e5e5e5;
+  border-radius: 14px;
+  padding: 16px;
+}
+
+.visualizer-shell-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.visualizer-shell-header h1 {
+  margin: 0;
+}
+
+.visualizer-shell-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #444;
+  border: 1px solid #d9d9d9;
+  border-radius: 999px;
+  padding: 6px 10px;
+}
+
+.visualizer-shell-toggle input {
+  accent-color: #111;
+}
+
+.visualizer-shell-canvas {
+  margin-top: 12px;
+  border: 1px dashed #d9d9d9;
+  border-radius: 12px;
+  min-height: 200px;
+  padding: 14px;
+  background: #fcfcfc;
+}
+
+.visualizer-shell-footnote {
+  margin-top: 12px;
+  border: 1px solid #efefef;
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 12px;
+  color: #555;
+  background: #fff;
+}

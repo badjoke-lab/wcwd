@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>WCWD — Donate</title>
-  <meta name="description" content="Support WCWD development." />
+  <title>WCWD — Test</title>
+  <meta name="description" content="Temporary test area for experimental WCWD pages." />
   <link rel="icon" href="/favicon.ico" sizes="any" />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="/assets/common.css" />
@@ -37,25 +37,13 @@
 </header>
 <!-- WCWD:HEADER:END -->
   <main class="container">
-    <h1>Donate</h1>
-    <p>
-      If WCWD helps your development, research, or daily tracking flow, donations help keep it maintained and expanded.
-      Support is optional, but every contribution helps cover time and operational costs.
-    </p>
-    <p>
-      For other support options or questions, please use the
-      <a target="_blank" rel="noopener noreferrer" href="https://docs.google.com/forms/d/e/1FAIpQLScdv3WFVHmQO_mz-p4_HJv1RyJItghrG6A0SGQ5ec4R2NBNOw/viewform?usp=pp_url&amp;entry.148248220=WCWD">Contact form</a>.
-    </p>
-
-    <section class="card">
-      <p class="card-title">Wallet</p>
-      <p><strong>WLD (World Chain)</strong></p>
-      <p id="walletAddress" class="muted" style="font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;">0x6c2933f6b47ff7d6db10c789f45db9622f973778</p>
-      <div class="row">
-        <button id="copyBtn" class="btn" type="button">Copy</button>
-        <span id="copyStatus" class="muted small" aria-live="polite"></span>
-      </div>
-    </section>
+    <h1>Test</h1>
+    <p class="muted">Temporary area for validation pages. Additional test entries may be added over time.</p>
+    <article class="card">
+      <h2>WLD Visualizers (Hub)</h2>
+      <p class="muted small">Concept visualizer entry point for Metro, Human vs Bot Flow, Planet System, and Wormhole.</p>
+      <p><a class="btn secondary" href="/test/visualizers/">Open Hub</a></p>
+    </article>
   </main>
 <!-- WCWD:FOOTER:BEGIN -->
 <footer class="footer">
@@ -90,26 +78,5 @@
 </footer>
 <!-- WCWD:FOOTER:END -->
   <script src="/assets/common.js"></script>
-  <script>
-    (function () {
-      const address = '0x6c2933f6b47ff7d6db10c789f45db9622f973778';
-      const copyBtn = document.getElementById('copyBtn');
-      const copyStatus = document.getElementById('copyStatus');
-      let timer;
-
-      copyBtn?.addEventListener('click', async function () {
-        try {
-          await navigator.clipboard.writeText(address);
-          copyStatus.textContent = 'Copied';
-          clearTimeout(timer);
-          timer = setTimeout(function () {
-            copyStatus.textContent = '';
-          }, 1500);
-        } catch (err) {
-          copyStatus.textContent = 'Copy failed';
-        }
-      });
-    })();
-  </script>
 </body>
 </html>
