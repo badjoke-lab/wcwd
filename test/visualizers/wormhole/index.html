@@ -39,10 +39,7 @@
 <!-- WCWD:HEADER:END -->
   <main class="container">
     <div data-visualizer-shell></div>
-    <div data-visualizer-content>
-      <p><strong>Coming soon.</strong></p>
-      <p class="muted small">Canvas rendering and data-driven visualization will be added in a follow-up PR.</p>
-    </div>
+    <div data-visualizer-content></div>
     <p><a href="/test/visualizers/">Back to WLD Visualizers Hub</a></p>
   </main>
 <!-- WCWD:FOOTER:BEGIN -->
@@ -79,11 +76,15 @@
 <!-- WCWD:FOOTER:END -->
   <script src="/assets/common.js"></script>
   <script src="/test/visualizers/shell.js"></script>
+  <script src="/test/visualizers/perf-governor.js"></script>
+  <script src="/test/visualizers/viz-canvas.js"></script>
+  <script src="/test/visualizers/wormhole/demo.js"></script>
   <script>
     window.VisualizerShell.createShell({
       title: 'WORMHOLE',
       description: 'Inflow/outflow visualizer shell for monitoring directional movement over time.'
     });
+    window.WormholeDemo.bootstrap();
   </script>
 </body>
 </html>
