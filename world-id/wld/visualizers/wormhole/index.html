@@ -3,12 +3,13 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>WCWD — World ID Hub</title>
-  <meta name="description" content="World ID builder hub for wizard, debugger, and playground tools." />
+  <title>WCWD — WORMHOLE</title>
+  <meta name="description" content="WLD Visualizer page shell." />
   <link rel="icon" href="/favicon.ico" sizes="any" />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="/assets/common.css" />
   <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="/world-id/wld/visualizers/style.css" />
 <!-- WCWD:HEAD:GA4:BEGIN -->
 <!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-0D84H0D66W"></script>
@@ -36,34 +37,12 @@
 </header>
 <!-- WCWD:HEADER:END -->
   <main class="container">
-    <h1>World ID Hub</h1>
-    <p class="muted">Builder-focused entry point for integration, debugging, and request testing flows.</p>
-
-    <section class="card">
-      <p class="card-title">Wizard</p>
-      <p class="muted small">For building integration scaffolds with frontend/backend snippets, env templates, and setup checklist guidance.</p>
-      <p><a class="btn" href="/world-id/wizard/">Open Wizard</a></p>
-    </section>
-
-    <section class="card">
-      <p class="card-title">Debugger</p>
-      <p class="muted small">For integration debugging: inspect proof payloads, run validations, and view categorized diagnosis output.</p>
-      <p><a class="btn" href="/world-id/debugger/">Open Debugger</a></p>
-    </section>
-
-    <section class="card">
-      <p class="card-title">Playground</p>
-      <p class="muted small">For testing verifier endpoints: create curl/fetch requests and evaluate request/response behavior including CORS constraints.</p>
-      <p><a class="btn" href="/world-id/playground/">Open Playground</a></p>
-    </section>
-
-    <section class="card">
-      <p class="card-title">WLD Visualizers</p>
-      <p class="muted small">For exploring concept visualizers (Metro Map, Human vs Bot Flow, Planet System, Wormhole) from a single entry point.</p>
-      <p><a class="btn" href="/world-id/wld/visualizers/">Open Visualizers Hub</a></p>
-    </section>
-
-    <p><a href="/">Back to Home</a></p>
+    <div data-visualizer-shell></div>
+    <div data-visualizer-content>
+      <p><strong>Coming soon.</strong></p>
+      <p class="muted small">Canvas rendering and data-driven visualization will be added in a follow-up PR.</p>
+    </div>
+    <p><a href="/world-id/wld/visualizers/">Back to WLD Visualizers Hub</a></p>
   </main>
 <!-- WCWD:FOOTER:BEGIN -->
 <footer class="footer">
@@ -98,5 +77,12 @@
 </footer>
 <!-- WCWD:FOOTER:END -->
   <script src="/assets/common.js"></script>
+  <script src="/world-id/wld/visualizers/shell.js"></script>
+  <script>
+    window.VisualizerShell.createShell({
+      title: 'WORMHOLE',
+      description: 'Inflow/outflow visualizer shell for monitoring directional movement over time.'
+    });
+  </script>
 </body>
 </html>
