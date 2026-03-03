@@ -44,6 +44,9 @@
     toggleInput.addEventListener('change', function () {
       const next = withLiteQuery(toggleInput.checked);
       window.history.replaceState({}, '', next);
+      window.dispatchEvent(new CustomEvent('visualizer:lite-change', {
+        detail: { isLite: toggleInput.checked }
+      }));
     });
 
     const toggleText = document.createElement('span');
@@ -66,7 +69,40 @@
 
     shell.append(header, canvasRegion, footnote);
     root.appendChild(shell);
+
+    window.dispatchEvent(new CustomEvent('visualizer:lite-change', {
+      detail: { isLite: isLite }
+    }));
+
+    return {
+      isLite: isLite,
+      setLite: function (nextLite) {
+        const resolved = Boolean(nextLite);
+        toggleInput.checked = resolved;
+        const next = withLiteQuery(resolved);
+        window.history.replaceState({}, '', next);
+        window.dispatchEvent(new CustomEvent('visualizer:lite-change', {
+          detail: { isLite: resolved }
+        }));
+      }
+    };
   }
 
-  window.VisualizerShell = { createShell };
+  window.VisualizerShell = {
+    createShell: createShell,
+    isLite: function () {
+      return new URLSearchParams(window.location.search).get('lite') === '1';
+    },
+    onLiteChange: function (handler) {
+      const listener = function (event) {
+        if (typeof handler === 'function') {
+          handler(Boolean(event.detail && event.detail.isLite));
+        }
+      };
+      window.addEventListener('visualizer:lite-change', listener);
+      return function () {
+        window.removeEventListener('visualizer:lite-change', listener);
+      };
+    }
+  };
 })();
