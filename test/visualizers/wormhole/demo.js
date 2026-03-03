@@ -57,6 +57,8 @@
       whalesIn: 0,
       whalesOut: 0,
       samples: 0,
+      windowSec: 0,
+      source: 'n/a',
       isStale: false,
       lastUpdated: null,
       ttlMs: 2500,
@@ -73,7 +75,8 @@
           { label: 'In', value: asRatioText(metrics.inFlow) },
           { label: 'Out', value: asRatioText(metrics.outFlow) },
           { label: 'Whale In / Out', value: metrics.whalesIn + ' / ' + metrics.whalesOut },
-          { label: 'Samples', value: String(metrics.samples), sub: metrics.lastUpdated ? 'Updated' : 'Waiting' }
+          { label: 'Samples', value: String(metrics.samples), sub: metrics.windowSec ? ('Window ' + metrics.windowSec + 's') : 'Waiting' },
+          { label: 'Source', value: metrics.source, sub: metrics.lastUpdated ? 'Updated' : 'Waiting' }
         ]
       });
 
@@ -86,7 +89,7 @@
         ]
       });
 
-      shellController.setHint('吸い込み＝流入 / 噴出＝流出。太いほど大口。');
+      shellController.setHint('吸い込み＝流入 / 噴出＝流出。free-tier sampling / approximate, Not accounting-grade.');
 
       if (state === 'error') {
         shellController.setState({
@@ -134,6 +137,8 @@
         metrics.whalesIn = Math.max(0, Number(result.data.whalesIn) || 0);
         metrics.whalesOut = Math.max(0, Number(result.data.whalesOut) || 0);
         metrics.samples = Math.max(0, Number(result.data.samples) || 0);
+        metrics.windowSec = Math.max(0, Number(result.data.windowSec) || 0);
+        metrics.source = String(result.data.source || 'unknown');
         metrics.isStale = !!result.isStale;
         metrics.lastUpdated = new Date().toISOString();
         state = 'ok';
@@ -164,7 +169,7 @@
         }
 
         const flowBalance = normalizeMetric(metrics.inFlow + metrics.outFlow);
-        const whalePressure = Math.min(1, (metrics.whalesIn + metrics.whalesOut) / 18);
+        const whalePressure = Math.min(1, (metrics.whalesIn + metrics.whalesOut) / 14);
         const dynamicRatio = 0.2 + flowBalance * 0.7;
         const desiredCount = Math.max(24, Math.floor(governor.getMaxParticles() * dynamicRatio));
 
@@ -182,12 +187,20 @@
         ctx.fillStyle = 'rgba(10, 10, 15, 0.16)';
         ctx.fillRect(0, 0, frameState.width, frameState.height);
 
-        const tunnelWidth = 8 + flowBalance * 18;
+        const tunnelWidth = 8 + flowBalance * 18 + whalePressure * 8;
         ctx.beginPath();
         ctx.strokeStyle = metrics.isStale ? 'rgba(100, 100, 100, 0.38)' : 'rgba(80, 80, 140, 0.4)';
         ctx.lineWidth = tunnelWidth;
         ctx.arc(centerX, centerY, Math.max(12, tunnelWidth * 0.9), 0, Math.PI * 2);
         ctx.stroke();
+
+        if (whalePressure > 0.08) {
+          ctx.beginPath();
+          ctx.strokeStyle = metrics.isStale ? 'rgba(110,110,110,0.24)' : 'rgba(190,120,80,0.26)';
+          ctx.lineWidth = 2 + whalePressure * 6;
+          ctx.arc(centerX, centerY, 18 + whalePressure * 28, 0, Math.PI * 2);
+          ctx.stroke();
+        }
 
         const drawCandidates = governor.capParticles(particles) || [];
 
