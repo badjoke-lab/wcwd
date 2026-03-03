@@ -39,10 +39,7 @@
 <!-- WCWD:HEADER:END -->
   <main class="container">
     <div data-visualizer-shell></div>
-    <div data-visualizer-content>
-      <p><strong>Coming soon.</strong></p>
-      <p class="muted small">Canvas rendering and data-driven visualization will be added in a follow-up PR.</p>
-    </div>
+    <div data-visualizer-content></div>
     <p><a href="/test/visualizers/">Back to WLD Visualizers Hub</a></p>
   </main>
 <!-- WCWD:FOOTER:BEGIN -->
@@ -82,7 +79,9 @@
   <script>
     window.VisualizerShell.createShell({
       title: 'Human vs Bot Flow',
-      description: 'Trend-focused visualizer shell for comparing human and bot-like flow behavior.'
+      description: 'Trend-focused visualizer shell for comparing human and bot-like flow behavior.',
+      hint: 'Side-by-side behavior signatures will appear in this frame.',
+      state: { kind: 'empty', message: 'Coming soon. Human/Bot classifier feed is not connected yet.' }
     });
   </script>
 </body>

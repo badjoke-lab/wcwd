@@ -81,11 +81,13 @@
   <script src="/test/visualizers/viz-canvas.js"></script>
   <script src="/test/visualizers/wormhole/demo.js"></script>
   <script>
-    window.VisualizerShell.createShell({
+    const shell = window.VisualizerShell.createShell({
       title: 'WORMHOLE',
-      description: 'Inflow/outflow visualizer shell for monitoring directional movement over time.'
+      description: 'Inflow/outflow visualizer shell for monitoring directional movement over time.',
+      hint: '吸い込み＝流入 / 噴出＝流出。太いほど大口。',
+      state: { kind: 'empty', message: 'Waiting for first payload.' }
     });
-    window.WormholeDemo.bootstrap();
+    window.WormholeDemo.bootstrap(shell);
   </script>
 </body>
 </html>
