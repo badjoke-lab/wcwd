@@ -108,3 +108,18 @@
   color: #4a4a4a;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
 }
+
+.wormhole-status {
+  margin-top: 8px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #8b5a00;
+}
+
+.wormhole-empty {
+  margin-top: 8px;
+  margin-bottom: 0;
+  font-size: 12px;
+  color: #8a8a8a;
+}
