@@ -39,10 +39,7 @@
 <!-- WCWD:HEADER:END -->
   <main class="container">
     <div data-visualizer-shell></div>
-    <div data-visualizer-content>
-      <p><strong>Coming soon.</strong></p>
-      <p class="muted small">Canvas rendering and data-driven visualization will be added in a follow-up PR.</p>
-    </div>
+    <div data-visualizer-content></div>
     <p><a href="/test/visualizers/">Back to WLD Visualizers Hub</a></p>
   </main>
 <!-- WCWD:FOOTER:BEGIN -->
@@ -82,7 +79,9 @@
   <script>
     window.VisualizerShell.createShell({
       title: 'METRO MAP',
-      description: 'Route-focused visualizer shell for tracking representative movement paths.'
+      description: 'Route-focused visualizer shell for tracking representative movement paths.',
+      hint: 'Route density and transfer pressure will be visualized here.',
+      state: { kind: 'empty', message: 'Coming soon. Metro data pipeline is not connected yet.' }
     });
   </script>
 </body>

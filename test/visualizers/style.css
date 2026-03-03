@@ -56,6 +56,12 @@
   margin: 0;
 }
 
+.visualizer-shell-controls {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .visualizer-shell-toggle {
   display: inline-flex;
   align-items: center;
@@ -71,6 +77,10 @@
   accent-color: #111;
 }
 
+.visualizer-shell-top {
+  margin-top: 12px;
+}
+
 .visualizer-shell-canvas {
   margin-top: 12px;
   border: 1px dashed #d9d9d9;
@@ -80,14 +90,176 @@
   background: #fcfcfc;
 }
 
-.visualizer-shell-footnote {
-  margin-top: 12px;
-  border: 1px solid #efefef;
+.visualizer-shell-bottom {
+  margin-top: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.viz-mini-stats {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.viz-mini-stat {
+  border: 1px solid #e8e8e8;
+  border-radius: 10px;
+  background: #fff;
+  padding: 8px 10px;
+  min-width: 110px;
+}
+
+.viz-mini-stat-label,
+.viz-mini-stat-sub {
+  margin: 0;
+  font-size: 11px;
+  color: #666;
+}
+
+.viz-mini-stat-value {
+  margin: 4px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #111;
+}
+
+.viz-state-banner {
+  border: 1px solid #e1e1e1;
   border-radius: 10px;
   padding: 8px 10px;
+  background: #fff;
+}
+
+.viz-state-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.viz-state-badge {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid #cecece;
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.viz-state-text,
+.viz-state-note {
+  margin: 0;
   font-size: 12px;
   color: #555;
+}
+
+.viz-state-note {
+  margin-top: 6px;
+}
+
+.viz-state-banner.is-stale .viz-state-badge {
+  border-style: dashed;
+}
+
+.viz-state-banner.is-error {
+  border-color: #d8c4c4;
+}
+
+.viz-legend {
+  border: 1px solid #ebebeb;
+  border-radius: 10px;
+  padding: 8px 10px;
   background: #fff;
+}
+
+.viz-legend-title {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.viz-legend-list {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 4px;
+}
+
+.viz-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.viz-legend-marker {
+  display: inline-block;
+  width: 16px;
+  height: 8px;
+  border: 1px solid #222;
+}
+
+.viz-legend-marker.is-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 999px;
+}
+
+.viz-legend-marker.is-thin {
+  border-width: 1px;
+}
+
+.viz-legend-marker.is-thick {
+  border-width: 2px;
+}
+
+.viz-legend-marker.is-line {
+  border-left: 0;
+  border-right: 0;
+  height: 0;
+}
+
+.viz-legend-marker.is-in {
+  border-top-width: 3px;
+}
+
+.viz-legend-marker.is-out {
+  border-bottom-width: 3px;
+}
+
+.viz-hint {
+  margin: 0;
+  border: 1px solid #efefef;
+  border-radius: 10px;
+  background: #fff;
+  padding: 8px 10px;
+  font-size: 12px;
+  color: #444;
+}
+
+.viz-debug-panel {
+  border: 1px solid #e8e8e8;
+  border-radius: 10px;
+  background: #fff;
+  padding: 6px 10px;
+  font-size: 11px;
+}
+
+.viz-debug-panel summary {
+  cursor: pointer;
+  font-size: 12px;
+  color: #444;
+}
+
+.viz-debug-panel pre {
+  margin: 6px 0 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
 }
 
 .viz-canvas {
@@ -100,26 +272,4 @@
 .wormhole-canvas-host {
   width: 100%;
   min-height: 320px;
-}
-
-.wormhole-debug {
-  margin-top: 10px;
-  font-size: 12px;
-  color: #4a4a4a;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
-}
-
-.wormhole-status {
-  margin-top: 8px;
-  font-size: 11px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: #8b5a00;
-}
-
-.wormhole-empty {
-  margin-top: 8px;
-  margin-bottom: 0;
-  font-size: 12px;
-  color: #8a8a8a;
 }
