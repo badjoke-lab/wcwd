@@ -1,0 +1,64 @@
+{
+  "updatedAt": "2026-03-05T10:52:05.470Z",
+  "source": {
+    "name": "miniapps.world",
+    "url": "https://www.miniapps.world/",
+    "note": "daily-updated stats"
+  },
+  "apps": [
+    {
+      "slug": "world-pay-wallet",
+      "name": "World Pay Wallet",
+      "rank7d": 1,
+      "rankAll": 2,
+      "value7d": 120000,
+      "valueAll": 1000000,
+      "deltaRank7d": 0,
+      "flags": {
+        "hot": false,
+        "new": false,
+        "drop": false
+      },
+      "category": "finance",
+      "links": {
+        "official": null
+      }
+    },
+    {
+      "slug": "orb-quest-game",
+      "name": "Orb Quest Game",
+      "rank7d": 2,
+      "rankAll": 7,
+      "value7d": 90000,
+      "valueAll": 830000,
+      "deltaRank7d": 0,
+      "flags": {
+        "hot": false,
+        "new": false,
+        "drop": false
+      },
+      "category": "games",
+      "links": {
+        "official": null
+      }
+    },
+    {
+      "slug": "human-chat",
+      "name": "Human Chat",
+      "rank7d": 3,
+      "rankAll": 8,
+      "value7d": 85000,
+      "valueAll": 730000,
+      "deltaRank7d": 0,
+      "flags": {
+        "hot": false,
+        "new": false,
+        "drop": false
+      },
+      "category": "social",
+      "links": {
+        "official": null
+      }
+    }
+  ]
+}
