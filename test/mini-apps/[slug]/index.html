@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WCWD — Mini App Detail (Test)</title>
+  <meta name="description" content="Mini App detail test page with KPIs, trend snapshots, and peer discovery." />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/assets/common.css" />
+  <link rel="stylesheet" href="/style.css" />
+  <style>
+    .head-row { display:flex; justify-content:space-between; gap:12px; flex-wrap:wrap; align-items:flex-start; }
+    .nav-links { display:flex; gap:12px; flex-wrap:wrap; margin:0 0 8px; }
+    .badge { border:1px solid #ddd; border-radius:999px; padding:2px 8px; font-size:11px; font-weight:700; display:inline-block; }
+    .badge.hot { border-color:#ffd1a8; background:#fff6ed; }
+    .badge.new { border-color:#bfe9c7; background:#effcf2; }
+    .badge.drop { border-color:#ffc4c4; background:#fff1f1; }
+    .badge-wrap { display:flex; gap:6px; flex-wrap:wrap; }
+    .kpi-grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap:10px; }
+    .kpi { border:1px solid #ebebeb; border-radius:10px; padding:10px; background:#fff; }
+    .kpi .label { font-size:12px; color:#666; }
+    .kpi .value { font-size:18px; font-weight:700; }
+    .trend-wrap { overflow:auto; }
+    .trend-table th, .trend-table td { border-bottom:1px solid #eee; padding:8px 6px; text-align:left; font-size:13px; }
+    .delta-up { color:#0c6; font-weight:700; }
+    .delta-down { color:#c33; font-weight:700; }
+    .delta-flat { color:#666; }
+    .peer-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:10px; }
+    .peer-list { list-style:none; margin:0; padding:0; display:grid; gap:8px; }
+    .peer-list li { border:1px solid #ececec; border-radius:10px; padding:8px; }
+    .peer-list a { color:inherit; text-decoration:none; }
+    .peer-line { display:flex; gap:8px; justify-content:space-between; align-items:flex-start; }
+    .not-found { border:1px solid #ffd7d7; background:#fff4f4; border-radius:10px; padding:12px; }
+    @media (max-width:720px) {
+      .peer-grid { grid-template-columns:1fr; }
+    }
+  </style>
+</head>
+<body>
+<header class="header">
+  <div class="container header-inner">
+    <a class="brand" href="/">WCWD</a>
+    <nav class="nav" data-site-nav>
+      <a href="/">Home</a>
+      <a href="/world-chain/">World Chain</a>
+      <a href="/world-id/">World ID</a>
+      <a href="/test/" aria-current="page">Test</a>
+      <a href="/about/">About</a>
+      <a href="/donate/">Donate</a>
+    </nav>
+  </div>
+</header>
+
+<main class="container">
+  <div class="head-row">
+    <div>
+      <p class="nav-links">
+        <a href="/test/mini-apps/all">← Back to All</a>
+        <a href="/test/mini-apps/">← Back to Radar</a>
+      </p>
+      <h1 id="title">Mini App Detail</h1>
+      <div id="headerBadges" class="badge-wrap"></div>
+    </div>
+    <p><a id="officialLink" href="#" target="_blank" rel="noopener noreferrer" hidden>Official link ↗</a></p>
+  </div>
+
+  <section id="stateMount"></section>
+
+  <section class="card" id="kpiSection">
+    <h2>KPIs</h2>
+    <div class="kpi-grid" id="kpiGrid"></div>
+  </section>
+
+  <section class="card" id="trendSection">
+    <h2>Trend (7–30d snapshots)</h2>
+    <div class="trend-wrap">
+      <table class="trend-table" aria-label="Trend table">
+        <thead><tr><th>Date</th><th>rank7d</th><th>value7d</th></tr></thead>
+        <tbody id="trendBody"></tbody>
+      </table>
+    </div>
+    <p class="small muted" id="trendHint"></p>
+  </section>
+
+  <section class="card" id="peersSection">
+    <h2>Peers</h2>
+    <div class="peer-grid">
+      <article>
+        <h3>Nearby ranks (±5)</h3>
+        <ul class="peer-list" id="nearbyList"></ul>
+      </article>
+      <article>
+        <h3>Same category top</h3>
+        <ul class="peer-list" id="categoryList"></ul>
+      </article>
+      <article>
+        <h3>Also rising</h3>
+        <ul class="peer-list" id="risingList"></ul>
+      </article>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>About / Disclaimer</h2>
+    <ul>
+      <li>Unofficial dashboard for Mini Apps rankings.</li>
+      <li>Data source: miniapps.world (daily snapshot pipeline).</li>
+      <li>Update frequency: daily.</li>
+      <li>Metrics may be missing and can change as snapshots accumulate.</li>
+    </ul>
+  </section>
+</main>
+
+<script src="/assets/common.js"></script>
+<script src="/test/mini-apps/[slug]/app.js"></script>
+</body>
+</html>

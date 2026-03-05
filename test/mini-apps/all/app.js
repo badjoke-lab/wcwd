@@ -184,7 +184,7 @@
           <td class="${deltaClass(app.deltaRank7d)}">${deltaText(app.deltaRank7d)}</td>
           <td>${badgeHTML(app)}</td>
           <td>${safe(app.category || "other")}</td>
-          <td><span class="actions-disabled">Coming in PR4</span></td>
+          <td><a href="/test/mini-apps/${encodeURIComponent(app.slug || "")}">Detail</a></td>
         `;
         body.appendChild(tr);
       }
