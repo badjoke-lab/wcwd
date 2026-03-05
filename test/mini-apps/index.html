@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WCWD — Mini Apps Radar (Test)</title>
+  <meta name="description" content="Mini Apps Radar test hub with top rankings, signals, categories, digest, and worldchain pulse." />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/assets/common.css" />
+  <link rel="stylesheet" href="/style.css" />
+  <style>
+    .hub-header { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; flex-wrap: wrap; }
+    .updated { font-size: 13px; color: #666; margin-top: 22px; }
+    .badge { border: 1px solid #ddd; border-radius: 999px; padding: 2px 8px; font-size: 11px; font-weight: 700; display: inline-block; }
+    .badge.hot { border-color: #ffd1a8; background: #fff6ed; }
+    .badge.new { border-color: #bfe9c7; background: #effcf2; }
+    .badge.drop { border-color: #ffc4c4; background: #fff1f1; }
+    .delta-up { color: #0c6; font-weight: 700; }
+    .delta-down { color: #c33; font-weight: 700; }
+    .delta-flat { color: #666; }
+    .pill-row { display: flex; flex-wrap: wrap; gap: 8px; }
+    .pill { border-radius: 999px; border: 1px solid #d6d6d6; background: #fff; color: #333; padding: 6px 10px; font-size: 12px; cursor: pointer; }
+    .pill[aria-pressed="true"] { border-color: #111; color: #111; font-weight: 700; }
+    .signal-list { margin: 0; padding-left: 18px; }
+    .signal-list li + li { margin-top: 6px; }
+    .digest-list { margin: 8px 0 0; padding-left: 18px; }
+    .table-wrap table th,
+    .table-wrap table td { border-bottom: 1px solid #eee; padding: 8px 6px; font-size: 13px; text-align: left; }
+    @media (max-width: 720px) {
+      .updated { margin-top: 0; }
+      .hub-header h1 { margin-bottom: 6px; }
+    }
+  </style>
+<!-- WCWD:HEAD:GA4:BEGIN -->
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-0D84H0D66W"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-0D84H0D66W');
+</script>
+<!-- WCWD:HEAD:GA4:END -->
+</head>
+<body>
+<!-- WCWD:HEADER:BEGIN -->
+<header class="header">
+  <div class="container header-inner">
+    <a class="brand" href="/">WCWD</a>
+    <nav class="nav" data-site-nav>
+      <a href="/">Home</a>
+      <a href="/world-chain/">World Chain</a>
+      <a href="/world-id/">World ID</a>
+      <a href="/test/" aria-current="page">Test</a>
+      <a href="/about/">About</a>
+      <a href="/donate/">Donate</a>
+    </nav>
+  </div>
+</header>
+<!-- WCWD:HEADER:END -->
+
+<main class="container">
+  <div class="hub-header">
+    <div>
+      <h1>Mini Apps Radar (Test)</h1>
+      <p class="muted">Daily-updated rankings &amp; trends (Unofficial)</p>
+    </div>
+    <p class="updated" id="updatedAt">Data updated: Unknown</p>
+  </div>
+
+  <section id="stateMount"></section>
+
+  <section class="card">
+    <h2>Top Now</h2>
+    <p class="card-sub">Top 20 (7d)</p>
+    <div class="table-wrap">
+      <table aria-label="Top mini apps table">
+        <thead>
+          <tr>
+            <th>rank7d</th>
+            <th>name</th>
+            <th>value7d</th>
+            <th>valueAll</th>
+            <th>deltaRank7d</th>
+          </tr>
+        </thead>
+        <tbody id="topNowBody"></tbody>
+      </table>
+    </div>
+    <div class="row" style="margin-top:10px;">
+      <button class="btn secondary" type="button" disabled>View all (Coming in PR3)</button>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Signals</h2>
+    <div class="grid">
+      <article class="col-4">
+        <h3>Risers</h3>
+        <ul class="signal-list" id="risersList"></ul>
+      </article>
+      <article class="col-4">
+        <h3>Fallers</h3>
+        <ul class="signal-list" id="fallersList"></ul>
+      </article>
+      <article class="col-4">
+        <h3>New</h3>
+        <ul class="signal-list" id="newList"></ul>
+      </article>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Categories</h2>
+    <p class="card-sub">Filter by category and view Top 10</p>
+    <div class="pill-row" id="categoryPills"></div>
+    <div class="table-wrap" style="margin-top:10px;">
+      <table aria-label="Category top table">
+        <thead>
+          <tr><th>rank7d</th><th>name</th><th>value7d</th><th>delta</th></tr>
+        </thead>
+        <tbody id="categoryBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>Weekly Digest</h2>
+    <ul class="digest-list" id="digestList"></ul>
+  </section>
+
+  <section class="card">
+    <h2>Worldchain Pulse</h2>
+    <p class="small muted" id="worldchainPulse">Loading pulse…</p>
+    <p class="small"><a href="/infra/status/">Open infra monitor</a> / <a href="/world-chain/">World Chain hub</a></p>
+  </section>
+</main>
+
+<!-- WCWD:FOOTER:BEGIN -->
+<footer class="footer">
+  <div class="container">
+    <div class="grid">
+      <section class="col-3">
+        <p class="card-title">Site</p>
+        <p><a href="/">Home</a></p>
+        <p><a href="/world-chain/">World Chain</a></p>
+        <p><a href="/world-id/">World ID</a></p>
+        <p><a href="/about/">About</a></p>
+        <p><a href="/donate/">Donate</a></p>
+      </section>
+      <section class="col-3">
+        <p class="card-title">Legal</p>
+        <p><a href="/about/#disclaimer">Disclaimer</a></p>
+        <p><a href="/about/#privacy">Privacy</a></p>
+        <p><a href="https://docs.google.com/forms/d/e/1FAIpQLScdv3WFVHmQO_mz-p4_HJv1RyJItghrG6A0SGQ5ec4R2NBNOw/viewform?usp=pp_url&amp;entry.148248220=WCWD" target="_blank" rel="noopener noreferrer">Contact</a></p>
+      </section>
+      <section class="col-3">
+        <p class="card-title">External</p>
+        <p><a href="https://github.com/badjoke-lab/wcwd" target="_blank" rel="noopener noreferrer">GitHub</a></p>
+        <p><a href="https://x.com/badjoke_lab" target="_blank" rel="noopener noreferrer">X</a></p>
+      </section>
+      <section class="col-3">
+        <p class="card-title">Signature</p>
+        <p>Built by BadJoke-Lab</p>
+        <p>© 2026 WCWD</p>
+      </section>
+    </div>
+  </div>
+</footer>
+<!-- WCWD:FOOTER:END -->
+<script src="/assets/common.js"></script>
+<script src="/test/mini-apps/app.js"></script>
+</body>
+</html>
