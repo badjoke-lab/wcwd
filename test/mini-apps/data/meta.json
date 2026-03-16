@@ -1,6 +1,6 @@
 {
   "ok": true,
-  "updatedAt": "2026-03-15T03:48:32.938Z",
+  "updatedAt": "2026-03-16T03:52:48.589Z",
   "source": {
     "name": "miniapps.world",
     "url": "https://www.miniapps.world/",
@@ -9,6 +9,6 @@
   "version": "1.0.0",
   "counts": {
     "apps": 630,
-    "snapshots": 11
+    "snapshots": 12
   }
 }
