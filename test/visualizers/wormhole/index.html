@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>WCWD — WORMHOLE</title>
+  <title>WCWD — WORLDCHAIN BRIDGE ACTIVITY</title>
   <meta name="description" content="WLD Visualizer page shell." />
   <link rel="icon" href="/favicon.ico" sizes="any" />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
@@ -79,12 +79,12 @@
   <script src="/test/visualizers/perf-governor.js"></script>
   <script src="/test/visualizers/data-layer.js"></script>
   <script src="/test/visualizers/viz-canvas.js"></script>
-  <script src="/test/visualizers/wormhole/demo.js"></script>
+  <script src="/test/visualizers/wormhole/demo-svg.js"></script>
   <script>
     const shell = window.VisualizerShell.createShell({
-      title: 'WORMHOLE',
-      description: 'Flow sketch of absorbed (in) / emitted (out) bridge activity with whale emphasis.',
-      hint: 'Dots into center = IN, streaks out = OUT; thicker marks imply larger moves. Free-tier sampling, approximate only.',
+      title: 'WORLDCHAIN BRIDGE ACTIVITY',
+      description: 'World Chain bridge activity. If bridge addresses are not configured, the view falls back to recent chain activity only.',
+      hint: 'Select bridge addresses to enable IN/OUT. Without bridge selection, the view shows World Chain activity only.',
       state: { kind: 'empty', message: 'Waiting for first payload.' }
     });
     window.WormholeDemo.bootstrap(shell);
