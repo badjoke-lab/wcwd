@@ -8,6 +8,7 @@
  * API:
  * - GET  /api/latest
  * - GET  /api/list?limit=96
+ * - GET  /api/summary?limit=96&event_limit=20
  * - GET  /api/health
  * - GET  /api/version
  * - GET  /api/events?limit=50
@@ -164,7 +165,6 @@ function buildRawPoints(snapshots, metric) {
   return points.map(({ ts, v }) => ({ ts, v }));
 }
 
-// step=1h is fixed to hourly average (no "last") to reduce noise for monitoring.
 function buildHourlyPoints(snapshots, metric) {
   const buckets = new Map();
   for (const snap of snapshots) {
@@ -300,6 +300,63 @@ function buildLatestMetrics(latest) {
     gas_gwei: latest?.gas_gwei ?? null,
     token_pct: latest?.token_pct ?? null,
   };
+}
+
+function computeFreshness(latest, intervalMin = INTERVAL_MIN) {
+  if (!latest || typeof latest !== "object" || typeof latest.ts !== "string") {
+    return {
+      ok: false,
+      state: "empty",
+      age_ms: null,
+      age_min: null,
+      expected_interval_min: intervalMin,
+      snapshot_ts: null,
+    };
+  }
+  const tsMs = Date.parse(latest.ts);
+  if (!Number.isFinite(tsMs)) {
+    return {
+      ok: false,
+      state: "invalid",
+      age_ms: null,
+      age_min: null,
+      expected_interval_min: intervalMin,
+      snapshot_ts: latest.ts,
+    };
+  }
+  const ageMs = Math.max(0, Date.now() - tsMs);
+  const delayedMs = intervalMin * 2 * 60 * 1000;
+  const staleMs = intervalMin * 4 * 60 * 1000;
+  let state = "fresh";
+  if (ageMs > staleMs) state = "stale";
+  else if (ageMs > delayedMs) state = "delayed";
+  return {
+    ok: true,
+    state,
+    age_ms: ageMs,
+    age_min: Number((ageMs / 60000).toFixed(2)),
+    expected_interval_min: intervalMin,
+    snapshot_ts: latest.ts,
+  };
+}
+
+function buildDashboardState({ latest, health, freshness }) {
+  if (latest?.summary_ok === false) return "degraded";
+  if (freshness?.state === "stale") return "stale";
+  if (freshness?.state === "delayed") return "delayed";
+  if (health?.level === "WARN" || health?.level === "ALERT") return "degraded";
+  return "ok";
+}
+
+function buildDegradedReasons({ latest, health, freshness }) {
+  const reasons = [];
+  if (latest?.summary_ok === false) reasons.push("latest_summary_fetch_failed");
+  if (freshness?.state === "delayed") reasons.push("history_delayed");
+  if (freshness?.state === "stale") reasons.push("history_stale");
+  if (health?.level === "WARN" || health?.level === "ALERT") {
+    reasons.push(`health_${String(health.level).toLowerCase()}`);
+  }
+  return reasons;
 }
 
 function buildHealthEvent(type, level, msg, latest, ts) {
@@ -587,6 +644,43 @@ async function safeLoadJson(env, key) {
   }
 }
 
+async function buildSummaryPayload(env, limit, eventLimit) {
+  const history = await getRecentList(env, limit);
+  const latest = history[history.length - 1] || (await safeLoadLatest(env));
+  const healthRaw = await safeLoadJson(env, HEALTH_KEY);
+  const health = healthRaw ? { ok: true, ...healthRaw } : null;
+  const allEvents = await safeLoadEvents(env);
+  const events = allEvents.length > eventLimit ? allEvents.slice(allEvents.length - eventLimit) : allEvents;
+  const dailyRaw = await safeLoadJson(env, DAILY_LATEST_KEY);
+  const daily = dailyRaw ? { ok: true, ...dailyRaw } : null;
+  const freshness = computeFreshness(latest, INTERVAL_MIN);
+  const dashboardState = buildDashboardState({ latest, health: healthRaw, freshness });
+  const degradedReasons = buildDegradedReasons({ latest, health: healthRaw, freshness });
+  const retention = await safeLoadJson(env, "meta:retention");
+  const generatedAt = new Date().toISOString();
+
+  return {
+    ok: true,
+    generated_at: generatedAt,
+    interval_min: INTERVAL_MIN,
+    latest: latest ?? null,
+    history,
+    health,
+    events,
+    daily,
+    version: {
+      ok: true,
+      worker_version: env.WORKER_VERSION || UNKNOWN_VERSION,
+      deployed_at: env.DEPLOYED_AT || generatedAt,
+    },
+    freshness,
+    dashboard_state: dashboardState,
+    degraded: dashboardState !== "ok",
+    degraded_reasons: degradedReasons,
+    retention,
+  };
+}
+
 function buildSnapshot(j, httpStatus) {
   const ok = !!j && typeof j === "object" ? (j.ok ?? null) : null;
 
@@ -724,7 +818,6 @@ export default {
     const origin = "*";
     const { pathname } = url;
 
-    // CORS preflight
     if (request.method === "OPTIONS") {
       return new Response(null, { status: 204, headers: baseHeaders(origin) });
     }
@@ -748,6 +841,23 @@ export default {
         const latest = await getLatestSnapshot(env);
         if (!latest) return json({ ok: false, reason: "no_data" }, {}, origin);
         return json(latest, {}, origin);
+      }
+
+      if (pathname === "/api/summary") {
+        if (request.method !== "GET") return errorJson("summary", "method_not_allowed", 405, origin);
+        const limit = clampInt(url.searchParams.get("limit"), 1, LIST_MAX, DEFAULT_LIMIT);
+        const eventLimit = clampInt(url.searchParams.get("event_limit"), 1, EVENTS_MAX, 20);
+        const summary = await buildSummaryPayload(env, limit, eventLimit);
+        return json(
+          summary,
+          {
+            headers: {
+              "x-wcwd-summary-state": summary.dashboard_state,
+              "x-wcwd-generated-at": summary.generated_at,
+            },
+          },
+          origin
+        );
       }
 
       if (pathname === "/api/version") {
