@@ -10,7 +10,6 @@
   <link rel="stylesheet" href="/assets/common.css" />
   <link rel="stylesheet" href="/style.css" />
 
-  <!-- WCWD SEO: canonical + OpenGraph + Twitter -->
   <link rel="canonical" href="https://wcwd.badjoke-lab.com/world-chain/sell-impact/">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="WCWD">
@@ -49,26 +48,24 @@
 </header>
 <!-- WCWD:HEADER:END -->
 <section class="hero">
-    <div class="container">
-      <h1>Sell Impact (Token)</h1>
-      <p class="lead">Best-effort estimate using public pool snapshots. Not financial advice.</p>
-      <p class="muted small">
-        Source: GeckoTerminal public API snapshots. Model: constant-product approximation (works as a rough gauge even for concentrated liquidity).
-      </p>
-    </div>
-  </section>
+  <div class="container">
+    <h1>Sell Impact (Token)</h1>
+    <p class="lead">Best-effort estimate using public pool snapshots. Not financial advice.</p>
+    <p class="muted small">
+      Source: GeckoTerminal public API snapshots. Model: constant-product approximation (works as a rough gauge even for concentrated liquidity).
+    </p>
+  </div>
+</section>
 
-  <main class="container">
-    
-    <section class="card">
-      <p class="card-title">Inputs</p>
+<main class="container">
+  <section class="card">
+    <p class="card-title">Inputs</p>
 
-      <div class="grid">
-        <div class="col-6">
-          <label class="label" for="tokenAddr">Token address (World Chain)</label>
-          <input id="tokenAddr" class="input" spellcheck="false" autocapitalize="off" autocomplete="off"
-                 placeholder="0x... (paste ERC-20 address)" value="" />
-          <div class="muted small">Paste ERC-20 address. We auto-pick a pool (prefers USDC.e exits when available).</div>
+    <div class="grid">
+      <div class="col-6">
+        <label class="label" for="tokenAddr">Token address (World Chain)</label>
+        <input id="tokenAddr" class="input" spellcheck="false" autocapitalize="off" autocomplete="off" placeholder="0x... (paste ERC-20 address)" value="" />
+        <div class="muted small">Paste ERC-20 address. We auto-pick a pool (prefers USDC.e exits when available).</div>
         <div id="exExamples" style="margin-top:10px;">
           <div class="label">Examples</div>
           <div class="muted small">Click to fill token + amount and re-estimate.</div>
@@ -81,120 +78,120 @@
             <button class="btn btn-ghost" data-ex-token="0x2cfc85d8e48f8eab294be644d9e25c3030863003" data-ex-amt="1000">WLD</button>
           </div>
         </div>
-
-        </div>
-
-        <div class="col-6">
-          <label class="label" for="amountWld">Sell amount (token units)</label>
-          <input id="amountWld" class="input" inputmode="decimal" placeholder="e.g. 1000" value="1000" />
-          <div class="muted small">We estimate selling the token into the selected pool’s counter-asset (best-effort).</div>
-        </div>
       </div>
 
-      <div class="grid" style="margin-top:12px;">
-        <div class="col-12">
-          <label class="label" for="poolSel">Pool</label>
-          <select id="poolSel" class="select">
-            <option value="">Loading pools…</option>
-          </select>
-          <div class="muted small">Pools are fetched from GeckoTerminal for this token and ranked by activity (24h volume), then liquidity, then lower fee.</div>
-        </div>
-      </div>
-
-      <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:12px;">
-        <button id="btnEstimate" class="btn">Estimate</button>
-        <button id="btnMaxUnder" class="btn btn-ghost">Max sell under…</button>
-        <button id="btnSplit" class="btn btn-ghost">Split compare (10 / 50)</button>
-      </div>
-
-      <div id="err" class="muted small" style="margin-top:10px;"></div>
-    </section>
-
-    
-      <div id="conclusionCard" class="card" style="margin-bottom:12px;">
-        <p class="card-title">Conclusion</p>
-  <div class="grid">
-    <div class="col-6">
-      <div class="label">Recommended max (5% impact)</div>
-      <div id="recMax5" style="font-size:22px; font-weight:700;">—</div>
-      <div id="conclusionNote" class="muted small" style="margin-top:6px;">
-        Best-effort. Uses current selected pool.
+      <div class="col-6">
+        <label class="label" for="amountWld">Sell amount (token units)</label>
+        <input id="amountWld" class="input" inputmode="decimal" placeholder="e.g. 1000" value="1000" />
+        <div class="muted small">We estimate selling the token into the selected pool’s counter-asset (best-effort).</div>
       </div>
     </div>
 
-    <div class="col-6">
-      <div class="label">Your input risk</div>
-      <div id="riskSummary" style="font-size:22px; font-weight:700;">—</div>
-      <div class="muted small" style="margin-top:6px;">
-        Shown from latest estimate.
+    <div class="grid" style="margin-top:12px;">
+      <div class="col-12">
+        <label class="label" for="poolSel">Pool</label>
+        <select id="poolSel" class="select">
+          <option value="">Loading pools…</option>
+        </select>
+        <div class="muted small">Pools are fetched from GeckoTerminal for this token and ranked by activity (24h volume), then liquidity, then lower fee.</div>
+      </div>
+    </div>
+
+    <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:12px;">
+      <button id="btnEstimate" class="btn">Estimate</button>
+      <button id="btnMaxUnder" class="btn btn-ghost">Max sell under…</button>
+      <button id="btnSplit" class="btn btn-ghost">Split compare (10 / 50)</button>
+    </div>
+
+    <div id="err" class="muted small" style="margin-top:10px;"></div>
+  </section>
+
+  <div id="conclusionCard" class="card" style="margin-bottom:12px;">
+    <p class="card-title">Conclusion</p>
+    <div class="grid">
+      <div class="col-6">
+        <div class="label">Recommended max (5% impact)</div>
+        <div id="recMax5" style="font-size:22px; font-weight:700;">—</div>
+        <div id="conclusionNote" class="muted small" style="margin-top:6px;">Best-effort. Uses current selected pool.</div>
+      </div>
+
+      <div class="col-6">
+        <div class="label">Your input risk</div>
+        <div id="riskSummary" style="font-size:22px; font-weight:700;">—</div>
+        <div class="muted small" style="margin-top:6px;">Shown from latest estimate.</div>
       </div>
     </div>
   </div>
-</section>
 
-    <section class="card">
-      <p class="card-title">Result</p>
+  <section class="card">
+    <p class="card-title">Result</p>
 
-      <div class="grid">
-        <div class="col-6">
-          <div class="label">Estimated receive (counter-asset)</div>
-          <div id="outUsd" style="font-size:28px; font-weight:700;">—</div>
-          <div class="muted small">After fees + impact (best-effort).</div>
+    <div class="grid">
+      <div class="col-6">
+        <div class="label">Estimated receive (counter-asset)</div>
+        <div id="outUsd" style="font-size:28px; font-weight:700;">—</div>
+        <div class="muted small">After fees + impact (best-effort).</div>
+      </div>
+      <div class="col-6">
+        <div class="label">Impact</div>
+        <div id="impact" style="font-size:28px; font-weight:700;">—</div>
+        <div class="muted small">Price change approximation.</div>
+      </div>
+    </div>
+
+    <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
+      <span class="pill" id="riskPill">Risk: —</span>
+      <span class="pill" id="poolPill">Pool: —</span>
+      <span class="pill" id="liqPill">Liquidity: —</span>
+    </div>
+
+    <details style="margin-top:12px;">
+      <summary class="muted">Debug</summary>
+      <pre id="debug" class="code" style="white-space:pre-wrap; overflow:auto; max-height:320px;">—</pre>
+    </details>
+  </section>
+
+  <section class="card">
+    <p class="card-title">Pool Compare</p>
+    <div class="muted small">Compare top candidate pools using the same input size. Best-out and best-impact pools may differ.</div>
+    <div id="compareSummary" class="muted small" style="margin-top:10px;">—</div>
+    <div id="compareList" class="muted small" style="margin-top:10px;">—</div>
+  </section>
+
+  <section class="card">
+    <p class="card-title">Tools</p>
+
+    <div class="grid">
+      <div class="col-6">
+        <div class="label">Max sell under X% impact</div>
+        <div class="muted small">Enter target impact and compute max sell amount (token units, best-effort).</div>
+        <div style="display:flex; gap:10px; align-items:center; margin-top:10px;">
+          <input id="maxImpactPct" class="input" inputmode="decimal" placeholder="e.g. 1" value="1" />
+          <button id="btnMaxUnder2" class="btn btn-ghost">Compute</button>
         </div>
-        <div class="col-6">
-          <div class="label">Impact</div>
-          <div id="impact" style="font-size:28px; font-weight:700;">—</div>
-          <div class="muted small">Price change approximation.</div>
-        </div>
+        <div id="maxOut" class="muted small" style="margin-top:10px;">—</div>
       </div>
 
-      <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
-        <span class="pill" id="riskPill">Risk: —</span>
-        <span class="pill" id="poolPill">Pool: —</span>
-        <span class="pill" id="liqPill">Liquidity: —</span>
-      </div>
-
-      <details style="margin-top:12px;">
-        <summary class="muted">Debug</summary>
-        <pre id="debug" class="code" style="white-space:pre-wrap; overflow:auto; max-height:320px;">—</pre>
-      </details>
-    </section>
-
-    
-    <section class="card">
-      <p class="card-title">Tools</p>
-
-      <div class="grid">
-        <div class="col-6">
-          <div class="label">Max sell under X% impact</div>
-          <div class="muted small">Enter target impact and compute max sell amount (token units, best-effort).</div>
-          <div style="display:flex; gap:10px; align-items:center; margin-top:10px;">
-            <input id="maxImpactPct" class="input" inputmode="decimal" placeholder="e.g. 1" value="1" />
-            <button id="btnMaxUnder2" class="btn btn-ghost">Compute</button>
-          </div>
-          <div id="maxOut" class="muted small" style="margin-top:10px;">—</div>
+      <div class="col-6">
+        <div class="label">Split compare</div>
+        <div class="muted small">Compare “one-shot” vs “immediate sequential splits” in the SAME pool (no time delay). <span id="splitNote">This is NOT a time-weighted execution model.</span></div>
+        <div style="display:flex; gap:10px; margin-top:10px;">
+          <button id="btnSplit2" class="btn btn-ghost">Run</button>
         </div>
-
-        <div class="col-6">
-          <div class="label">Split compare</div>
-          <div class="muted small">Compare “one-shot” vs “immediate sequential splits” in the SAME pool (no time delay). <span id="splitNote">This is NOT a time-weighted execution model.</span></div>
-          <div style="display:flex; gap:10px; margin-top:10px;">
-            <button id="btnSplit2" class="btn btn-ghost">Run</button>
-          </div>
-          <div id="splitOut" class="muted small" style="margin-top:10px;">—</div>
-        </div>
+        <div id="splitOut" class="muted small" style="margin-top:10px;">—</div>
       </div>
-    </section>
+    </div>
+  </section>
 
-    <section class="card">
-      <p class="card-title">Notes</p>
-      <ul class="list">
-        <li><span class="muted">This is a best-effort estimate; concentrated liquidity pools can differ.</span></li>
-        <li><span class="muted">We fetch snapshots and cache briefly to reduce load.</span></li>
-        <li><span class="muted">If API is rate-limited, retry after a short wait.</span></li>
-      </ul>
-    </section>
-  </main>
+  <section class="card">
+    <p class="card-title">Notes</p>
+    <ul class="list">
+      <li><span class="muted">This is a best-effort estimate; concentrated liquidity pools can differ.</span></li>
+      <li><span class="muted">We fetch snapshots and cache briefly to reduce load.</span></li>
+      <li><span class="muted">If API is rate-limited, retry after a short wait.</span></li>
+    </ul>
+  </section>
+</main>
 <!-- WCWD:FOOTER:BEGIN -->
 <footer class="footer">
   <div class="container">
@@ -227,7 +224,7 @@
   </div>
 </footer>
 <!-- WCWD:FOOTER:END -->
-  <script src="/assets/common.js"></script>
-  <script src="./sell-impact.js"></script>
+<script src="/assets/common.js"></script>
+<script src="./sell-impact.js"></script>
 </body>
 </html>
