@@ -1,4 +1,4 @@
-/* WCWD frontend (static) — uses History Worker /api/list */
+/* WCWD frontend (static) — prefers History Worker summary API */
 
 const WORKER_BASE = "https://wcwd-history.badjoke-lab.workers.dev";
 
@@ -126,21 +126,12 @@ function isWorldChainVerified(item) {
 
 function verificationStatus(item) {
   if (item?.type === "offchain" && item?.offchain_verified === true) {
-    return {
-      label: "Offchain (World official)",
-      className: "offchain",
-    };
+    return { label: "Offchain (World official)", className: "offchain" };
   }
   if (isWorldChainVerified(item)) {
-    return {
-      label: "Verified on World Chain",
-      className: "verified",
-    };
+    return { label: "Verified on World Chain", className: "verified" };
   }
-  return {
-    label: "Unverified / Cross-chain",
-    className: "unverified",
-  };
+  return { label: "Unverified / Cross-chain", className: "unverified" };
 }
 
 function normalizeText(value) {
@@ -150,14 +141,7 @@ function normalizeText(value) {
 function matchesQuery(item, query) {
   if (!query) return true;
   const q = normalizeText(query);
-  const haystack = [
-    item?.name,
-    item?.symbol,
-    item?.description,
-    ...(Array.isArray(item?.tags) ? item.tags : []),
-  ]
-    .map(normalizeText)
-    .join(" ");
+  const haystack = [item?.name, item?.symbol, item?.description, ...(Array.isArray(item?.tags) ? item.tags : [])].map(normalizeText).join(" ");
   return haystack.includes(q);
 }
 
@@ -179,9 +163,7 @@ function matchesTag(item, tag) {
 
 function setActiveTab(typeTab) {
   if (!UI.ecoTabs?.length) return;
-  UI.ecoTabs.forEach((btn) => {
-    btn.classList.toggle("active", btn.dataset.ecoType === typeTab);
-  });
+  UI.ecoTabs.forEach((btn) => btn.classList.toggle("active", btn.dataset.ecoType === typeTab));
 }
 
 function updateTagState() {
@@ -192,12 +174,7 @@ function updateTagState() {
 function renderEcoLinks(links) {
   const container = document.createElement("div");
   container.className = "eco-links";
-  const linkDefs = [
-    ["Official", links?.official],
-    ["App", links?.app],
-    ["Docs", links?.docs],
-    ["Explorer", links?.explorer],
-  ];
+  const linkDefs = [["Official", links?.official], ["App", links?.app], ["Docs", links?.docs], ["Explorer", links?.explorer]];
   for (const [label, url] of linkDefs) {
     if (!url) continue;
     const anchor = document.createElement("a");
@@ -251,9 +228,7 @@ function renderEcoCard(item) {
       tagBtn.type = "button";
       tagBtn.className = "eco-tag";
       tagBtn.textContent = tag;
-      if (ECO_STATE.tag === tag) {
-        tagBtn.classList.add("active");
-      }
+      if (ECO_STATE.tag === tag) tagBtn.classList.add("active");
       tagBtn.addEventListener("click", () => {
         ECO_STATE.tag = ECO_STATE.tag === tag ? "" : tag;
         updateTagState();
@@ -265,10 +240,7 @@ function renderEcoCard(item) {
   }
 
   const links = renderEcoLinks(item?.links || {});
-  if (links.childElementCount) {
-    card.appendChild(links);
-  }
-
+  if (links.childElementCount) card.appendChild(links);
   return card;
 }
 
@@ -341,9 +313,7 @@ function updateEcoCategories() {
     opt.textContent = cat;
     UI.ecoCategory.appendChild(opt);
   });
-  if (!categories.includes(ECO_STATE.category)) {
-    ECO_STATE.category = "all";
-  }
+  if (!categories.includes(ECO_STATE.category)) ECO_STATE.category = "all";
   UI.ecoCategory.value = ECO_STATE.category;
 }
 
@@ -452,17 +422,13 @@ function loadHistoryCache() {
       intervalMin: Number.isFinite(intervalMin) && intervalMin > 0 ? intervalMin : DEFAULT_INTERVAL_MIN,
       savedAt: parsed?.savedAt || null,
     };
-  } catch (e) {
+  } catch {
     return null;
   }
 }
 
 function storeHistoryCache(hist, intervalMin) {
-  const payload = {
-    hist,
-    intervalMin,
-    savedAt: new Date().toISOString(),
-  };
+  const payload = { hist, intervalMin, savedAt: new Date().toISOString() };
   localStorage.setItem(HISTORY_CACHE_KEY, JSON.stringify(payload));
 }
 
@@ -479,6 +445,32 @@ async function fetchJsonWithMeta(url, { timeoutMs = 8000 } = {}) {
   }
 }
 
+function normalizeEventsPayload(value) {
+  if (Array.isArray(value)) return value;
+  if (Array.isArray(value?.events)) return value.events;
+  return [];
+}
+
+function computeFreshnessStateFromLatest(latest, intervalMin) {
+  const ts = typeof latest?.ts === "string" ? latest.ts : "";
+  const tsMs = Date.parse(ts);
+  if (!Number.isFinite(tsMs)) return "empty";
+  const ageMs = Math.max(0, Date.now() - tsMs);
+  if (ageMs > intervalMin * 4 * 60 * 1000) return "stale";
+  if (ageMs > intervalMin * 2 * 60 * 1000) return "delayed";
+  return "fresh";
+}
+
+function deriveDashboardState({ latest, health, explicitState, intervalMin }) {
+  const hint = String(explicitState || "").toLowerCase();
+  if (hint === "stale" || hint === "delayed" || hint === "degraded") return hint;
+  if (latest?.summary_ok === false) return "degraded";
+  if (health?.level === "WARN" || health?.level === "ALERT") return "degraded";
+  const freshness = computeFreshnessStateFromLatest(latest, intervalMin);
+  if (freshness === "stale" || freshness === "delayed") return freshness;
+  return "ok";
+}
+
 function setError(err) {
   const msg = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
   UI.errors.textContent = msg;
@@ -488,16 +480,24 @@ function clearError() {
   UI.errors.textContent = "—";
 }
 
+function setStatusText(state = "ok", histOk = false) {
+  if (!UI.status) return;
+  if (!histOk) {
+    UI.status.textContent = isLocalMode() ? "LOCAL (NO DATA)" : "NO DATA";
+    return;
+  }
+  const labelMap = { ok: "OK", delayed: "DELAYED", stale: "STALE", degraded: "DEGRADED" };
+  const label = labelMap[String(state || "ok").toLowerCase()] || "OK";
+  UI.status.textContent = isLocalMode() ? `LOCAL (${label})` : label;
+}
+
 function drawSparkline(canvas, series) {
   if (!canvas) return;
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
-
   const w = canvas.width;
   const h = canvas.height;
-
   ctx.clearRect(0, 0, w, h);
-
   const arr = (series || []).filter((v) => typeof v === "number" && Number.isFinite(v));
   if (arr.length < 2) {
     ctx.globalAlpha = 0.35;
@@ -505,27 +505,23 @@ function drawSparkline(canvas, series) {
     ctx.globalAlpha = 1.0;
     return;
   }
-
   let min = Math.min(...arr);
   let max = Math.max(...arr);
   if (min === max) {
-    min = min - 1;
-    max = max + 1;
+    min -= 1;
+    max += 1;
   }
-
   const padX = 2;
   const padY = 6;
   const xStep = (w - padX * 2) / (arr.length - 1);
-
   const yOf = (v) => {
     const t = (v - min) / (max - min);
     return h - padY - t * (h - padY * 2);
   };
-
   ctx.lineWidth = 2;
   ctx.strokeStyle = "#111";
   ctx.beginPath();
-  for (let i = 0; i < arr.length; i++) {
+  for (let i = 0; i < arr.length; i += 1) {
     const x = padX + i * xStep;
     const y = yOf(arr[i]);
     if (i === 0) ctx.moveTo(x, y);
@@ -543,9 +539,7 @@ async function loadSeries(metric, canvas, noteEl, errors, intervalMin) {
     const step = json?.step || "1h";
     const intervalHeader = Number(headers.get("x-wcwd-interval-min"));
     const intervalJson = Number(json?.interval_min);
-    const intervalValue = Number.isFinite(intervalJson)
-      ? intervalJson
-      : (Number.isFinite(intervalHeader) ? intervalHeader : intervalMin);
+    const intervalValue = Number.isFinite(intervalJson) ? intervalJson : (Number.isFinite(intervalHeader) ? intervalHeader : intervalMin);
     if (noteEl) {
       noteEl.textContent = `7d series OK. metric=${metric} step=${step} agg=${agg} interval=${fmtNum(intervalValue, 0)}m points=${points.length} source=wcwd-history`;
     }
@@ -568,15 +562,11 @@ function avg(nums) {
 }
 
 function renderAlerts(latest, hist, intervalMin) {
-  // Compare latest vs avg of recent history (excluding latest)
   const pointsFor3h = Math.max(6, Math.round((3 * 60) / intervalMin));
-
   const seriesTps = hist.map((x) => x.tps).filter(Number.isFinite);
   const seriesGas = hist.map((x) => x.gas_gwei).filter(Number.isFinite);
-
   const baseTps = avg(seriesTps.slice(Math.max(0, seriesTps.length - pointsFor3h - 1), Math.max(0, seriesTps.length - 1)));
   const baseGas = avg(seriesGas.slice(Math.max(0, seriesGas.length - pointsFor3h - 1), Math.max(0, seriesGas.length - 1)));
-
   const curTps = latest?.tps;
   const curGas = latest?.gas_gwei;
 
@@ -596,15 +586,11 @@ function renderAlerts(latest, hist, intervalMin) {
   }
 }
 
-function setStatusText(histOk) {
-  if (isLocalMode()) UI.status.textContent = histOk ? "LOCAL (history-only)" : "LOCAL (no history)";
-  else UI.status.textContent = histOk ? "OK" : "DEGRADED";
-}
-
 function healthLabel(level) {
   if (level === "ALERT") return "🚨 Alert";
   if (level === "WARN") return "⚠️ Warn";
   if (level === "NORMAL") return "✅ Normal";
+  if (level === "UNKNOWN") return "Unknown";
   return "—";
 }
 
@@ -626,7 +612,7 @@ function renderHealth(health) {
 function renderEvents(events) {
   if (!UI.eventsList) return;
   UI.eventsList.innerHTML = "";
-  if (!Array.isArray(events) || events.length === 0) {
+  if (!Array.isArray(events) || !events.length) {
     const empty = document.createElement("div");
     empty.className = "note";
     empty.textContent = "No events yet";
@@ -675,8 +661,6 @@ function renderDaily(summary) {
 async function loadAll() {
   clearError();
   UI.raw.textContent = "—";
-  setStatusText(false);
-
   const errors = [];
   const isLite = new URLSearchParams(location.search).get("lite") === "1";
   const seriesMeta = {};
@@ -687,105 +671,115 @@ async function loadAll() {
   let workerVersion = null;
   let historyNoteBase = "";
   let versionNote = "";
+  let dashboardState = "ok";
+  let summaryStateHint = "";
 
-  // History (server observed)
   let hist = [];
   let latest = null;
   let meta = null;
   let intervalMin = loadStoredInterval();
   let source = isLocalMode() ? "worker-direct" : "pages-proxy";
   let historyOk = false;
+  let summaryUsed = false;
+  let historyFromCache = false;
 
   const applyHistoryNote = () => {
     const parts = [historyNoteBase, versionNote].filter(Boolean);
     UI.noteHistory.textContent = parts.join(" ");
   };
 
+  setStatusText("ok", false);
+
   try {
-    const { json, headers } = await fetchJsonWithMeta(`${API_BASE}/api/list?limit=${SAFE_REQUEST_LIMIT}`, { timeoutMs: 8000 });
+    const { json, headers } = await fetchJsonWithMeta(`${API_BASE}/api/summary?limit=${SAFE_REQUEST_LIMIT}&event_limit=50`, { timeoutMs: 8000 });
     const headerInterval = Number(headers.get("x-wcwd-interval-min"));
-    const proxyHeader = headers.get("x-wcwd-proxy");
     const pagesHeader = headers.get("x-wcwd-pages-version");
-    if (proxyHeader && proxyHeader.toLowerCase() === "pages") {
-      source = "pages-proxy";
-    } else if (!isLocalMode()) {
-      source = "worker-direct";
-    }
     pagesVersion = pagesHeader || pagesVersion;
-    intervalMin = Number.isFinite(headerInterval) && headerInterval > 0 ? headerInterval : DEFAULT_INTERVAL_MIN;
+    intervalMin = Number.isFinite(Number(json?.interval_min)) && Number(json?.interval_min) > 0
+      ? Number(json.interval_min)
+      : (Number.isFinite(headerInterval) && headerInterval > 0 ? headerInterval : intervalMin);
     storeInterval(intervalMin);
 
-    if (Array.isArray(json)) {
-      hist = json;
-    } else {
-      hist = json?.items || json?.data || [];
-      meta = json?.meta ?? null;
-    }
-    historyOk = true;
-    storeHistoryCache(hist, intervalMin);
+    hist = Array.isArray(json?.history) ? json.history : [];
+    latest = hist[hist.length - 1] || (json?.latest && typeof json.latest === "object" ? json.latest : null);
+    if (!hist.length && latest) hist = [latest];
+    historyOk = !!latest || hist.length > 0;
+    if (hist.length) storeHistoryCache(hist, intervalMin);
+
+    health = json?.health && typeof json.health === "object" ? json.health : null;
+    events = normalizeEventsPayload(json?.events);
+    daily = json?.daily && typeof json.daily === "object" ? json.daily : null;
+    workerVersion = json?.version?.worker_version || workerVersion;
+    summaryStateHint = String(json?.dashboard_state || json?.freshness?.state || "").toLowerCase();
+    dashboardState = deriveDashboardState({ latest, health, explicitState: summaryStateHint, intervalMin });
+    meta = {
+      summary_generated_at: json?.generated_at || null,
+      retention: json?.retention || null,
+      freshness: json?.freshness || null,
+    };
+    source = isLocalMode() ? "worker-direct-summary" : "pages-proxy-summary";
+    summaryUsed = historyOk;
   } catch (e) {
-    errors.push(`History fetch failed: ${(e && e.message) ? e.message : String(e)}`);
-    const cached = loadHistoryCache();
-    if (cached?.hist?.length) {
-      hist = cached.hist;
-      intervalMin = cached.intervalMin;
-      // keep source unchanged; data is from cache fallback
+    errors.push(`Summary fetch failed: ${(e && e.message) ? e.message : String(e)}`);
+  }
+
+  if (!summaryUsed) {
+    source = isLocalMode() ? "worker-direct" : "pages-proxy";
+    try {
+      const { json, headers } = await fetchJsonWithMeta(`${API_BASE}/api/list?limit=${SAFE_REQUEST_LIMIT}`, { timeoutMs: 8000 });
+      const headerInterval = Number(headers.get("x-wcwd-interval-min"));
+      const proxyHeader = headers.get("x-wcwd-proxy");
+      const pagesHeader = headers.get("x-wcwd-pages-version");
+      if (proxyHeader && proxyHeader.toLowerCase() === "pages") source = "pages-proxy";
+      else if (!isLocalMode()) source = "worker-direct";
+      pagesVersion = pagesHeader || pagesVersion;
+      intervalMin = Number.isFinite(headerInterval) && headerInterval > 0 ? headerInterval : intervalMin;
+      storeInterval(intervalMin);
+      if (Array.isArray(json)) {
+        hist = json;
+      } else {
+        hist = json?.items || json?.data || [];
+        meta = json?.meta ?? meta;
+      }
+      historyOk = true;
+      storeHistoryCache(hist, intervalMin);
+    } catch (e) {
+      errors.push(`History fetch failed: ${(e && e.message) ? e.message : String(e)}`);
+      const cached = loadHistoryCache();
+      if (cached?.hist?.length) {
+        hist = cached.hist;
+        intervalMin = cached.intervalMin;
+        historyFromCache = true;
+        source = `${source}-cache`;
+      }
     }
   }
 
   const maxPoints24h = computePointsPerDay(intervalMin);
   const usePoints = isLite ? Math.max(12, Math.floor(maxPoints24h / 2)) : maxPoints24h;
-  if (hist.length > usePoints) {
-    hist = hist.slice(-usePoints);
-  }
-  latest = hist[hist.length - 1] || null;
-  setStatusText(historyOk);
+  if (hist.length > usePoints) hist = hist.slice(-usePoints);
+  latest = hist[hist.length - 1] || latest || null;
+  historyOk = !!latest || hist.length > 0;
 
   if (latest) {
-    const okLabel = historyOk ? "History OK." : "History OK (cache).";
-    historyNoteBase = `${okLabel} points=${hist.length} interval=${fmtNum(intervalMin, 0)}min mode=${isLite ? "lite" : "full"} source=${source}`;
-  } else {
-    historyNoteBase = `History unavailable. points=${hist.length} interval=${fmtNum(intervalMin, 0)}min mode=${isLite ? "lite" : "full"} source=${source} — Try again later / enable ?lite=1 / reduce points`;
-  }
-  applyHistoryNote();
-
-  // Render from history latest
-  try {
-    if (latest) {
-      UI.tps.textContent = fmtNum(latest.tps, 0);
-      UI.tx24h.textContent = latest.tps ? fmtNum(latest.tps * 86400, 0) : "—";
-
-      // gas_gwei is usually tiny (0.00x). Keep high precision.
-      UI.gasPrice.textContent = fmtNum(latest.gas_gwei, 9);
-
-      UI.wldUsd.textContent = latest.wld_usd != null ? fmtUsd(latest.wld_usd, 6) : "—";
-      UI.wldJpy.textContent = latest.wld_jpy != null ? fmtJpy(latest.wld_jpy, 2) : "—";
-
-      // change/mcap/vol/sparkline are not in history snapshot -> leave as "—"
-      UI.wldChg24h.textContent = "—";
-      UI.wldMc.textContent = "—";
-      UI.wldVol.textContent = "—";
-      UI.wldSpark7d.textContent = "—";
-      UI.chartWld7d.textContent = "—";
-
-      // Activity (approx from snapshot)
-      const tokenPct = latest.token_pct;
-      const nativePct = latest.native_pct;
-      UI.pctToken.textContent = tokenPct != null ? pct(tokenPct, 3) : "—";
-      UI.pctNative.textContent = nativePct != null ? pct(nativePct, 3) : "—";
-
-      // contract/other not available in history snapshots
-      UI.pctContract.textContent = "—";
-      UI.pctOther.textContent = "—";
-
-    }
-  } catch (e) {
-    errors.push(`Render failed: ${(e && e.message) ? e.message : String(e)}`);
+    UI.tps.textContent = fmtNum(latest.tps, 0);
+    UI.tx24h.textContent = latest.tps ? fmtNum(latest.tps * 86400, 0) : "—";
+    UI.gasPrice.textContent = fmtNum(latest.gas_gwei, 9);
+    UI.wldUsd.textContent = latest.wld_usd != null ? fmtUsd(latest.wld_usd, 6) : "—";
+    UI.wldJpy.textContent = latest.wld_jpy != null ? fmtJpy(latest.wld_jpy, 2) : "—";
+    UI.wldChg24h.textContent = "—";
+    UI.wldMc.textContent = "—";
+    UI.wldVol.textContent = "—";
+    UI.wldSpark7d.textContent = "—";
+    UI.chartWld7d.textContent = "—";
+    UI.pctToken.textContent = latest.token_pct != null ? pct(latest.token_pct, 3) : "—";
+    UI.pctNative.textContent = latest.native_pct != null ? pct(latest.native_pct, 3) : "—";
+    UI.pctContract.textContent = "—";
+    UI.pctOther.textContent = "—";
   }
 
-  // Trends charts + alerts
   try {
-    if (hist && hist.length) {
+    if (hist.length) {
       drawSparkline(UI.sparkTps, hist.map((x) => x.tps));
       drawSparkline(UI.sparkGas, hist.map((x) => x.gas_gwei));
       drawSparkline(UI.sparkWld, hist.map((x) => x.wld_usd));
@@ -805,66 +799,77 @@ async function loadAll() {
     errors.push(`7d series render failed: ${(e && e.message) ? e.message : String(e)}`);
   }
 
-  try {
-    const { json } = await fetchJsonWithMeta(`${API_BASE}/api/health`, { timeoutMs: 8000 });
-    health = json;
-    renderHealth(health);
-  } catch (e) {
-    errors.push(`Health fetch failed: ${(e && e.message) ? e.message : String(e)}`);
-    renderHealth(null);
+  if (!health) {
+    try {
+      const { json } = await fetchJsonWithMeta(`${API_BASE}/api/health`, { timeoutMs: 8000 });
+      health = json;
+    } catch (e) {
+      errors.push(`Health fetch failed: ${(e && e.message) ? e.message : String(e)}`);
+    }
+  }
+  renderHealth(health);
+
+  if (!events.length) {
+    try {
+      const { json } = await fetchJsonWithMeta(`${API_BASE}/api/events?limit=50`, { timeoutMs: 8000 });
+      events = normalizeEventsPayload(json);
+    } catch (e) {
+      errors.push(`Events fetch failed: ${(e && e.message) ? e.message : String(e)}`);
+    }
+  }
+  renderEvents(events);
+
+  if (!daily) {
+    try {
+      const { json } = await fetchJsonWithMeta(`${API_BASE}/api/daily/latest`, { timeoutMs: 8000 });
+      daily = json;
+    } catch (e) {
+      errors.push(`Daily summary fetch failed: ${(e && e.message) ? e.message : String(e)}`);
+    }
+  }
+  renderDaily(daily);
+
+  if (!workerVersion) {
+    try {
+      const { json, headers } = await fetchJsonWithMeta(`${API_BASE}/api/version`, { timeoutMs: 6000 });
+      workerVersion = json?.worker_version || workerVersion;
+      pagesVersion = pagesVersion || headers.get("x-wcwd-pages-version");
+    } catch (e) {
+      errors.push(`Version fetch failed: ${(e && e.message) ? e.message : String(e)}`);
+    }
   }
 
-  try {
-    const { json } = await fetchJsonWithMeta(`${API_BASE}/api/events?limit=50`, { timeoutMs: 8000 });
-    events = Array.isArray(json) ? json : [];
-    renderEvents(events);
-  } catch (e) {
-    errors.push(`Events fetch failed: ${(e && e.message) ? e.message : String(e)}`);
-    renderEvents([]);
-  }
+  dashboardState = deriveDashboardState({ latest, health, explicitState: summaryStateHint, intervalMin });
+  setStatusText(dashboardState, historyOk);
 
-  try {
-    const { json } = await fetchJsonWithMeta(`${API_BASE}/api/daily/latest`, { timeoutMs: 8000 });
-    daily = json;
-    renderDaily(daily);
-  } catch (e) {
-    errors.push(`Daily summary fetch failed: ${(e && e.message) ? e.message : String(e)}`);
-    renderDaily(null);
-  }
-
-  try {
-    const { json, headers } = await fetchJsonWithMeta(`${API_BASE}/api/version`, { timeoutMs: 6000 });
-    workerVersion = json?.worker_version || workerVersion;
-    pagesVersion = pagesVersion || headers.get("x-wcwd-pages-version");
-  } catch (e) {
-    errors.push(`Version fetch failed: ${(e && e.message) ? e.message : String(e)}`);
-  }
-
-  if (isLocalMode() && !pagesVersion) {
-    pagesVersion = "local";
-  }
+  if (isLocalMode() && !pagesVersion) pagesVersion = "local";
   versionNote = `pages=${shortSha(pagesVersion)} worker=${shortSha(workerVersion)}`;
+
+  if (latest) {
+    const okLabel = summaryUsed ? "Summary OK." : historyFromCache ? "History OK (cache)." : "History OK.";
+    historyNoteBase = `${okLabel} points=${hist.length} interval=${fmtNum(intervalMin, 0)}min mode=${isLite ? "lite" : "full"} state=${dashboardState} source=${source}`;
+  } else {
+    historyNoteBase = `History unavailable. points=${hist.length} interval=${fmtNum(intervalMin, 0)}min mode=${isLite ? "lite" : "full"} state=no_data source=${source} — Try again later / enable ?lite=1 / reduce points`;
+  }
   applyHistoryNote();
 
   try {
-    UI.raw.textContent = JSON.stringify(
-      {
-        latest,
-        hist_head: hist.slice(0, 3),
-        intervalMin,
-        maxPoints24h,
-        usePoints,
-        mode: isLite ? "lite" : "full",
-        source,
-        meta,
-        series: seriesMeta,
-        health,
-        events: events.slice(0, 3),
-        daily,
-      },
-      null,
-      2,
-    );
+    UI.raw.textContent = JSON.stringify({
+      latest,
+      hist_head: hist.slice(0, 3),
+      intervalMin,
+      maxPoints24h,
+      usePoints,
+      mode: isLite ? "lite" : "full",
+      source,
+      summaryUsed,
+      dashboardState,
+      meta,
+      series: seriesMeta,
+      health,
+      events: events.slice(0, 3),
+      daily,
+    }, null, 2);
   } catch (e) {
     errors.push(`Debug render failed: ${(e && e.message) ? e.message : String(e)}`);
   }
