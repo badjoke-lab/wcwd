@@ -262,18 +262,26 @@ function renderCompare(compare, currentPoolAddr, errorMessage = "") {
   listEl.appendChild(list);
 }
 
-function renderDepth(depth, errorMessage = "") {
+function renderDepth(depth, quoteContext = null, errorMessage = "") {
   const summaryEl = $("depthSummary");
   const tableEl = $("depthTable");
+  const recSelectedEl = $("recMax5");
+  const recConservativeEl = $("recMax5Conservative");
+  const noteEl = $("conclusionNote");
   if (!summaryEl || !tableEl) return;
   if (errorMessage) {
     summaryEl.textContent = `Depth ladder unavailable right now: ${errorMessage}`;
     tableEl.textContent = "—";
+    if (recConservativeEl) recConservativeEl.textContent = "—";
+    if (noteEl && quoteContext?.outSymbol) {
+      noteEl.textContent = `Best-effort estimate. Receive asset depends on selected pool (${quoteContext.outSymbol}).`;
+    }
     return;
   }
   if (!depth?.ok || !Array.isArray(depth?.selected_pool?.ladder)) {
     summaryEl.textContent = "Depth ladder unavailable.";
     tableEl.textContent = "—";
+    if (recConservativeEl) recConservativeEl.textContent = "—";
     return;
   }
   const selected5 = depth.selected_pool.ladder.find((x) => x.impact_pct === 5)?.max_sell;
@@ -281,6 +289,22 @@ function renderDepth(depth, errorMessage = "") {
     ? depth.conservative.find((x) => x.impact_pct === 5)?.max_sell
     : null;
   summaryEl.textContent = `Selected 5% max: ${fmt(selected5, 6)} · Conservative 5% max: ${fmt(conservative5, 6)} · Pool: ${depth.selected_pool.poolLabel}`;
+
+  if (recSelectedEl && Number.isFinite(selected5) && quoteContext?.inSymbol) {
+    recSelectedEl.textContent = `${fmt(selected5, 6)} ${quoteContext.inSymbol}`;
+  }
+  if (recConservativeEl) {
+    recConservativeEl.textContent = Number.isFinite(conservative5) && quoteContext?.inSymbol
+      ? `${fmt(conservative5, 6)} ${quoteContext.inSymbol}`
+      : "—";
+  }
+  if (noteEl) {
+    if (Number.isFinite(conservative5) && quoteContext?.outSymbol) {
+      noteEl.textContent = `Selected pool and conservative 5% caps shown together. Conservative uses the lowest 5% max across top candidate pools. Receive asset depends on selected pool (${quoteContext.outSymbol}).`;
+    } else if (quoteContext?.outSymbol) {
+      noteEl.textContent = `Best-effort estimate. Receive asset depends on selected pool (${quoteContext.outSymbol}).`;
+    }
+  }
 
   const rows = [];
   rows.push(`<div><strong>Impact</strong> · <strong>Selected</strong> · <strong>Conservative</strong></div>`);
@@ -511,9 +535,11 @@ function splitCompare(pool, sellTokenAddr, total, parts) {
 
 function updateConclusionCard({ best5, impact, inSymbol, outSymbol }) {
   const rec = $("recMax5");
+  const recConservative = $("recMax5Conservative");
   const rs = $("riskSummary");
   const note = $("conclusionNote");
   if (rec) rec.textContent = Number.isFinite(best5) ? `${fmt(best5, 6)} ${inSymbol}` : "—";
+  if (recConservative && !recConservative.textContent.trim()) recConservative.textContent = "—";
   if (rs) {
     if (!Number.isFinite(impact)) rs.textContent = "—";
     else if (impact >= 0.5) rs.textContent = `DON’T (${fmtPct(impact)} impact)`;
@@ -523,7 +549,7 @@ function updateConclusionCard({ best5, impact, inSymbol, outSymbol }) {
   }
   if (note) {
     note.textContent = Number.isFinite(best5)
-      ? `5% impact max is an estimate. Receive asset depends on selected pool (${outSymbol}).`
+      ? `Selected pool 5% max is shown above. Conservative line is filled when top-pool depth is available. Receive asset depends on selected pool (${outSymbol}).`
       : `Best-effort estimate. Receive asset depends on selected pool (${outSymbol}).`;
   }
 }
@@ -648,9 +674,9 @@ async function runEstimate() {
 
     try {
       const depth = await fetchWorkerDepth(tokenAddr, poolAddr, 3);
-      renderDepth(depth);
+      renderDepth(depth, q);
     } catch (depthErr) {
-      renderDepth(null, depthErr?.message || "depth_failed");
+      renderDepth(null, q, depthErr?.message || "depth_failed");
     }
 
     const dbg = $("debug");
@@ -792,7 +818,7 @@ function bindExamples() {
 function init() {
   bindExamples();
   renderCompare(null, "", "run an estimate to compare top pools");
-  renderDepth(null, "run an estimate to load ladder");
+  renderDepth(null, null, "run an estimate to load ladder");
   const qp = getQueryParams();
   window.__sellImpactDesiredPool = qp.pool || "";
   const tokenEl = $("tokenAddr");
