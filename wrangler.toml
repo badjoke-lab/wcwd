@@ -1,5 +1,5 @@
 name = "wcwd-history"
-main = "src/worker.js"
+main = "src/index.js"
 compatibility_date = "2025-12-20"
 
 # Cron: every 15 minutes
