@@ -11,21 +11,19 @@
  * 3) Prefer pools that include an anchor asset (USDC.e by default)
  * 4) Pick top pool (user can change)
  * 5) Prefer POST /api/sell-impact/quote for estimate
- * 6) Fallback: GET /networks/world-chain/pools/{poolAddr} + constant-product approximation
- *
- * Notes:
- * - GT pool snapshot does NOT provide reserves. We infer reserves from reserve_in_usd + prices (50/50 USD split).
- * - Uniswap v3 concentrated liquidity can differ significantly. This is a rough gauge.
+ * 6) Prefer POST /api/sell-impact/compare for top-pool comparison
+ * 7) Fallback: GET /networks/world-chain/pools/{poolAddr} + constant-product approximation
  */
 
 const GT_BASE = "/api/gt";
 const QUOTE_API = "/api/sell-impact/quote";
+const COMPARE_API = "/api/sell-impact/compare";
 const GT_ACCEPT = "application/json;version=20230203";
 const NETWORK = "world-chain";
 
 const ANCHORS = {
   "USDC.e": "0x79a02482a880bce3f13e09da970dc34db4cd24d1",
-  "WETH": "0x4200000000000000000000000000000000000006",
+  WETH: "0x4200000000000000000000000000000000000006",
 };
 let preferredAnchor = "USDC.e";
 
@@ -33,6 +31,7 @@ const CACHE_NS = "wcwd:sellimpact:";
 const POOL_TTL_MS = 30_000;
 const POOL_LIST_TTL_MS = 30_000;
 const QUOTE_TTL_MS = 8_000;
+const COMPARE_TTL_MS = 8_000;
 
 let lastFailAt = 0;
 let failCount = 0;
@@ -72,7 +71,9 @@ function cacheGet(key) {
     const obj = JSON.parse(raw);
     if (!obj || Date.now() > obj.exp) return null;
     return obj.val;
-  } catch { return null; }
+  } catch {
+    return null;
+  }
 }
 function cacheSet(key, val, ttlMs) {
   try {
@@ -88,7 +89,6 @@ async function fetchJson(url, { signal } = {}) {
   if (now0 < gtBackoffUntil) {
     throw new Error(`HTTP 429 Too Many Requests (backoff active until ${new Date(gtBackoffUntil).toISOString()})`);
   }
-
   const now = Date.now();
   if (failCount > 0 && (now - lastFailAt) < Math.min(2500, 500 * failCount)) {
     await sleep(Math.min(2500, 500 * failCount));
@@ -138,6 +138,25 @@ async function fetchWorkerQuote(tokenAddr, poolAddr, sellAmount) {
   return json;
 }
 
+async function fetchWorkerCompare(tokenAddr, sellAmount, maxPools = 3) {
+  const cacheKey = `worker-compare:${String(tokenAddr || "")}:${String(sellAmount)}:${String(maxPools)}:${preferredAnchor}`;
+  const cached = cacheGet(cacheKey);
+  if (cached) return cached;
+  const res = await fetch(COMPARE_API, {
+    method: "POST",
+    headers: { "content-type": "application/json", accept: "application/json" },
+    body: JSON.stringify({ tokenAddr, sellAmount, maxPools, preferredAnchor }),
+  });
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`COMPARE_API_${res.status}${txt ? ` :: ${txt.slice(0, 160)}` : ""}`);
+  }
+  const json = await res.json();
+  if (!json?.ok || !Array.isArray(json?.pools)) throw new Error("COMPARE_API_INVALID");
+  cacheSet(cacheKey, json, COMPARE_TTL_MS);
+  return json;
+}
+
 function parseTokenAddrFromId(id) {
   const s = String(id || "");
   const i = s.indexOf("_0x");
@@ -148,8 +167,8 @@ function parseTokenAddrFromId(id) {
 
 function inferReserves(reserveUsd, basePriceUsd, quotePriceUsd) {
   const half = reserveUsd / 2;
-  const base = (basePriceUsd > 0) ? (half / basePriceUsd) : 0;
-  const quote = (quotePriceUsd > 0) ? (half / quotePriceUsd) : 0;
+  const base = basePriceUsd > 0 ? half / basePriceUsd : 0;
+  const quote = quotePriceUsd > 0 ? half / quotePriceUsd : 0;
   return { baseReserve: base, quoteReserve: quote };
 }
 
@@ -186,6 +205,39 @@ function setButtonsDisabled(disabled) {
     const el = $(id);
     if (el) el.disabled = !!disabled;
   }
+}
+
+function renderCompare(compare, currentPoolAddr, errorMessage = "") {
+  const summaryEl = $("compareSummary");
+  const listEl = $("compareList");
+  if (!summaryEl || !listEl) return;
+  if (errorMessage) {
+    summaryEl.textContent = `Pool compare unavailable right now: ${errorMessage}`;
+    listEl.textContent = "—";
+    return;
+  }
+  if (!compare?.ok || !Array.isArray(compare?.pools) || !compare.pools.length) {
+    summaryEl.textContent = "Pool compare unavailable.";
+    listEl.textContent = "—";
+    return;
+  }
+  const bestOut = compare?.summary?.best_out_pool;
+  const bestImpact = compare?.summary?.best_impact_pool;
+  const summaryParts = [];
+  if (bestOut) summaryParts.push(`Best out: ${bestOut.poolLabel} → ${bestOut.outSymbol} ${fmt(bestOut.outAmount, 6)} (${fmtPct(bestOut.impact)} impact)`);
+  if (bestImpact) summaryParts.push(`Best impact: ${bestImpact.poolLabel} → ${fmtPct(bestImpact.impact)} impact`);
+  summaryEl.textContent = summaryParts.join(" · ") || "Pool compare ready.";
+  listEl.innerHTML = "";
+  const list = document.createElement("div");
+  list.style.display = "grid";
+  list.style.gap = "8px";
+  compare.pools.forEach((pool) => {
+    const row = document.createElement("div");
+    const selected = String(currentPoolAddr || "").toLowerCase() === String(pool.poolAddr || "").toLowerCase() ? " [selected]" : "";
+    row.textContent = `${pool.poolLabel}${selected} · out ${fmt(pool.outAmount, 6)} ${pool.outSymbol} · impact ${fmtPct(pool.impact)} · liq $${fmt(pool.reserveUsd, 0)}`;
+    list.appendChild(row);
+  });
+  listEl.appendChild(list);
 }
 
 async function listPoolsByToken(tokenAddr, { signal } = {}) {
@@ -231,7 +283,7 @@ async function listPoolsByToken(tokenAddr, { signal } = {}) {
   pools.sort((a, b) => (b.vol24 - a.vol24) || (b.reserveUsd - a.reserveUsd) || (a.feeBps - b.feeBps));
 
   const anchorAddr = (ANCHORS[preferredAnchor] || "").toLowerCase();
-  const anchored = anchorAddr ? pools.filter((p) => (p.baseAddr === anchorAddr) || (p.quoteAddr === anchorAddr)) : [];
+  const anchored = anchorAddr ? pools.filter((p) => p.baseAddr === anchorAddr || p.quoteAddr === anchorAddr) : [];
   const finalPools = anchored.length ? anchored : pools;
 
   cacheSet(ck, finalPools, POOL_LIST_TTL_MS);
@@ -256,15 +308,16 @@ function setPoolOptions(pools) {
     const dex = p.dexId ? ` · ${p.dexId}` : "";
     opt.textContent = `${p.name || p.poolAddr} (24h $${fmt(p.vol24, 0)} · liq $${fmt(p.reserveUsd, 0)} · fee ${Number.isFinite(p.feePct) ? p.feePct.toFixed(2) : "?"}%${dex})`;
     sel.appendChild(opt);
-    try {
-      const desired = String(window.__sellImpactDesiredPool || "").trim();
-      if (desired) sel.value = desired;
-      if (!sel.value) {
-        const first = Array.from(sel.options || []).find((o) => o && o.value && !o.disabled);
-        if (first) sel.value = first.value;
-      }
-    } catch (e) {}
   }
+
+  try {
+    const desired = String(window.__sellImpactDesiredPool || "").trim();
+    if (desired) sel.value = desired;
+    if (!sel.value) {
+      const first = Array.from(sel.options || []).find((o) => o && o.value && !o.disabled);
+      if (first) sel.value = first.value;
+    }
+  } catch (e) {}
 }
 
 async function getPoolSnapshot(poolAddr) {
@@ -310,15 +363,19 @@ async function getPoolSnapshot(poolAddr) {
 }
 
 function quoteImpact({ pool, sellAmount, sellTokenAddr }) {
-  const fee = (pool.feeBps || 0) / 10_000;
+  const fee = (pool.feeBps || 0) / 10000;
   const sellAddr = String(sellTokenAddr || "").trim().toLowerCase();
-  let inSide; let outSide;
+  let inSide;
+  let outSide;
   if (sellAddr && pool.base.addr === sellAddr) {
-    inSide = pool.base; outSide = pool.quote;
+    inSide = pool.base;
+    outSide = pool.quote;
   } else if (sellAddr && pool.quote.addr === sellAddr) {
-    inSide = pool.quote; outSide = pool.base;
+    inSide = pool.quote;
+    outSide = pool.base;
   } else {
-    inSide = pool.quote; outSide = pool.base;
+    inSide = pool.quote;
+    outSide = pool.base;
   }
 
   const reserveIn = num(inSide.reserve);
@@ -328,17 +385,17 @@ function quoteImpact({ pool, sellAmount, sellTokenAddr }) {
   }
 
   const amountInEff = sellAmount * (1 - fee);
-  const out = (reserveOut * amountInEff) / (reserveIn + amountInEff);
+  const outAmount = (reserveOut * amountInEff) / (reserveIn + amountInEff);
   const priceBefore = reserveOut / reserveIn;
-  const priceAfter = (reserveOut - out) / (reserveIn + amountInEff);
+  const priceAfter = (reserveOut - outAmount) / (reserveIn + amountInEff);
   const impact = 1 - (priceAfter / priceBefore);
-  const outUsd = outSide.priceUsd ? (out * outSide.priceUsd) : 0;
+  const outUsd = outSide.priceUsd ? outAmount * outSide.priceUsd : 0;
 
   return {
     ok: true,
     inSymbol: inSide.symbol,
     outSymbol: outSide.symbol,
-    outAmount: out,
+    outAmount,
     outUsd,
     impact,
     fee,
@@ -351,15 +408,27 @@ function quoteImpact({ pool, sellAmount, sellTokenAddr }) {
 
 function maxSellUnder(pool, sellTokenAddr, targetImpact) {
   const sellAddr = String(sellTokenAddr || "").trim().toLowerCase();
-  const sellReserve = (sellAddr && pool.base.addr === sellAddr) ? pool.base.reserve
-    : (sellAddr && pool.quote.addr === sellAddr) ? pool.quote.reserve
+  const sellReserve = (sellAddr && pool.base.addr === sellAddr)
+    ? pool.base.reserve
+    : (sellAddr && pool.quote.addr === sellAddr)
+      ? pool.quote.reserve
       : Math.max(pool.base.reserve, pool.quote.reserve);
-  let lo = 0; let hi = Math.max(1, sellReserve); let best = 0;
+  let lo = 0;
+  let hi = Math.max(1, sellReserve);
+  let best = 0;
   for (let i = 0; i < 28; i += 1) {
     const mid = (lo + hi) / 2;
     const q = quoteImpact({ pool, sellAmount: mid, sellTokenAddr });
-    if (!q.ok) { hi = mid; continue; }
-    if (q.impact <= targetImpact) { best = mid; lo = mid; } else { hi = mid; }
+    if (!q.ok) {
+      hi = mid;
+      continue;
+    }
+    if (q.impact <= targetImpact) {
+      best = mid;
+      lo = mid;
+    } else {
+      hi = mid;
+    }
   }
   return best;
 }
@@ -373,9 +442,9 @@ function splitCompare(pool, sellTokenAddr, total, parts) {
     const q = quoteImpact({ pool: cur, sellAmount: per, sellTokenAddr: sellAddr });
     if (!q.ok) return { ok: false };
     sumOut += q.outAmount;
-    const fee = (cur.feeBps || 0) / 10_000;
+    const fee = (cur.feeBps || 0) / 10000;
     const eff = per * (1 - fee);
-    const inIsBase = (sellAddr && cur.base.addr === sellAddr);
+    const inIsBase = sellAddr && cur.base.addr === sellAddr;
     if (inIsBase) {
       cur.base.reserve += eff;
       cur.quote.reserve -= q.outAmount;
@@ -388,9 +457,9 @@ function splitCompare(pool, sellTokenAddr, total, parts) {
 }
 
 function updateConclusionCard({ best5, impact, inSymbol, outSymbol }) {
-  const rec = document.getElementById("recMax5");
-  const rs = document.getElementById("riskSummary");
-  const note = document.getElementById("conclusionNote");
+  const rec = $("recMax5");
+  const rs = $("riskSummary");
+  const note = $("conclusionNote");
   if (rec) rec.textContent = Number.isFinite(best5) ? `${fmt(best5, 6)} ${inSymbol}` : "—";
   if (rs) {
     if (!Number.isFinite(impact)) rs.textContent = "—";
@@ -490,7 +559,8 @@ async function runEstimate() {
 
     if (!q?.ok) {
       setErr("Cannot quote with current data (try a different pool).");
-      const dbg = $("debug"); if (dbg) dbg.textContent = JSON.stringify({ pool, q, source }, null, 2);
+      const dbg = $("debug");
+      if (dbg) dbg.textContent = JSON.stringify({ pool, q, source }, null, 2);
       setBusy("estimate", false);
       return;
     }
@@ -516,6 +586,13 @@ async function runEstimate() {
     const best5 = maxSellUnder(pool, tokenAddr, 0.05);
     updateConclusionCard({ best5, impact: q.impact, inSymbol: q.inSymbol, outSymbol: q.outSymbol });
 
+    try {
+      const compare = await fetchWorkerCompare(tokenAddr, amt, 3);
+      renderCompare(compare, poolAddr);
+    } catch (compareErr) {
+      renderCompare(null, poolAddr, compareErr?.message || "compare_failed");
+    }
+
     const dbg = $("debug");
     if (dbg) dbg.textContent = JSON.stringify({ pool, q, source }, null, 2);
   } catch (e) {
@@ -533,7 +610,7 @@ async function runMaxUnderUI() {
   const poolAddr = $("poolSel")?.value;
   const targetPct = Number(String($("maxImpactPct")?.value || "").trim());
   const outEl = $("maxOut");
-  const rec = document.getElementById("recMax5");
+  const rec = $("recMax5");
 
   if (!tokenAddr.startsWith("0x") || tokenAddr.length < 42) {
     if (outEl) outEl.textContent = "Invalid token address.";
@@ -586,7 +663,7 @@ async function runSplitUI() {
       if (outEl) outEl.textContent = "Split compare failed (missing data).";
       return;
     }
-    const outPrice = (once.outSymbol === pool.base.symbol) ? pool.base.priceUsd : (once.outSymbol === pool.quote.symbol) ? pool.quote.priceUsd : 0;
+    const outPrice = once.outSymbol === pool.base.symbol ? pool.base.priceUsd : once.outSymbol === pool.quote.symbol ? pool.quote.priceUsd : 0;
     const onceUsd = once.outUsd || (outPrice ? once.outAmount * outPrice : 0);
     const s10Usd = outPrice ? s10.outAmount * outPrice : 0;
     const s50Usd = outPrice ? s50.outAmount * outPrice : 0;
@@ -612,6 +689,7 @@ function getQueryParams() {
     pool: (sp.get("pool") || "").trim(),
   };
 }
+
 function setQueryParams({ token, amt, pool }) {
   const sp = new URLSearchParams(location.search);
   if (token !== undefined) {
@@ -630,16 +708,17 @@ function setQueryParams({ token, amt, pool }) {
   const url = q ? `${location.pathname}?${q}` : location.pathname;
   history.replaceState(null, "", url);
 }
+
 function bindExamples() {
-  const wrap = document.getElementById("exExamples");
+  const wrap = $("exExamples");
   if (!wrap) return;
   wrap.addEventListener("click", (e) => {
     const btn = e.target && e.target.closest && e.target.closest("button[data-ex-token]");
     if (!btn) return;
     const token = String(btn.getAttribute("data-ex-token") || "").trim();
     const amt = String(btn.getAttribute("data-ex-amt") || "1000").trim();
-    const t = document.getElementById("tokenAddr");
-    const a = document.getElementById("amountWld");
+    const t = $("tokenAddr");
+    const a = $("amountWld");
     if (t) t.value = token;
     if (a) a.value = amt;
     setQueryParams({ token, amt, pool: "" });
@@ -649,12 +728,14 @@ function bindExamples() {
     });
   });
 }
+
 function init() {
   bindExamples();
+  renderCompare(null, "", "run an estimate to compare top pools");
   const qp = getQueryParams();
   window.__sellImpactDesiredPool = qp.pool || "";
-  const tokenEl = document.getElementById("tokenAddr");
-  const amtEl = document.getElementById("amountWld");
+  const tokenEl = $("tokenAddr");
+  const amtEl = $("amountWld");
   if (qp.token && tokenEl) tokenEl.value = qp.token;
   if (qp.amt && amtEl) amtEl.value = qp.amt;
 
