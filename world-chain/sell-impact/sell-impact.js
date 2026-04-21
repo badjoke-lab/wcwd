@@ -12,12 +12,14 @@
  * 4) Pick top pool (user can change)
  * 5) Prefer POST /api/sell-impact/quote for estimate
  * 6) Prefer POST /api/sell-impact/compare for top-pool comparison
- * 7) Fallback: GET /networks/world-chain/pools/{poolAddr} + constant-product approximation
+ * 7) Prefer POST /api/sell-impact/depth for selected/conservative ladder
+ * 8) Fallback: GET /networks/world-chain/pools/{poolAddr} + constant-product approximation
  */
 
 const GT_BASE = "/api/gt";
 const QUOTE_API = "/api/sell-impact/quote";
 const COMPARE_API = "/api/sell-impact/compare";
+const DEPTH_API = "/api/sell-impact/depth";
 const GT_ACCEPT = "application/json;version=20230203";
 const NETWORK = "world-chain";
 
@@ -32,6 +34,7 @@ const POOL_TTL_MS = 30_000;
 const POOL_LIST_TTL_MS = 30_000;
 const QUOTE_TTL_MS = 8_000;
 const COMPARE_TTL_MS = 8_000;
+const DEPTH_TTL_MS = 8_000;
 
 let lastFailAt = 0;
 let failCount = 0;
@@ -157,6 +160,25 @@ async function fetchWorkerCompare(tokenAddr, sellAmount, maxPools = 3) {
   return json;
 }
 
+async function fetchWorkerDepth(tokenAddr, poolAddr, maxPools = 3) {
+  const cacheKey = `worker-depth:${String(tokenAddr || "")}:${String(poolAddr || "")}:${String(maxPools)}:${preferredAnchor}`;
+  const cached = cacheGet(cacheKey);
+  if (cached) return cached;
+  const res = await fetch(DEPTH_API, {
+    method: "POST",
+    headers: { "content-type": "application/json", accept: "application/json" },
+    body: JSON.stringify({ tokenAddr, poolAddr, maxPools, preferredAnchor }),
+  });
+  if (!res.ok) {
+    const txt = await res.text().catch(() => "");
+    throw new Error(`DEPTH_API_${res.status}${txt ? ` :: ${txt.slice(0, 160)}` : ""}`);
+  }
+  const json = await res.json();
+  if (!json?.ok || !Array.isArray(json?.selected_pool?.ladder)) throw new Error("DEPTH_API_INVALID");
+  cacheSet(cacheKey, json, DEPTH_TTL_MS);
+  return json;
+}
+
 function parseTokenAddrFromId(id) {
   const s = String(id || "");
   const i = s.indexOf("_0x");
@@ -238,6 +260,37 @@ function renderCompare(compare, currentPoolAddr, errorMessage = "") {
     list.appendChild(row);
   });
   listEl.appendChild(list);
+}
+
+function renderDepth(depth, errorMessage = "") {
+  const summaryEl = $("depthSummary");
+  const tableEl = $("depthTable");
+  if (!summaryEl || !tableEl) return;
+  if (errorMessage) {
+    summaryEl.textContent = `Depth ladder unavailable right now: ${errorMessage}`;
+    tableEl.textContent = "—";
+    return;
+  }
+  if (!depth?.ok || !Array.isArray(depth?.selected_pool?.ladder)) {
+    summaryEl.textContent = "Depth ladder unavailable.";
+    tableEl.textContent = "—";
+    return;
+  }
+  const selected5 = depth.selected_pool.ladder.find((x) => x.impact_pct === 5)?.max_sell;
+  const conservative5 = Array.isArray(depth.conservative)
+    ? depth.conservative.find((x) => x.impact_pct === 5)?.max_sell
+    : null;
+  summaryEl.textContent = `Selected 5% max: ${fmt(selected5, 6)} · Conservative 5% max: ${fmt(conservative5, 6)} · Pool: ${depth.selected_pool.poolLabel}`;
+
+  const rows = [];
+  rows.push(`<div><strong>Impact</strong> · <strong>Selected</strong> · <strong>Conservative</strong></div>`);
+  depth.selected_pool.ladder.forEach((entry) => {
+    const conservative = Array.isArray(depth.conservative)
+      ? depth.conservative.find((x) => x.impact_pct === entry.impact_pct)?.max_sell
+      : null;
+    rows.push(`<div>${fmt(entry.impact_pct, 0)}% · ${fmt(entry.max_sell, 6)} · ${fmt(conservative, 6)}</div>`);
+  });
+  tableEl.innerHTML = rows.join("");
 }
 
 async function listPoolsByToken(tokenAddr, { signal } = {}) {
@@ -593,6 +646,13 @@ async function runEstimate() {
       renderCompare(null, poolAddr, compareErr?.message || "compare_failed");
     }
 
+    try {
+      const depth = await fetchWorkerDepth(tokenAddr, poolAddr, 3);
+      renderDepth(depth);
+    } catch (depthErr) {
+      renderDepth(null, depthErr?.message || "depth_failed");
+    }
+
     const dbg = $("debug");
     if (dbg) dbg.textContent = JSON.stringify({ pool, q, source }, null, 2);
   } catch (e) {
@@ -732,6 +792,7 @@ function bindExamples() {
 function init() {
   bindExamples();
   renderCompare(null, "", "run an estimate to compare top pools");
+  renderDepth(null, "run an estimate to load ladder");
   const qp = getQueryParams();
   window.__sellImpactDesiredPool = qp.pool || "";
   const tokenEl = $("tokenAddr");
