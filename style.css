@@ -73,4 +73,55 @@ button { padding: 6px 10px; }
   margin-top: 36px;
 }
 
-@media (max-width: 640px) { .grid2 { grid-template-columns: 1fr; } }
+.snapshot-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.snapshot-card {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.snapshot-top {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.snapshot-symbol {
+  font-weight: 700;
+  font-size: 15px;
+}
+
+.snapshot-value {
+  font-weight: 700;
+  font-size: 18px;
+}
+
+.snapshot-sub,
+.snapshot-trend,
+.snapshot-pool {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.snapshot-empty {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+@media (max-width: 640px) {
+  .grid2 { grid-template-columns: 1fr; }
+  .snapshot-grid { grid-template-columns: 1fr; }
+  .snapshot-top { align-items: flex-start; flex-direction: column; }
+  .snapshot-value { font-size: 17px; }
+}
