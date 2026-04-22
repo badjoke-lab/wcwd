@@ -12,46 +12,69 @@ function homeFmtNumber(value, digits = 2) {
   return n.toLocaleString(undefined, { maximumFractionDigits: digits });
 }
 
+function renderHomeEmpty(metaEl, listEl, message) {
+  metaEl.textContent = message;
+  listEl.innerHTML = "";
+  const empty = document.createElement("div");
+  empty.className = "snapshot-empty";
+  empty.textContent = "Open Sell Impact for full compare, depth ladder, and watchlist details.";
+  listEl.appendChild(empty);
+}
+
 function renderHomeWatchlist(payload, errorMessage = "") {
   const metaEl = document.getElementById("homeSellImpactMeta");
   const listEl = document.getElementById("homeSellImpactList");
   if (!metaEl || !listEl) return;
 
   if (errorMessage) {
-    metaEl.textContent = `Sell Impact snapshot unavailable: ${errorMessage}`;
-    listEl.textContent = "—";
+    renderHomeEmpty(metaEl, listEl, `Sell Impact snapshot unavailable: ${errorMessage}`);
     return;
   }
 
   const items = Array.isArray(payload?.items) ? payload.items.filter((item) => item?.ok) : [];
   if (!items.length) {
-    metaEl.textContent = "Sell Impact snapshot not ready yet.";
-    listEl.textContent = "—";
+    renderHomeEmpty(metaEl, listEl, "Sell Impact snapshot not ready yet.");
     return;
   }
 
   metaEl.textContent = `Latest snapshot: ${payload?.ts || "—"} · tracked hot tokens: ${items.length}`;
   listEl.innerHTML = "";
+  listEl.className = "snapshot-grid";
 
   items.forEach((item) => {
     const card = document.createElement("article");
-    card.className = "metric";
+    card.className = "snapshot-card";
+
+    const top = document.createElement("div");
+    top.className = "snapshot-top";
 
     const symbol = document.createElement("div");
-    symbol.className = "k";
+    symbol.className = "snapshot-symbol";
     symbol.textContent = item.symbol || "—";
 
     const conservative = document.createElement("div");
-    conservative.className = "v";
+    conservative.className = "snapshot-value";
     conservative.textContent = homeFmtNumber(item.conservative_5pct_max, 6);
 
-    const note = document.createElement("div");
-    note.className = "n";
-    note.textContent = `Conservative 5% max · selected ${homeFmtNumber(item.selected_5pct_max, 6)} · ${item?.selected_pool?.poolLabel || "pool unknown"}`;
+    top.appendChild(symbol);
+    top.appendChild(conservative);
 
-    card.appendChild(symbol);
-    card.appendChild(conservative);
-    card.appendChild(note);
+    const sub = document.createElement("div");
+    sub.className = "snapshot-sub";
+    sub.textContent = `Conservative 5% max`;
+
+    const selected = document.createElement("div");
+    selected.className = "snapshot-trend";
+    selected.textContent = `Selected 5% ${homeFmtNumber(item.selected_5pct_max, 6)}`;
+
+    const pool = document.createElement("div");
+    pool.className = "snapshot-pool";
+    pool.textContent = item?.selected_pool?.poolLabel || "Pool unknown";
+
+    card.appendChild(top);
+    card.appendChild(sub);
+    card.appendChild(selected);
+    card.appendChild(pool);
     listEl.appendChild(card);
   });
 }
