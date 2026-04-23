@@ -12,6 +12,16 @@ function homeFmtNumber(value, digits = 2) {
   return n.toLocaleString(undefined, { maximumFractionDigits: digits });
 }
 
+function buildSellImpactHref(item) {
+  const url = new URL("/world-chain/sell-impact/", location.origin);
+  if (item?.tokenAddr) url.searchParams.set("token", item.tokenAddr);
+  const conservative = Number(item?.conservative_5pct_max);
+  if (Number.isFinite(conservative) && conservative > 0) {
+    url.searchParams.set("amt", String(conservative));
+  }
+  return `${url.pathname}${url.search}`;
+}
+
 function renderHomeEmpty(metaEl, listEl, message) {
   metaEl.textContent = message;
   listEl.innerHTML = "";
@@ -71,10 +81,21 @@ function renderHomeWatchlist(payload, errorMessage = "") {
     pool.className = "snapshot-pool";
     pool.textContent = item?.selected_pool?.poolLabel || "Pool unknown";
 
+    const footer = document.createElement("div");
+    footer.className = "snapshot-footer";
+
+    const cta = document.createElement("a");
+    cta.className = "snapshot-link";
+    cta.href = buildSellImpactHref(item);
+    cta.textContent = "Open in Sell Impact";
+
+    footer.appendChild(cta);
+
     card.appendChild(top);
     card.appendChild(sub);
     card.appendChild(selected);
     card.appendChild(pool);
+    card.appendChild(footer);
     listEl.appendChild(card);
   });
 }
