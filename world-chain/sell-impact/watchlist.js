@@ -13,6 +13,16 @@ function finiteNumber(value) {
   return Number.isFinite(n) ? n : null;
 }
 
+function buildEstimatorHref(item) {
+  const url = new URL("/world-chain/sell-impact/", location.origin);
+  if (item?.tokenAddr) url.searchParams.set("token", item.tokenAddr);
+  const conservative = Number(item?.conservative_5pct_max);
+  if (Number.isFinite(conservative) && conservative > 0) {
+    url.searchParams.set("amt", String(conservative));
+  }
+  return `${url.pathname}${url.search}`;
+}
+
 function buildSparkline(values) {
   const points = values.filter((v) => Number.isFinite(v));
   if (!points.length) return "—";
@@ -151,10 +161,21 @@ function renderSellImpactWatchlist(latestPayload, historyPayload, errorMessage =
     pool.className = "snapshot-pool";
     pool.textContent = item?.selected_pool?.poolLabel || "Pool unknown";
 
+    const footer = document.createElement("div");
+    footer.className = "snapshot-footer";
+
+    const cta = document.createElement("a");
+    cta.className = "snapshot-link";
+    cta.href = buildEstimatorHref(item);
+    cta.textContent = "Load token in estimator";
+
+    footer.appendChild(cta);
+
     card.appendChild(top);
     card.appendChild(sub);
     card.appendChild(trendEl);
     card.appendChild(pool);
+    card.appendChild(footer);
     listEl.appendChild(card);
   });
 }
