@@ -59,6 +59,25 @@
 
 <main class="container">
   <section class="card">
+    <p class="card-title">Quick Start</p>
+    <div class="grid">
+      <div class="col-4">
+        <div class="label">1. Choose a token</div>
+        <div class="muted small">Paste a World Chain token address or tap one of the example buttons below.</div>
+      </div>
+      <div class="col-4">
+        <div class="label">2. Set sell size</div>
+        <div class="muted small">Enter the token amount you want to test. The page auto-picks a likely pool, preferring USDC.e exits when available.</div>
+      </div>
+      <div class="col-4">
+        <div class="label">3. Read these first</div>
+        <div class="muted small">Check <strong>Impact</strong>, then <strong>Conservative max (5%)</strong>, then <strong>Pool Compare</strong> and <strong>Depth Ladder</strong>.</div>
+      </div>
+    </div>
+    <div class="note" style="margin-top:10px;">First time here: use an example token, press Estimate, then compare your input size against the conservative 5% line.</div>
+  </section>
+
+  <section class="card">
     <p class="card-title">Inputs</p>
 
     <div class="grid">
@@ -83,7 +102,7 @@
       <div class="col-6">
         <label class="label" for="amountWld">Sell amount (token units)</label>
         <input id="amountWld" class="input" inputmode="decimal" placeholder="e.g. 1000" value="1000" />
-        <div class="muted small">We estimate selling the token into the selected pool’s counter-asset (best-effort).</div>
+        <div class="muted small">Quote the current sell size.</div>
       </div>
     </div>
 
@@ -93,7 +112,7 @@
         <select id="poolSel" class="select">
           <option value="">Loading pools…</option>
         </select>
-        <div class="muted small">Pools are fetched from GeckoTerminal for this token and ranked by activity (24h volume), then liquidity, then lower fee.</div>
+        <div class="muted small">Top active pools first.</div>
       </div>
     </div>
 
@@ -114,13 +133,13 @@
         <div id="recMax5" style="font-size:22px; font-weight:700;">—</div>
         <div class="label" style="margin-top:10px;">Conservative max (5% across top pools)</div>
         <div id="recMax5Conservative" style="font-size:20px; font-weight:700;">—</div>
-        <div id="conclusionNote" class="muted small" style="margin-top:6px;">Best-effort. Uses selected pool and top-pool conservative line.</div>
+        <div id="conclusionNote" class="muted small" style="margin-top:6px;">Selected pool plus conservative line.</div>
       </div>
 
       <div class="col-6">
         <div class="label">Your input risk</div>
         <div id="riskSummary" style="font-size:22px; font-weight:700;">—</div>
-        <div class="muted small" style="margin-top:6px;">Shown from latest estimate.</div>
+        <div class="muted small" style="margin-top:6px;">Current input only.</div>
       </div>
     </div>
   </div>
@@ -132,12 +151,12 @@
       <div class="col-6">
         <div class="label">Estimated receive (counter-asset)</div>
         <div id="outUsd" style="font-size:28px; font-weight:700;">—</div>
-        <div class="muted small">After fees + impact (best-effort).</div>
+        <div class="muted small">Your current quote.</div>
       </div>
       <div class="col-6">
         <div class="label">Impact</div>
         <div id="impact" style="font-size:28px; font-weight:700;">—</div>
-        <div class="muted small">Price change approximation.</div>
+        <div class="muted small">Estimated price move.</div>
       </div>
     </div>
 
@@ -155,21 +174,21 @@
 
   <section class="card">
     <p class="card-title">Pool Compare</p>
-    <div class="muted small">Compare top candidate pools using the same input size. Best-out and best-impact pools may differ.</div>
+    <div class="muted small">Same size across top pools.</div>
     <div id="compareSummary" class="muted small" style="margin-top:10px;">—</div>
     <div id="compareList" class="muted small" style="margin-top:10px;">—</div>
   </section>
 
   <section class="card">
     <p class="card-title">Depth Ladder</p>
-    <div class="muted small">Shows estimated max sell size under 1% / 2% / 5% / 10% impact for the selected pool and a conservative line across top pools.</div>
+    <div class="muted small">Max sell before 1 / 2 / 5 / 10% impact.</div>
     <div id="depthSummary" class="muted small" style="margin-top:10px;">—</div>
     <div id="depthTable" class="muted small" style="margin-top:10px;">—</div>
   </section>
 
   <section class="card">
     <p class="card-title">Watchlist Snapshot</p>
-    <div class="muted small">Lightweight 15-minute summary for selected hot tokens. Stores latest plus a short rolling history only.</div>
+    <div class="muted small">15m hot-token summary with short trend.</div>
     <div id="watchlistMeta" class="muted small" style="margin-top:10px;">—</div>
     <div id="watchlistList" class="muted small" style="margin-top:10px;">—</div>
   </section>
@@ -180,7 +199,7 @@
     <div class="grid">
       <div class="col-6">
         <div class="label">Max sell under X% impact</div>
-        <div class="muted small">Enter target impact and compute max sell amount (token units, best-effort).</div>
+        <div class="muted small">Quick limit finder.</div>
         <div style="display:flex; gap:10px; align-items:center; margin-top:10px;">
           <input id="maxImpactPct" class="input" inputmode="decimal" placeholder="e.g. 1" value="1" />
           <button id="btnMaxUnder2" class="btn btn-ghost">Compute</button>
@@ -190,7 +209,7 @@
 
       <div class="col-6">
         <div class="label">Split compare</div>
-        <div class="muted small">Compare “one-shot” vs “immediate sequential splits” in the SAME pool (no time delay). <span id="splitNote">This is NOT a time-weighted execution model.</span></div>
+        <div class="muted small">Same pool, split vs one-shot. No time delay.</div>
         <div style="display:flex; gap:10px; margin-top:10px;">
           <button id="btnSplit2" class="btn btn-ghost">Run</button>
         </div>
@@ -202,9 +221,9 @@
   <section class="card">
     <p class="card-title">Notes</p>
     <ul class="list">
-      <li><span class="muted">This is a best-effort estimate; concentrated liquidity pools can differ.</span></li>
-      <li><span class="muted">We fetch snapshots and cache briefly to reduce load.</span></li>
-      <li><span class="muted">If API is rate-limited, retry after a short wait.</span></li>
+      <li><span class="muted">Best-effort only. Concentrated liquidity can differ.</span></li>
+      <li><span class="muted">Short cache is used to cut load.</span></li>
+      <li><span class="muted">If rate-limited, wait a moment and retry.</span></li>
     </ul>
   </section>
 </main>

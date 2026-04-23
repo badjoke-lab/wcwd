@@ -234,20 +234,20 @@ function renderCompare(compare, currentPoolAddr, errorMessage = "") {
   const listEl = $("compareList");
   if (!summaryEl || !listEl) return;
   if (errorMessage) {
-    summaryEl.textContent = `Pool compare unavailable right now: ${errorMessage}`;
-    listEl.textContent = "—";
+    summaryEl.textContent = `Compare unavailable. ${errorMessage}`;
+    listEl.textContent = "Run Estimate and retry.";
     return;
   }
   if (!compare?.ok || !Array.isArray(compare?.pools) || !compare.pools.length) {
-    summaryEl.textContent = "Pool compare unavailable.";
+    summaryEl.textContent = "Estimate to compare top pools.";
     listEl.textContent = "—";
     return;
   }
   const bestOut = compare?.summary?.best_out_pool;
   const bestImpact = compare?.summary?.best_impact_pool;
   const summaryParts = [];
-  if (bestOut) summaryParts.push(`Best out: ${bestOut.poolLabel} → ${bestOut.outSymbol} ${fmt(bestOut.outAmount, 6)} (${fmtPct(bestOut.impact)} impact)`);
-  if (bestImpact) summaryParts.push(`Best impact: ${bestImpact.poolLabel} → ${fmtPct(bestImpact.impact)} impact`);
+  if (bestOut) summaryParts.push(`Best out: ${bestOut.poolLabel} → ${bestOut.outSymbol} ${fmt(bestOut.outAmount, 6)} (${fmtPct(bestOut.impact)})`);
+  if (bestImpact) summaryParts.push(`Best impact: ${bestImpact.poolLabel} → ${fmtPct(bestImpact.impact)}`);
   summaryEl.textContent = summaryParts.join(" · ") || "Pool compare ready.";
   listEl.innerHTML = "";
   const list = document.createElement("div");
@@ -270,8 +270,8 @@ function renderDepth(depth, quoteContext = null, errorMessage = "") {
   const noteEl = $("conclusionNote");
   if (!summaryEl || !tableEl) return;
   if (errorMessage) {
-    summaryEl.textContent = `Depth ladder unavailable right now: ${errorMessage}`;
-    tableEl.textContent = "—";
+    summaryEl.textContent = `Depth unavailable. ${errorMessage}`;
+    tableEl.textContent = "Run Estimate and retry.";
     if (recConservativeEl) recConservativeEl.textContent = "—";
     if (noteEl && quoteContext?.outSymbol) {
       noteEl.textContent = `Best-effort estimate. Receive asset depends on selected pool (${quoteContext.outSymbol}).`;
@@ -279,7 +279,7 @@ function renderDepth(depth, quoteContext = null, errorMessage = "") {
     return;
   }
   if (!depth?.ok || !Array.isArray(depth?.selected_pool?.ladder)) {
-    summaryEl.textContent = "Depth ladder unavailable.";
+    summaryEl.textContent = "Estimate to load max-sell ladder.";
     tableEl.textContent = "—";
     if (recConservativeEl) recConservativeEl.textContent = "—";
     return;
@@ -288,7 +288,7 @@ function renderDepth(depth, quoteContext = null, errorMessage = "") {
   const conservative5 = Array.isArray(depth.conservative)
     ? depth.conservative.find((x) => x.impact_pct === 5)?.max_sell
     : null;
-  summaryEl.textContent = `Selected 5% max: ${fmt(selected5, 6)} · Conservative 5% max: ${fmt(conservative5, 6)} · Pool: ${depth.selected_pool.poolLabel}`;
+  summaryEl.textContent = `Selected 5%: ${fmt(selected5, 6)} · Conservative 5%: ${fmt(conservative5, 6)} · ${depth.selected_pool.poolLabel}`;
 
   if (recSelectedEl && Number.isFinite(selected5) && quoteContext?.inSymbol) {
     recSelectedEl.textContent = `${fmt(selected5, 6)} ${quoteContext.inSymbol}`;
@@ -300,7 +300,7 @@ function renderDepth(depth, quoteContext = null, errorMessage = "") {
   }
   if (noteEl) {
     if (Number.isFinite(conservative5) && quoteContext?.outSymbol) {
-      noteEl.textContent = `Selected pool and conservative 5% caps shown together. Conservative uses the lowest 5% max across top candidate pools. Receive asset depends on selected pool (${quoteContext.outSymbol}).`;
+      noteEl.textContent = `Selected pool plus conservative line. Receive asset depends on selected pool (${quoteContext.outSymbol}).`;
     } else if (quoteContext?.outSymbol) {
       noteEl.textContent = `Best-effort estimate. Receive asset depends on selected pool (${quoteContext.outSymbol}).`;
     }
@@ -542,14 +542,14 @@ function updateConclusionCard({ best5, impact, inSymbol, outSymbol }) {
   if (recConservative && !recConservative.textContent.trim()) recConservative.textContent = "—";
   if (rs) {
     if (!Number.isFinite(impact)) rs.textContent = "—";
-    else if (impact >= 0.5) rs.textContent = `DON’T (${fmtPct(impact)} impact)`;
-    else if (impact >= 0.2) rs.textContent = `High (${fmtPct(impact)} impact)`;
-    else if (impact >= 0.05) rs.textContent = `Caution (${fmtPct(impact)} impact)`;
-    else rs.textContent = `OK (${fmtPct(impact)} impact)`;
+    else if (impact >= 0.5) rs.textContent = `DON’T (${fmtPct(impact)})`;
+    else if (impact >= 0.2) rs.textContent = `High (${fmtPct(impact)})`;
+    else if (impact >= 0.05) rs.textContent = `Caution (${fmtPct(impact)})`;
+    else rs.textContent = `OK (${fmtPct(impact)})`;
   }
   if (note) {
     note.textContent = Number.isFinite(best5)
-      ? `Selected pool 5% max is shown above. Conservative line is filled when top-pool depth is available. Receive asset depends on selected pool (${outSymbol}).`
+      ? `Selected pool plus conservative line. Receive asset depends on selected pool (${outSymbol}).`
       : `Best-effort estimate. Receive asset depends on selected pool (${outSymbol}).`;
   }
 }
@@ -566,18 +566,18 @@ async function loadPoolsForToken() {
     const addr = $("tokenAddr")?.value || "";
     if (!String(addr).trim()) {
       if (reqId === loadPoolsSeq) setPoolOptions([]);
-      setErr("Enter token address to load pools.");
+      setErr("Paste a token address or tap an example.");
       return;
     }
     const pools = await listPoolsByToken(addr);
     if (reqId !== loadPoolsSeq) return;
     setPoolOptions(pools);
-    if (!pools.length) setErr("No pools found for this token.");
+    if (!pools.length) setErr("No active pools found. Try another token or example.");
   } catch (e) {
     console.error("loadPoolsForToken failed", e);
     if (reqId !== loadPoolsSeq) return;
     setPoolOptions([]);
-    setErr(`Pool lookup error: ${e.message || String(e)}`);
+    setErr("Pool lookup failed. Retry in a few seconds.");
   } finally {
     setBusy("pools", false);
   }
@@ -600,17 +600,17 @@ async function runEstimate() {
   const poolAddr = $("poolSel")?.value;
 
   if (!tokenAddr.startsWith("0x") || tokenAddr.length < 42) {
-    setErr("Enter a valid token address (0x...).");
+    setErr("Paste a valid 0x token address.");
     setBusy("estimate", false);
     return;
   }
   if (!(amt > 0)) {
-    setErr("Enter a positive sell amount.");
+    setErr("Enter a sell amount greater than 0.");
     setBusy("estimate", false);
     return;
   }
   if (!poolAddr) {
-    setErr("No pool selected.");
+    setErr("Wait for pools to load, or choose another token.");
     setBusy("estimate", false);
     return;
   }
@@ -637,7 +637,7 @@ async function runEstimate() {
     }
 
     if (!q?.ok) {
-      setErr("Cannot quote with current data (try a different pool).");
+      setErr("Quote unavailable for this pool. Try another pool or a smaller size.");
       const dbg = $("debug");
       if (dbg) dbg.textContent = JSON.stringify({ pool, q, source }, null, 2);
       setBusy("estimate", false);
@@ -669,21 +669,21 @@ async function runEstimate() {
       const compare = await fetchWorkerCompare(tokenAddr, amt, 3);
       renderCompare(compare, poolAddr);
     } catch (compareErr) {
-      renderCompare(null, poolAddr, compareErr?.message || "compare_failed");
+      renderCompare(null, poolAddr, "Retry in a few seconds.");
     }
 
     try {
       const depth = await fetchWorkerDepth(tokenAddr, poolAddr, 3);
       renderDepth(depth, q);
     } catch (depthErr) {
-      renderDepth(null, q, depthErr?.message || "depth_failed");
+      renderDepth(null, q, "Retry in a few seconds.");
     }
 
     const dbg = $("debug");
     if (dbg) dbg.textContent = JSON.stringify({ pool, q, source }, null, 2);
   } catch (e) {
     console.error("runEstimate failed", e);
-    setErr(`API error: ${e.message || String(e)}`);
+    setErr("Estimate failed. Retry in a few seconds.");
   } finally {
     setBusy("estimate", false);
   }
@@ -699,12 +699,12 @@ async function runMaxUnderUI() {
   const rec = $("recMax5");
 
   if (!tokenAddr.startsWith("0x") || tokenAddr.length < 42) {
-    if (outEl) outEl.textContent = "Invalid token address.";
+    if (outEl) outEl.textContent = "Paste a valid 0x token address.";
     setButtonsDisabled(false);
     return;
   }
   if (!poolAddr || !(targetPct > 0)) {
-    if (outEl) outEl.textContent = "Invalid target or pool.";
+    if (outEl) outEl.textContent = "Choose a pool and enter a target percent.";
     setButtonsDisabled(false);
     return;
   }
@@ -715,7 +715,7 @@ async function runMaxUnderUI() {
     if (outEl) outEl.textContent = `Max sell under ${fmt(targetPct, 2)}% impact ≈ ${fmt(best, 6)} (token units, best-effort)`;
     if (rec && Math.abs(targetPct - 5) < 1e-9) rec.textContent = `${fmt(best, 6)} (token units)`;
   } catch (e) {
-    if (outEl) outEl.textContent = `API error: ${e.message || String(e)}`;
+    if (outEl) outEl.textContent = "Limit lookup failed. Retry in a few seconds.";
   } finally {
     setButtonsDisabled(false);
   }
@@ -730,12 +730,12 @@ async function runSplitUI() {
   const outEl = $("splitOut");
 
   if (!tokenAddr.startsWith("0x") || tokenAddr.length < 42) {
-    if (outEl) outEl.textContent = "Invalid token address.";
+    if (outEl) outEl.textContent = "Paste a valid 0x token address.";
     setButtonsDisabled(false);
     return;
   }
   if (!poolAddr || !(amt > 0)) {
-    if (outEl) outEl.textContent = "Enter amount and select pool.";
+    if (outEl) outEl.textContent = "Enter a sell amount and wait for pool selection.";
     setButtonsDisabled(false);
     return;
   }
@@ -746,7 +746,7 @@ async function runSplitUI() {
     const s10 = splitCompare(pool, tokenAddr, amt, 10);
     const s50 = splitCompare(pool, tokenAddr, amt, 50);
     if (!once.ok || !s10.ok || !s50.ok) {
-      if (outEl) outEl.textContent = "Split compare failed (missing data).";
+      if (outEl) outEl.textContent = "Split compare unavailable for this pool.";
       return;
     }
     const outPrice = once.outSymbol === pool.base.symbol ? pool.base.priceUsd : once.outSymbol === pool.quote.symbol ? pool.quote.priceUsd : 0;
@@ -761,7 +761,7 @@ async function runSplitUI() {
     const s50line = same50 ? `Split50: $${fmt(s50Usd, 2)} (≈ same)` : `Split50: $${fmt(s50Usd, 2)} (${d50 >= 0 ? "+" : "-"}$${fmt(Math.abs(d50), 2)})`;
     if (outEl) outEl.textContent = `Once: $${fmt(onceUsd, 2)} · ${s10line} · ${s50line} (best-effort)`;
   } catch (e) {
-    if (outEl) outEl.textContent = `API error: ${e.message || String(e)}`;
+    if (outEl) outEl.textContent = "Split compare failed. Retry in a few seconds.";
   } finally {
     setButtonsDisabled(false);
   }
@@ -810,15 +810,15 @@ function bindExamples() {
     setQueryParams({ token, amt, pool: "" });
     Promise.resolve().then(() => loadPoolsForToken()).then(() => runEstimate()).catch((err) => {
       console.error("Examples flow failed", err);
-      setErr(`Examples flow failed: ${err?.message || String(err)}`);
+      setErr("Example load failed. Retry in a few seconds.");
     });
   });
 }
 
 function init() {
   bindExamples();
-  renderCompare(null, "", "run an estimate to compare top pools");
-  renderDepth(null, null, "run an estimate to load ladder");
+  renderCompare(null, "", "");
+  renderDepth(null, null, "");
   const qp = getQueryParams();
   window.__sellImpactDesiredPool = qp.pool || "";
   const tokenEl = $("tokenAddr");
@@ -847,7 +847,7 @@ function init() {
     setQueryParams({ token, amt, pool: "" });
     loadPoolsForToken().then(() => runEstimate()).catch((err) => {
       console.error("token change flow failed", err);
-      setErr(`Token change failed: ${err?.message || String(err)}`);
+      setErr("Token load failed. Retry in a few seconds.");
     });
   });
   $("amountWld")?.addEventListener("input", () => {
@@ -856,7 +856,7 @@ function init() {
     if (token) setQueryParams({ token, amt, pool: "" });
     runEstimate().catch((err) => {
       console.error("amount input estimate failed", err);
-      setErr(`Estimate failed: ${err?.message || String(err)}`);
+      setErr("Estimate failed. Retry in a few seconds.");
     });
   });
   $("amountWld")?.addEventListener("change", () => {
@@ -865,7 +865,7 @@ function init() {
     if (token) setQueryParams({ token, amt, pool: "" });
     runEstimate().catch((err) => {
       console.error("amount change estimate failed", err);
-      setErr(`Estimate failed: ${err?.message || String(err)}`);
+      setErr("Estimate failed. Retry in a few seconds.");
     });
   });
   $("poolSel")?.addEventListener("change", () => {
@@ -875,17 +875,17 @@ function init() {
     if (token) setQueryParams({ token, amt, pool });
     runEstimate().catch((err) => {
       console.error("pool change estimate failed", err);
-      setErr(`Estimate failed: ${err?.message || String(err)}`);
+      setErr("Estimate failed. Retry in a few seconds.");
     });
   });
 
   if (String($("tokenAddr")?.value || "").trim()) {
     loadPoolsForToken().then(() => runEstimate()).catch((err) => {
       console.error("initial load flow failed", err);
-      setErr(`Initial load failed: ${err?.message || String(err)}`);
+      setErr("Initial load failed. Retry in a few seconds.");
     });
   } else {
-    setErr("Enter token address to load pools.");
+    setErr("Paste a token address or tap an example.");
   }
 
   if (qp.token) {
@@ -893,7 +893,7 @@ function init() {
       if (qp.pool && $("poolSel")) $("poolSel").value = qp.pool;
     }).then(() => runEstimate()).catch((err) => {
       console.error("deep-link boot failed", err);
-      setErr(`Deep-link boot failed: ${err?.message || String(err)}`);
+      setErr("Deep link load failed. Retry in a few seconds.");
     });
   }
 }

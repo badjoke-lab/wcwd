@@ -13,6 +13,16 @@ function finiteNumber(value) {
   return Number.isFinite(n) ? n : null;
 }
 
+function buildEstimatorHref(item) {
+  const url = new URL("/world-chain/sell-impact/", location.origin);
+  if (item?.tokenAddr) url.searchParams.set("token", item.tokenAddr);
+  const conservative = Number(item?.conservative_5pct_max);
+  if (Number.isFinite(conservative) && conservative > 0) {
+    url.searchParams.set("amt", String(conservative));
+  }
+  return `${url.pathname}${url.search}`;
+}
+
 function buildSparkline(values) {
   const points = values.filter((v) => Number.isFinite(v));
   if (!points.length) return "—";
@@ -68,21 +78,28 @@ function summarizeTrend(entries) {
   };
 }
 
+function renderWatchlistEmpty(metaEl, listEl, message) {
+  metaEl.textContent = message;
+  listEl.innerHTML = "";
+  const empty = document.createElement("div");
+  empty.className = "snapshot-empty";
+  empty.textContent = "Enter a token above for a manual estimate, or wait for the next scheduled watchlist snapshot.";
+  listEl.appendChild(empty);
+}
+
 function renderSellImpactWatchlist(latestPayload, historyPayload, errorMessage = "") {
   const metaEl = document.getElementById("watchlistMeta");
   const listEl = document.getElementById("watchlistList");
   if (!metaEl || !listEl) return;
 
   if (errorMessage) {
-    metaEl.textContent = `Watchlist snapshot unavailable: ${errorMessage}`;
-    listEl.textContent = "—";
+    renderWatchlistEmpty(metaEl, listEl, `Watchlist snapshot unavailable: ${errorMessage}`);
     return;
   }
 
   const items = Array.isArray(latestPayload?.items) ? latestPayload.items : [];
   if (!items.length) {
-    metaEl.textContent = "Watchlist snapshot not ready yet.";
-    listEl.textContent = "—";
+    renderWatchlistEmpty(metaEl, listEl, "Watchlist snapshot not ready yet.");
     return;
   }
 
@@ -90,25 +107,77 @@ function renderSellImpactWatchlist(latestPayload, historyPayload, errorMessage =
   const approxMinutes = history.snapshotCount * 15;
   metaEl.textContent = `Latest watchlist snapshot: ${latestPayload?.ts || "—"} · tracked tokens: ${items.length} · history window: ${history.snapshotCount} snapshots (~${approxMinutes} min)`;
   listEl.innerHTML = "";
-
-  const wrap = document.createElement("div");
-  wrap.style.display = "grid";
-  wrap.style.gap = "8px";
+  listEl.className = "snapshot-grid";
 
   items.forEach((item) => {
-    const row = document.createElement("div");
+    const card = document.createElement("article");
+    card.className = "snapshot-card";
     if (!item?.ok) {
-      row.textContent = `${item?.symbol || "—"} · unavailable (${item?.error || "unknown_error"})`;
-      wrap.appendChild(row);
+      const top = document.createElement("div");
+      top.className = "snapshot-top";
+      const symbol = document.createElement("div");
+      symbol.className = "snapshot-symbol";
+      symbol.textContent = item?.symbol || "—";
+      const status = document.createElement("div");
+      status.className = "snapshot-value";
+      status.textContent = "—";
+      top.appendChild(symbol);
+      top.appendChild(status);
+      const note = document.createElement("div");
+      note.className = "snapshot-sub";
+      note.textContent = `Unavailable (${item?.error || "unknown_error"})`;
+      card.appendChild(top);
+      card.appendChild(note);
+      listEl.appendChild(card);
       return;
     }
+
     const entries = history.map.get(item.symbol) || [];
     const trend = summarizeTrend(entries);
-    row.textContent = `${item.symbol} · selected 5% ${siFmtNumber(item.selected_5pct_max, 6)} · conservative 5% ${siFmtNumber(item.conservative_5pct_max, 6)} · 3h trend ${trend.spark} ${trend.text} · pool ${item?.selected_pool?.poolLabel || "—"}`;
-    wrap.appendChild(row);
-  });
 
-  listEl.appendChild(wrap);
+    const top = document.createElement("div");
+    top.className = "snapshot-top";
+
+    const symbol = document.createElement("div");
+    symbol.className = "snapshot-symbol";
+    symbol.textContent = item.symbol;
+
+    const conservative = document.createElement("div");
+    conservative.className = "snapshot-value";
+    conservative.textContent = siFmtNumber(item.conservative_5pct_max, 6);
+
+    top.appendChild(symbol);
+    top.appendChild(conservative);
+
+    const sub = document.createElement("div");
+    sub.className = "snapshot-sub";
+    sub.textContent = `Conservative 5% max · selected ${siFmtNumber(item.selected_5pct_max, 6)}`;
+
+    const trendEl = document.createElement("div");
+    trendEl.className = "snapshot-trend";
+    trendEl.textContent = `3h trend ${trend.spark} ${trend.text}`;
+
+    const pool = document.createElement("div");
+    pool.className = "snapshot-pool";
+    pool.textContent = item?.selected_pool?.poolLabel || "Pool unknown";
+
+    const footer = document.createElement("div");
+    footer.className = "snapshot-footer";
+
+    const cta = document.createElement("a");
+    cta.className = "snapshot-link";
+    cta.href = buildEstimatorHref(item);
+    cta.textContent = "Load token in estimator";
+
+    footer.appendChild(cta);
+
+    card.appendChild(top);
+    card.appendChild(sub);
+    card.appendChild(trendEl);
+    card.appendChild(pool);
+    card.appendChild(footer);
+    listEl.appendChild(card);
+  });
 }
 
 async function loadSellImpactWatchlist() {
