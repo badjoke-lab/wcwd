@@ -113,6 +113,30 @@
       <p class="muted">This dashboard provides best-effort signals for quick checks.</p>
     </header>
 
+    <section class="card" aria-labelledby="data-source-title">
+      <h2 id="data-source-title">Data Source</h2>
+      <p class="muted">Summary API snapshot, freshness, retention, and current fallback path.</p>
+      <div class="grid">
+        <div class="metric">
+          <div class="k">Freshness</div>
+          <div class="v" id="dataFreshness">—</div>
+        </div>
+        <div class="metric">
+          <div class="k">Snapshot generated</div>
+          <div class="v mono" id="dataGeneratedAt">—</div>
+        </div>
+        <div class="metric">
+          <div class="k">History interval</div>
+          <div class="v" id="dataInterval">—</div>
+        </div>
+        <div class="metric">
+          <div class="k">Path</div>
+          <div class="v mono" id="dataPath">—</div>
+        </div>
+      </div>
+      <div id="dataRetention" class="note">—</div>
+    </section>
+
     <section class="card">
       <h2>Health</h2>
       <div class="grid">
@@ -456,6 +480,7 @@
 </footer>
 <!-- WCWD:FOOTER:END -->
 <script src="./app.js" defer></script>
+<script src="./dashboard-source.js" defer></script>
 <script src="./home-watchlist.js" defer></script>
 </body>
 </html>
