@@ -25,14 +25,42 @@ function dsSetText(el, value) {
   el.textContent = value || "—";
 }
 
-function dsFormatState(state) {
-  const key = String(state || "").toLowerCase();
-  if (key === "ok" || key === "fresh") return "OK / fresh";
+function dsNormalizeState(state) {
+  const key = String(state || "").toLowerCase().trim();
+  if (key === "ok" || key === "fresh" || key === "normal") return "fresh";
+  if (key === "delayed") return "delayed";
+  if (key === "stale") return "stale";
+  if (key === "degraded" || key === "partial" || key === "warn" || key === "alert") return "degraded";
+  if (key === "error" || key === "unavailable" || key === "empty" || key === "no data") return "unavailable";
+  return "unknown";
+}
+
+function dsStateLabel(state) {
+  const key = dsNormalizeState(state);
+  if (key === "fresh") return "Fresh";
   if (key === "delayed") return "Delayed";
   if (key === "stale") return "Stale";
-  if (key === "degraded" || key === "partial") return "Degraded";
-  if (key === "error" || key === "unavailable") return "Unavailable";
-  return state || "—";
+  if (key === "degraded") return "Degraded";
+  if (key === "unavailable") return "Unavailable";
+  return "Unknown";
+}
+
+function dsStateHelp(state) {
+  const key = dsNormalizeState(state);
+  if (key === "fresh") return "Summary API is current enough for normal dashboard use.";
+  if (key === "delayed") return "Latest snapshot is late, but still usable.";
+  if (key === "stale") return "Latest snapshot is old. Read trends as delayed data.";
+  if (key === "degraded") return "One or more sources are failing, but partial data is available.";
+  if (key === "unavailable") return "Summary path is not available right now.";
+  return "Summary state could not be classified.";
+}
+
+function dsRenderStateBadge(el, state) {
+  if (!el) return;
+  const key = dsNormalizeState(state);
+  el.className = `v state-badge state-${key}`;
+  el.textContent = dsStateLabel(state);
+  el.title = dsStateHelp(state);
 }
 
 function dsFormatGeneratedAt(value) {
@@ -67,17 +95,21 @@ function dsBuildRetentionText(retention) {
   return pieces.length ? `Retention: ${pieces.join(" · ")}` : "Retention: summary metadata unavailable.";
 }
 
+function dsExtractFreshnessState(summary) {
+  return summary?.dashboard_state || summary?.freshness?.state || summary?.status || "unknown";
+}
+
 function dsRenderFromSummary(summary) {
   if (!summary || typeof summary !== "object") return false;
-  const freshnessState = summary?.dashboard_state || summary?.freshness?.state || summary?.status || "—";
+  const freshnessState = dsExtractFreshnessState(summary);
   const generatedAt = summary?.generated_at || summary?.ts || "—";
   const intervalMin = summary?.interval_min || summary?.freshness?.interval_min || summary?.retention?.interval_min || null;
   const sourcePath = dsIsLocalMode() ? `${dsApiBase()}/api/summary` : "/api/summary";
-  dsSetText(DASHBOARD_SOURCE_UI.freshness, dsFormatState(freshnessState));
+  dsRenderStateBadge(DASHBOARD_SOURCE_UI.freshness, freshnessState);
   dsSetText(DASHBOARD_SOURCE_UI.generatedAt, dsFormatGeneratedAt(generatedAt));
   dsSetText(DASHBOARD_SOURCE_UI.interval, dsFormatInterval(intervalMin));
   dsSetText(DASHBOARD_SOURCE_UI.path, sourcePath);
-  dsSetText(DASHBOARD_SOURCE_UI.retention, dsBuildRetentionText(summary?.retention));
+  dsSetText(DASHBOARD_SOURCE_UI.retention, `${dsStateHelp(freshnessState)} ${dsBuildRetentionText(summary?.retention)}`);
   return true;
 }
 
@@ -96,11 +128,11 @@ async function dsRefreshCard() {
   if (dsRenderFromSummary(rawSummary)) return;
   const fetched = await dsFetchSummaryFallback();
   if (dsRenderFromSummary(fetched)) return;
-  dsSetText(DASHBOARD_SOURCE_UI.freshness, dsFormatState(DASHBOARD_SOURCE_UI.status?.textContent || "—"));
+  dsRenderStateBadge(DASHBOARD_SOURCE_UI.freshness, DASHBOARD_SOURCE_UI.status?.textContent || "unavailable");
   dsSetText(DASHBOARD_SOURCE_UI.generatedAt, "Waiting for summary payload");
   dsSetText(DASHBOARD_SOURCE_UI.interval, "—");
   dsSetText(DASHBOARD_SOURCE_UI.path, dsIsLocalMode() ? `${dsApiBase()}/api/summary` : "/api/summary");
-  dsSetText(DASHBOARD_SOURCE_UI.retention, "Retention: unavailable until summary payload loads.");
+  dsSetText(DASHBOARD_SOURCE_UI.retention, "Summary payload has not loaded yet. Retention metadata is unavailable.");
 }
 
 function dsAttachObservers() {
