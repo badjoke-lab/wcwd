@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WCWD — World Chain Ecosystem</title>
+  <meta name="description" content="World Chain ecosystem directory for tokens, dApps, infra, and oracle-related entries curated in ecosystem.json." />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/assets/common.css" />
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="canonical" href="https://wcwd.badjoke-lab.com/world-chain/ecosystem/">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="WCWD">
+  <meta property="og:title" content="WCWD — World Chain Ecosystem">
+  <meta property="og:description" content="World Chain ecosystem directory for tokens, dApps, infra, and oracle-related entries curated in ecosystem.json.">
+  <meta property="og:url" content="https://wcwd.badjoke-lab.com/world-chain/ecosystem/">
+  <meta property="og:image" content="https://wcwd.badjoke-lab.com/og.png">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="WCWD — World Chain Ecosystem">
+  <meta name="twitter:description" content="World Chain ecosystem directory for tokens, dApps, infra, and oracle-related entries curated in ecosystem.json.">
+<!-- WCWD:HEAD:GA4:BEGIN -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-0D84H0D66W"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-0D84H0D66W');
+</script>
+<!-- WCWD:HEAD:GA4:END -->
+</head>
+<body>
+<header class="header">
+  <div class="container header-inner">
+    <a class="brand" href="/">WCWD</a>
+    <nav class="nav" data-site-nav>
+      <a href="/">Home</a>
+      <a href="/world-chain/">World Chain</a>
+      <a href="/world-id/">World ID</a>
+      <a href="/about/">About</a>
+      <a href="/donate/">Donate</a>
+    </nav>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="container">
+    <h1>World Chain Ecosystem</h1>
+    <p class="lead">Tokens, dApps, infra, and oracle-related entries curated in ecosystem.json.</p>
+    <p class="muted">Best-effort directory. Verified status means the entry has a World Chain contract, Worldscan address, or World-official offchain marker.</p>
+  </div>
+</section>
+
+<main class="container">
+  <section class="card" id="ecosystem">
+    <h2>Ecosystem</h2>
+    <div class="eco-legend">
+      <span class="eco-legend-item eco-verified">✅ Verified on World Chain</span>
+      <span class="eco-legend-item eco-offchain">⚪ Offchain (World official)</span>
+      <span class="eco-legend-item eco-unverified">⚠ Unverified / Cross-chain</span>
+    </div>
+
+    <div class="eco-hot">
+      <div class="eco-hot-head">
+        <h3>Hot</h3>
+        <div class="note">Top 5 items with hot=true, sorted by hot_rank.</div>
+      </div>
+      <div id="ecoHotList" class="eco-hot-list"></div>
+      <div class="note" id="ecoHotEmpty">No hot items yet</div>
+    </div>
+
+    <div class="eco-new">
+      <div class="eco-hot-head">
+        <h3>New</h3>
+        <div class="note">Newest additions by added_at.</div>
+      </div>
+      <div id="ecoNewList" class="eco-hot-list"></div>
+      <div class="note" id="ecoNewEmpty">No new items yet</div>
+    </div>
+
+    <div class="eco-filters">
+      <div class="tabs" role="tablist" aria-label="Ecosystem types">
+        <button class="tab-btn active" type="button" data-eco-type="all">All</button>
+        <button class="tab-btn" type="button" data-eco-type="token">Tokens</button>
+        <button class="tab-btn" type="button" data-eco-type="dapp">dApps</button>
+        <button class="tab-btn" type="button" data-eco-type="infra">Infra</button>
+        <button class="tab-btn" type="button" data-eco-type="oracle">Oracles</button>
+      </div>
+      <div class="eco-inputs">
+        <input id="ecoSearch" type="search" placeholder="Search by name, symbol, tag, description" />
+        <select id="ecoCategory"></select>
+        <label class="eco-toggle">
+          <input id="ecoShowUnverified" type="checkbox" />
+          Show unverified/cross-chain
+        </label>
+      </div>
+      <div class="note" id="ecoTagState">Tag filter: none</div>
+    </div>
+
+    <div class="note error" id="ecoError" role="alert"></div>
+    <div id="ecoList" class="eco-list"></div>
+    <div class="note" id="ecoEmpty">No items match the filters.</div>
+  </section>
+
+  <section class="card">
+    <h2>Add via PR</h2>
+    <p class="muted">
+      1. Edit ecosystem.json and add your project entry. 2. Open a PR with a short description.
+      3. Once merged, it appears here automatically.
+    </p>
+    <p class="note">World Chain (chainId=480) entries are shown by default. Cross-chain items require the toggle.</p>
+    <p><a class="btn secondary" href="https://github.com/badjoke-lab/wcwd/blob/main/ecosystem.json" target="_blank" rel="noopener noreferrer">Edit ecosystem.json on GitHub</a></p>
+  </section>
+</main>
+
+<footer class="footer">
+  <div class="container">
+    <div class="grid">
+      <section class="col-3"><p class="card-title">Site</p><p><a href="/">Home</a></p><p><a href="/world-chain/">World Chain</a></p><p><a href="/world-id/">World ID</a></p></section>
+      <section class="col-3"><p class="card-title">Legal</p><p><a href="/about/">About</a></p><p><a href="/about/#disclaimer">Disclaimer</a></p><p><a href="/about/#privacy">Privacy</a></p></section>
+      <section class="col-3"><p class="card-title">External</p><p><a href="https://github.com/badjoke-lab/wcwd" target="_blank" rel="noopener noreferrer">GitHub</a></p><p><a href="https://x.com/badjoke_lab" target="_blank" rel="noopener noreferrer">X</a></p></section>
+      <section class="col-3"><p class="card-title">Signature</p><p>Built by BadJoke-Lab</p><p>© 2026 WCWD</p></section>
+    </div>
+  </div>
+</footer>
+<script src="/assets/common.js"></script>
+<script src="./ecosystem.js" defer></script>
+</body>
+</html>
