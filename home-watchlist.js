@@ -41,13 +41,14 @@ function renderHomeWatchlist(payload, errorMessage = "") {
     return;
   }
 
-  const items = Array.isArray(payload?.items) ? payload.items.filter((item) => item?.ok) : [];
+  const allItems = Array.isArray(payload?.items) ? payload.items.filter((item) => item?.ok) : [];
+  const items = allItems.slice(0, 3);
   if (!items.length) {
     renderHomeEmpty(metaEl, listEl, "Sell Impact snapshot not ready yet.");
     return;
   }
 
-  metaEl.textContent = `Latest snapshot: ${payload?.ts || "—"} · tracked hot tokens: ${items.length}`;
+  metaEl.textContent = `Latest snapshot: ${payload?.ts || "—"} · showing top ${items.length} of ${allItems.length} tracked hot tokens`;
   listEl.innerHTML = "";
   listEl.className = "snapshot-grid";
 
