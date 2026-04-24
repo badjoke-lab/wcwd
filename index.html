@@ -3,17 +3,24 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-
   <title>WCWD — World Chain &amp; World ID Builder Toolkit</title>
-  <meta name="description" content="WCWD offers lightweight World Chain dashboards and World ID builder tools, free to use, donation-supported, and best-effort for explorers and developers." />
-
-  <!-- ✅ History Worker base (frontend fetches from here) -->
+  <meta name="description" content="WCWD offers lightweight World Chain snapshots, WLD market context, Sell Impact, and World ID builder tools." />
   <meta name="wcwd-history-base" content="https://wcwd-history.badjoke-lab.workers.dev" />
-
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
   <link rel="stylesheet" href="/assets/common.css" />
   <link rel="stylesheet" href="./style.css" />
+  <link rel="canonical" href="https://wcwd.badjoke-lab.com/">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="WCWD">
+  <meta property="og:title" content="WCWD — World Chain & World ID Builder Toolkit">
+  <meta property="og:description" content="Lightweight World Chain snapshots, WLD market context, Sell Impact, and World ID builder tools.">
+  <meta property="og:url" content="https://wcwd.badjoke-lab.com/">
+  <meta property="og:image" content="https://wcwd.badjoke-lab.com/og.png">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="WCWD — World Chain & World ID Builder Toolkit">
+  <meta name="twitter:description" content="Lightweight World Chain snapshots, WLD market context, Sell Impact, and World ID builder tools.">
 <!-- WCWD:HEAD:GA4:BEGIN -->
-<!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-0D84H0D66W"></script>
 <script>
   window.dataLayer = window.dataLayer || [];
@@ -25,462 +32,106 @@
 </head>
 
 <body>
-<!-- WCWD:HEADER:BEGIN -->
 <header class="header">
   <div class="container header-inner">
     <a class="brand" href="/">WCWD</a>
     <nav class="nav" data-site-nav>
-      <a href="/">Home</a>
+      <a href="/" aria-current="page">Home</a>
       <a href="/world-chain/">World Chain</a>
       <a href="/world-id/">World ID</a>
-      <a href="/test/">Test</a>
       <a href="/about/">About</a>
       <a href="/donate/">Donate</a>
     </nav>
   </div>
 </header>
-<!-- WCWD:HEADER:END -->
-  <main class="wrap">
-    <section class="card home-hero" aria-labelledby="home-intro-title">
-      <h1 id="home-intro-title">WCWD</h1>
-      <p>WCWD means <strong>World Chain / World ID Dashboard</strong>.</p>
-      <p class="muted">Free to use • Donation-supported • Best-effort (not official).</p>
 
-      <div class="grid" aria-label="Primary navigation">
-        <div class="col-4"><a class="btn" href="/world-chain/" style="display:block;text-align:center;">Explore World Chain</a></div>
-        <div class="col-4"><a class="btn secondary" href="/world-id/" style="display:block;text-align:center;">Explore World ID</a></div>
-        <div class="col-4"><a class="btn ghost" href="/about/" style="display:block;text-align:center;">Read About</a></div>
-      </div>
-    </section>
+<main class="wrap">
+  <section class="card home-hero" aria-labelledby="home-intro-title">
+    <h1 id="home-intro-title">WCWD</h1>
+    <p><strong>World Chain / World ID dashboard and builder toolkit.</strong></p>
+    <p class="muted">Free to use • Donation-supported • Unofficial • Best-effort</p>
+    <div class="grid" aria-label="Primary navigation">
+      <div class="col-4"><a class="btn" href="/world-chain/monitor/" style="display:block;text-align:center;">Open Monitor</a></div>
+      <div class="col-4"><a class="btn secondary" href="/world-chain/sell-impact/" style="display:block;text-align:center;">Sell Impact</a></div>
+      <div class="col-4"><a class="btn ghost" href="/world-chain/" style="display:block;text-align:center;">World Chain Tools</a></div>
+    </div>
+  </section>
 
-    <section class="card feature-overview" aria-labelledby="feature-overview-title">
-      <h2 id="feature-overview-title">Feature overview</h2>
-      <div class="eco-hot-list feature-cards">
-        <article class="card">
-          <h3>World Chain</h3>
-          <ul>
-            <li>Overview dashboard</li>
-            <li>Sell impact</li>
-            <li>Oracles</li>
-            <li>Paymaster</li>
-          </ul>
-          <p><a class="btn secondary" href="/world-chain/">Open World Chain</a></p>
-        </article>
+  <section class="card" aria-labelledby="wld-snapshot-title">
+    <h2 id="wld-snapshot-title">WLD Snapshot</h2>
+    <p class="muted">Compact market snapshot from the server-owned summary path.</p>
+    <div class="grid">
+      <div class="metric col-3"><div class="k">WLD USD</div><div class="v" id="homeWldUsd">—</div></div>
+      <div class="metric col-3"><div class="k">WLD JPY</div><div class="v" id="homeWldJpy">—</div></div>
+      <div class="metric col-3"><div class="k">24h</div><div class="v" id="homeWld24h">—</div></div>
+      <div class="metric col-3"><div class="k">Freshness</div><div class="v" id="homeFreshness">—</div></div>
+    </div>
+    <div class="mini" style="margin-top:12px;">
+      <div class="k">WLD 24h/summary trend</div>
+      <div class="v mono" id="homeWldTrend">—</div>
+    </div>
+    <div class="note">Snapshot generated: <span id="homeGeneratedAt">—</span></div>
+    <p style="margin-top:12px;"><a class="btn secondary" href="/world-chain/monitor/">Open full monitor</a></p>
+  </section>
 
-        <article class="card">
-          <h3>World ID</h3>
-          <ul>
-            <li>Wizard</li>
-            <li>Debugger</li>
-            <li>Playground</li>
-          </ul>
-          <p><a class="btn secondary" href="/world-id/">Open World ID</a></p>
-        </article>
-      </div>
-    </section>
+  <section class="card" aria-labelledby="network-snapshot-title">
+    <h2 id="network-snapshot-title">Network Snapshot</h2>
+    <p class="muted">Fast status cards only. Detailed health, events, and debug live on the Monitor page.</p>
+    <div class="grid">
+      <div class="metric col-3"><div class="k">TPS</div><div class="v" id="homeTps">—</div></div>
+      <div class="metric col-3"><div class="k">Gas</div><div class="v" id="homeGas">—</div></div>
+      <div class="metric col-3"><div class="k">Tx/day</div><div class="v" id="homeTx24h">—</div></div>
+      <div class="metric col-3"><div class="k">State</div><div class="v" id="homeNetworkState">—</div></div>
+    </div>
+    <p style="margin-top:12px;"><a class="btn secondary" href="/world-chain/monitor/">View full monitor</a></p>
+  </section>
 
-    <section class="card quick-links" aria-labelledby="quick-links-title">
-      <h2 id="quick-links-title">Quick links</h2>
-      <div class="row quick-links-row">
-        <a class="btn ghost" href="/world-chain/sell-impact/">Sell Impact</a>
-        <a class="btn ghost" href="/world-id/wizard/">Wizard</a>
-        <a class="btn ghost" href="/world-id/debugger/">Debugger</a>
-        <a class="btn ghost" href="/world-id/playground/">Playground</a>
-      </div>
-    </section>
+  <section class="card" aria-labelledby="sell-impact-snapshot-title">
+    <h2 id="sell-impact-snapshot-title">Sell Impact Snapshot</h2>
+    <p class="muted">Top 3 hot tokens only. Open Sell Impact for full compare, ladder, and watchlist details.</p>
+    <div id="homeSellImpactMeta" class="note">—</div>
+    <div id="homeSellImpactList" class="grid" style="margin-top:12px;">—</div>
+    <p style="margin-top:12px;"><a class="btn secondary" href="/world-chain/sell-impact/">Open Sell Impact</a></p>
+  </section>
 
-    <section class="card" aria-labelledby="sell-impact-snapshot-title">
-      <h2 id="sell-impact-snapshot-title">Sell Impact Snapshot</h2>
-      <p class="muted">Hot token conservative 5% size from the lightweight watchlist collector. Best-effort and short-history only.</p>
-      <div id="homeSellImpactMeta" class="note">—</div>
-      <div id="homeSellImpactList" class="grid" style="margin-top:12px;">—</div>
-      <p style="margin-top:12px;"><a class="btn secondary" href="/world-chain/sell-impact/">Open Sell Impact</a></p>
-    </section>
+  <section class="card" aria-labelledby="tool-directory-title">
+    <h2 id="tool-directory-title">Tool Directory</h2>
+    <div class="eco-hot-list feature-cards">
+      <article class="card">
+        <h3>World Chain</h3>
+        <ul>
+          <li><a href="/world-chain/monitor/">Monitor</a></li>
+          <li><a href="/world-chain/sell-impact/">Sell Impact</a></li>
+          <li><a href="/world-chain/oracles/">Oracles</a></li>
+          <li><a href="/world-chain/paymaster/">Paymaster</a></li>
+        </ul>
+        <p><a class="btn secondary" href="/world-chain/">Open World Chain</a></p>
+      </article>
+      <article class="card">
+        <h3>World ID</h3>
+        <ul>
+          <li><a href="/world-id/wizard/">Wizard</a></li>
+          <li><a href="/world-id/debugger/">Debugger</a></li>
+          <li><a href="/world-id/playground/">Playground</a></li>
+        </ul>
+        <p><a class="btn secondary" href="/world-id/">Open World ID</a></p>
+      </article>
+    </div>
+  </section>
+</main>
 
-    <section id="dashboard" class="dashboard-section">
-    <header class="hero">
-      <h1>World Chain Monitor (Phase 0)</h1>
-
-      <p class="lead">RPC + optional public APIs. No indexer, no wallet connect. Some metrics may be unavailable.</p>
-      <p class="lead">History: sampled by Cloudflare Workers Cron + KV (default ~15 min).</p>
-      <p class="muted">Some metrics require an indexer and may be unavailable in Phase 0.</p>
-
-      <div class="actions">
-        <button id="reload" type="button">Reload</button>
-        <div class="status">Status: <strong id="status">—</strong></div>
-      </div>
-
-      <p class="muted">This dashboard provides best-effort signals for quick checks.</p>
-    </header>
-
-    <section class="card" aria-labelledby="data-source-title">
-      <h2 id="data-source-title">Data Source</h2>
-      <p class="muted">Summary API snapshot, freshness, retention, and current fallback path.</p>
-      <div class="grid">
-        <div class="metric">
-          <div class="k">Freshness</div>
-          <div class="v" id="dataFreshness">—</div>
-        </div>
-        <div class="metric">
-          <div class="k">Snapshot generated</div>
-          <div class="v mono" id="dataGeneratedAt">—</div>
-        </div>
-        <div class="metric">
-          <div class="k">History interval</div>
-          <div class="v" id="dataInterval">—</div>
-        </div>
-        <div class="metric">
-          <div class="k">Path</div>
-          <div class="v mono" id="dataPath">—</div>
-        </div>
-      </div>
-      <div id="dataRetention" class="note">—</div>
-    </section>
-
-    <section class="card">
-      <h2>Health</h2>
-      <div class="grid">
-        <div class="metric">
-          <div class="k">Status</div>
-          <div class="v" id="healthLevel">—</div>
-        </div>
-        <div class="metric">
-          <div class="k">Reasons</div>
-          <div class="v mono" id="healthReasons">—</div>
-        </div>
-        <div class="metric">
-          <div class="k">Baseline</div>
-          <div class="v mono" id="healthBaseline">—</div>
-        </div>
-      </div>
-    </section>
-
-    <section class="card">
-      <h2>Network</h2>
-      <div class="grid">
-        <div class="metric">
-          <div class="k">TPS (est.)</div>
-          <div class="v" id="tps">—</div>
-        </div>
-
-        <div class="metric">
-          <div class="k">Tx/day (est.)</div>
-          <div class="v" id="tx24h">—</div>
-        </div>
-
-        <div class="metric">
-          <div class="k">Gas Price (gwei)</div>
-          <div class="v" id="gasPrice">—</div>
-        </div>
-
-        <div class="metric">
-          <div class="k">New addresses (24h)</div>
-          <div class="v" id="newAddr24h">N/A</div>
-          <div class="n" id="newAddrNote">History-only: no indexer.</div>
-        </div>
-
-        <div class="metric">
-          <div class="k">Total addresses</div>
-          <div class="v" id="totalAddr">N/A</div>
-          <div class="n" id="totalAddrNote">History-only: no indexer.</div>
-        </div>
-      </div>
-    </section>
-
-    <section class="card">
-      <h2>WLD Market (CoinGecko)</h2>
-      <div class="grid">
-        <div class="metric">
-          <div class="k">WLD (USD)</div>
-          <div class="v" id="wldUsd">—</div>
-        </div>
-
-        <div class="metric">
-          <div class="k">WLD (JPY)</div>
-          <div class="v" id="wldJpy">—</div>
-        </div>
-
-        <div class="metric">
-          <div class="k">24h change</div>
-          <div class="v" id="wldChg24h">—</div>
-          <div class="n" id="cgNote">Local mode: /api/summary unavailable (static). Showing history-only signals.</div>
-        </div>
-
-        <div class="metric">
-          <div class="k">Market cap</div>
-          <div class="v" id="wldMc">—</div>
-        </div>
-
-        <div class="metric">
-          <div class="k">24h volume</div>
-          <div class="v" id="wldVol">—</div>
-        </div>
-
-        <div class="metric">
-          <div class="k">Sparkline (7d)</div>
-          <div class="v mono" id="wldSpark7d">—</div>
-        </div>
-      </div>
-
-      <div class="mini">
-        <div class="k">WLD 7d (sparkline)</div>
-        <div class="v mono" id="chartWld7d">—</div>
-      </div>
-    </section>
-
-    <section class="card">
-      <h2>Activity (latest block sample)</h2>
-      <p class="muted">Approximation based on server sampling (no indexer).</p>
-
-      <div class="grid">
-        <div class="metric">
-          <div class="k">Token-tx share (approx)</div>
-          <div class="v" id="pctToken">—</div>
-        </div>
-
-        <div class="metric">
-          <div class="k">Non-token share (approx)</div>
-          <div class="v" id="pctNative">—</div>
-        </div>
-
-        <div class="metric">
-          <div class="k">Contract share</div>
-          <div class="v" id="pctContract">—</div>
-        </div>
-
-        <div class="metric">
-          <div class="k">Other share</div>
-          <div class="v" id="pctOther">—</div>
-        </div>
-      </div>
-
-      <div class="note" id="actNote">Local mode: activity sample is from server history only.</div>
-    </section>
-
-    <section class="card">
-      <h2>Trends (server observed)</h2>
-      <p class="muted">
-        These trends come from Workers Cron sampling and KV storage (not “who viewed the page”).
-        Interval is reported by the history worker (default ~15 minutes). (1 day ≈ 96 points @ 15 min)
-      </p>
-
-      <div class="mini">
-        <div class="k">TPS (24h)</div>
-        <canvas id="sparkTps" width="720" height="48" style="width:100%;height:48px;border-radius:10px;background:#fff;"></canvas>
-      </div>
-
-      <div class="mini">
-        <div class="k">Gas (24h, gwei)</div>
-        <canvas id="sparkGas" width="720" height="48" style="width:100%;height:48px;border-radius:10px;background:#fff;"></canvas>
-      </div>
-
-      <div class="mini">
-        <div class="k">WLD USD (24h)</div>
-        <canvas id="sparkWld" width="720" height="48" style="width:100%;height:48px;border-radius:10px;background:#fff;"></canvas>
-      </div>
-
-      <div class="mini">
-        <div class="k">Token-tx share (24h, approx)</div>
-        <canvas id="sparkToken" width="720" height="48" style="width:100%;height:48px;border-radius:10px;background:#fff;"></canvas>
-      </div>
-
-      <div class="note" id="noteHistory">—</div>
-    </section>
-
-    <section class="card" id="ecosystem">
-      <h2>Ecosystem</h2>
-      <p class="muted">World Chain tokens, dApps, infra, and oracles curated in ecosystem.json.</p>
-      <div class="eco-legend">
-        <span class="eco-legend-item eco-verified">✅ Verified on World Chain</span>
-        <span class="eco-legend-item eco-offchain">⚪ Offchain (World official)</span>
-        <span class="eco-legend-item eco-unverified">⚠ Unverified / Cross-chain</span>
-      </div>
-
-      <div class="eco-hot">
-        <div class="eco-hot-head">
-          <h3>Hot</h3>
-          <div class="note">Top 5 items with hot=true (sorted by hot_rank).</div>
-        </div>
-        <div id="ecoHotList" class="eco-hot-list"></div>
-        <div class="note" id="ecoHotEmpty">No hot items yet</div>
-      </div>
-
-      <div class="eco-new">
-        <div class="eco-hot-head">
-          <h3>New</h3>
-          <div class="note">Newest additions by added_at.</div>
-        </div>
-        <div id="ecoNewList" class="eco-hot-list"></div>
-        <div class="note" id="ecoNewEmpty">No new items yet</div>
-      </div>
-
-      <div class="eco-filters">
-        <div class="tabs" role="tablist" aria-label="Ecosystem types">
-          <button class="tab-btn active" type="button" data-eco-type="all">All</button>
-          <button class="tab-btn" type="button" data-eco-type="token">Tokens</button>
-          <button class="tab-btn" type="button" data-eco-type="dapp">dApps</button>
-          <button class="tab-btn" type="button" data-eco-type="infra">Infra</button>
-          <button class="tab-btn" type="button" data-eco-type="oracle">Oracles</button>
-        </div>
-        <div class="eco-inputs">
-          <input id="ecoSearch" type="search" placeholder="Search by name, symbol, tag, description" />
-          <select id="ecoCategory"></select>
-          <label class="eco-toggle">
-            <input id="ecoShowUnverified" type="checkbox" />
-            Show unverified/cross-chain
-          </label>
-        </div>
-        <div class="note" id="ecoTagState">Tag filter: none</div>
-      </div>
-
-      <div class="note error" id="ecoError" role="alert"></div>
-      <div id="ecoList" class="eco-list"></div>
-      <div class="note" id="ecoEmpty">No items match the filters.</div>
-
-      <div class="eco-pr">
-        <h3>Add via PR</h3>
-        <p class="muted">
-          1. Edit ecosystem.json and add your project entry. 2. Open a PR with a short description.
-          3. Once merged, it appears here automatically.
-        </p>
-        <p class="note">World Chain (chainId=480) entries are shown by default. Cross-chain items require the toggle.</p>
-        <p>
-          <a href="https://github.com/badjoke-lab/wcwd/blob/main/ecosystem.json" target="_blank" rel="noopener">Edit ecosystem.json on GitHub</a>
-        </p>
-      </div>
-    </section>
-
-    <section class="card">
-      <h2>7d Series (history)</h2>
-      <p class="muted">
-        7d charts come from the History Worker series API (hourly avg, UTC buckets).
-      </p>
-
-      <div class="mini">
-        <div class="k">TPS (7d, 1h avg)</div>
-        <canvas id="seriesTps7d" width="720" height="56" style="width:100%;height:56px;border-radius:10px;background:#fff;"></canvas>
-        <div class="note mono" id="noteSeriesTps7d">—</div>
-      </div>
-
-      <div class="mini">
-        <div class="k">WLD USD (7d, 1h avg)</div>
-        <canvas id="seriesWld7d" width="720" height="56" style="width:100%;height:56px;border-radius:10px;background:#fff;"></canvas>
-        <div class="note mono" id="noteSeriesWld7d">—</div>
-      </div>
-    </section>
-
-    <section class="card">
-      <h2>Alerts (vs recent average)</h2>
-      <p class="muted">Alerts compare the latest value vs the average of recent history points (server-side KV samples).</p>
-
-      <div class="grid">
-        <div class="metric">
-          <div class="k">Spike (TPS)</div>
-          <div class="v" id="alertSpike">—</div>
-        </div>
-        <div class="metric">
-          <div class="k">Drop (TPS)</div>
-          <div class="v" id="alertDrop">—</div>
-        </div>
-        <div class="metric">
-          <div class="k">High Gas</div>
-          <div class="v" id="alertHighGas">—</div>
-        </div>
-      </div>
-    </section>
-
-    <section class="card">
-      <h2>Events</h2>
-      <div id="eventsList">—</div>
-    </section>
-
-    <section class="card">
-      <h2>Daily</h2>
-      <div class="grid">
-        <div class="metric">
-          <div class="k">Date</div>
-          <div class="v" id="dailyDate">—</div>
-        </div>
-        <div class="metric">
-          <div class="k">Health (mode)</div>
-          <div class="v mono" id="dailyHealth">—</div>
-        </div>
-        <div class="metric">
-          <div class="k">TPS max</div>
-          <div class="v" id="dailyTpsMax">—</div>
-        </div>
-        <div class="metric">
-          <div class="k">TPS min</div>
-          <div class="v" id="dailyTpsMin">—</div>
-        </div>
-        <div class="metric">
-          <div class="k">Gas max (gwei)</div>
-          <div class="v" id="dailyGasMax">—</div>
-        </div>
-        <div class="metric">
-          <div class="k">WLD change (USD)</div>
-          <div class="v" id="dailyWldUsdChange">—</div>
-        </div>
-        <div class="metric">
-          <div class="k">WLD change (JPY)</div>
-          <div class="v" id="dailyWldJpyChange">—</div>
-        </div>
-      </div>
-    </section>
-
-    <section class="card">
-      <h2>Debug</h2>
-
-      <details>
-        <summary>Show API response</summary>
-        <pre id="raw">—</pre>
-      </details>
-
-      <details>
-        <summary>Errors</summary>
-        <pre id="errors">—</pre>
-      </details>
-
-      <p class="muted">
-        Phase 0 limitations: no indexer, no historical chain-wide breakdown. Token share is “sample-based token-tx share (approx)”.
-      </p>
-    </section>
-    </section>
-  </main>
-<!-- WCWD:FOOTER:BEGIN -->
 <footer class="footer">
   <div class="container">
     <div class="grid">
-      <section class="col-3">
-        <p class="card-title">Site</p>
-        <p><a href="/">Home</a></p>
-        <p><a href="/world-chain/">World Chain</a></p>
-        <p><a href="/world-id/">World ID</a></p>
-        <p><a href="/about/">About</a></p>
-        <p><a href="/donate/">Donate</a></p>
-      </section>
-      <section class="col-3">
-        <p class="card-title">Legal</p>
-        <p><a href="/about/#disclaimer">Disclaimer</a></p>
-        <p><a href="/about/#privacy">Privacy</a></p>
-        <p><a href="https://docs.google.com/forms/d/e/1FAIpQLScdv3WFVHmQO_mz-p4_HJv1RyJItghrG6A0SGQ5ec4R2NBNOw/viewform?usp=pp_url&amp;entry.148248220=WCWD" target="_blank" rel="noopener noreferrer">Contact</a></p>
-      </section>
-      <section class="col-3">
-        <p class="card-title">External</p>
-        <p><a href="https://github.com/badjoke-lab/wcwd" target="_blank" rel="noopener noreferrer">GitHub</a></p>
-        <p><a href="https://x.com/badjoke_lab" target="_blank" rel="noopener noreferrer">X</a></p>
-      </section>
-      <section class="col-3">
-        <p class="card-title">Signature</p>
-        <p>Built by BadJoke-Lab</p>
-        <p>© 2026 WCWD</p>
-      </section>
+      <section class="col-3"><p class="card-title">Site</p><p><a href="/">Home</a></p><p><a href="/world-chain/">World Chain</a></p><p><a href="/world-id/">World ID</a></p></section>
+      <section class="col-3"><p class="card-title">Legal</p><p><a href="/about/">About</a></p><p><a href="/about/#disclaimer">Disclaimer</a></p><p><a href="/about/#privacy">Privacy</a></p></section>
+      <section class="col-3"><p class="card-title">External</p><p><a href="https://github.com/badjoke-lab/wcwd" target="_blank" rel="noopener noreferrer">GitHub</a></p><p><a href="https://x.com/badjoke_lab" target="_blank" rel="noopener noreferrer">X</a></p></section>
+      <section class="col-3"><p class="card-title">Signature</p><p>Built by BadJoke-Lab</p><p>© 2026 WCWD</p></section>
     </div>
   </div>
 </footer>
-<!-- WCWD:FOOTER:END -->
-<script src="./app.js" defer></script>
-<script src="./dashboard-source.js" defer></script>
+<script src="/assets/common.js"></script>
+<script src="./home-summary.js" defer></script>
 <script src="./home-watchlist.js" defer></script>
 </body>
 </html>
