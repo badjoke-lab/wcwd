@@ -135,6 +135,70 @@ async function dsRefreshCard() {
   dsSetText(DASHBOARD_SOURCE_UI.retention, "Summary payload has not loaded yet. Retention metadata is unavailable.");
 }
 
+function dsCreateLink(href, text, variant = "ghost") {
+  const a = document.createElement("a");
+  a.href = href;
+  a.className = variant === "primary" ? "btn secondary" : "btn ghost";
+  a.textContent = text;
+  return a;
+}
+
+function dsAddRoleMap() {
+  if (document.getElementById("home-role-map")) return;
+  const quickLinks = document.querySelector(".quick-links");
+  const dashboard = document.getElementById("dashboard");
+  if (!quickLinks || !dashboard) return;
+
+  const section = document.createElement("section");
+  section.className = "card role-map";
+  section.id = "home-role-map";
+  section.setAttribute("aria-labelledby", "home-role-map-title");
+
+  const title = document.createElement("h2");
+  title.id = "home-role-map-title";
+  title.textContent = "Home / Monitor map";
+
+  const lead = document.createElement("p");
+  lead.className = "muted";
+  lead.textContent = "Home is the entry point and short snapshot area. The embedded Monitor below is the detailed, server-owned dashboard.";
+
+  const grid = document.createElement("div");
+  grid.className = "role-map-grid";
+
+  const homeCard = document.createElement("article");
+  homeCard.className = "role-card";
+  homeCard.innerHTML = "<h3>Home overview</h3><p class=\"muted\">Use this area for navigation, tool entry, and compact snapshots only.</p>";
+  const homeActions = document.createElement("div");
+  homeActions.className = "role-actions";
+  homeActions.appendChild(dsCreateLink("/world-chain/", "World Chain tools", "primary"));
+  homeActions.appendChild(dsCreateLink("/world-chain/sell-impact/", "Sell Impact"));
+  homeCard.appendChild(homeActions);
+
+  const monitorCard = document.createElement("article");
+  monitorCard.className = "role-card";
+  monitorCard.innerHTML = "<h3>Detailed Monitor</h3><p class=\"muted\">Use this section for live health, history, trends, events, and source freshness.</p>";
+  const monitorActions = document.createElement("div");
+  monitorActions.className = "role-actions";
+  monitorActions.appendChild(dsCreateLink("#dashboard", "Jump to Monitor", "primary"));
+  monitorActions.appendChild(dsCreateLink("#data-source-title", "Data Source"));
+  monitorCard.appendChild(monitorActions);
+
+  grid.appendChild(homeCard);
+  grid.appendChild(monitorCard);
+  section.appendChild(title);
+  section.appendChild(lead);
+  section.appendChild(grid);
+  quickLinks.insertAdjacentElement("afterend", section);
+
+  const hero = dashboard.querySelector(".hero");
+  if (hero && !hero.querySelector(".section-eyebrow")) {
+    const eyebrow = document.createElement("div");
+    eyebrow.className = "section-eyebrow";
+    eyebrow.textContent = "Detailed monitor";
+    hero.insertBefore(eyebrow, hero.firstChild);
+  }
+}
+
 function dsAttachObservers() {
   if (DASHBOARD_SOURCE_UI.raw) {
     const rawObserver = new MutationObserver(() => { dsRefreshCard(); });
@@ -148,6 +212,7 @@ function dsAttachObservers() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+  dsAddRoleMap();
   dsAttachObservers();
   dsRefreshCard();
 });
