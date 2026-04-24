@@ -45,29 +45,42 @@
 <section class="hero">
   <div class="container">
     <h1>World Chain</h1>
-    <p class="lead">Hub for World Chain monitor, liquidity, ecosystem, oracle, and paymaster tools.</p>
+    <p class="lead">Choose a World Chain view: monitor health, check sell impact, browse the ecosystem, or open reference tools.</p>
+    <div class="row quick-links-row" style="margin-top:12px;">
+      <a class="btn" href="/world-chain/monitor/">Open Monitor</a>
+      <a class="btn secondary" href="/world-chain/sell-impact/">Sell Impact</a>
+      <a class="btn ghost" href="/world-chain/ecosystem/">Ecosystem</a>
+    </div>
   </div>
 </section>
 
 <main class="container">
   <section class="card">
-    <p class="card-title">Pages</p>
+    <p class="card-title">Primary tools</p>
+    <p class="muted small">These are the main pages for day-to-day World Chain checks.</p>
     <div class="grid">
-      <div class="col-6">
+      <div class="col-4">
         <div class="label">Monitor</div>
-        <p class="muted small">Detailed World Chain health, WLD market, trends, alerts, and history.</p>
+        <p class="muted small">Detailed World Chain health, WLD market, trends, alerts, events, daily history, and debug.</p>
         <p><a class="btn" href="/world-chain/monitor/">Open Monitor</a></p>
       </div>
-      <div class="col-6">
+      <div class="col-4">
         <div class="label">Sell Impact</div>
-        <p class="muted small">Estimate token sell impact and conservative max size.</p>
+        <p class="muted small">Estimate token sell impact, conservative 5% max size, pool compare, and depth ladder.</p>
         <p><a class="btn" href="/world-chain/sell-impact/">Open Sell Impact</a></p>
       </div>
-      <div class="col-6">
+      <div class="col-4">
         <div class="label">Ecosystem</div>
-        <p class="muted small">Directory of World Chain tokens, dApps, infra, and oracle-related entries.</p>
-        <p><a class="btn secondary" href="/world-chain/ecosystem/">Open Ecosystem</a></p>
+        <p class="muted small">Browse World Chain tokens, dApps, infra, and oracle-related entries from ecosystem.json.</p>
+        <p><a class="btn" href="/world-chain/ecosystem/">Open Ecosystem</a></p>
       </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <p class="card-title">Reference pages</p>
+    <p class="muted small">Lower-frequency reference pages. These are not the main dashboard surface.</p>
+    <div class="grid">
       <div class="col-6">
         <div class="label">Oracles</div>
         <p class="muted small">Oracle notes and reference page.</p>
@@ -77,6 +90,24 @@
         <div class="label">Paymaster</div>
         <p class="muted small">Paymaster notes and reference page.</p>
         <p><a class="btn secondary" href="/world-chain/paymaster/">Open Paymaster</a></p>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <p class="card-title">Role map</p>
+    <div class="grid">
+      <div class="col-4">
+        <div class="label">Home</div>
+        <p class="muted small">Compact WLD, network, and Sell Impact snapshots.</p>
+      </div>
+      <div class="col-4">
+        <div class="label">World Chain Hub</div>
+        <p class="muted small">This page. Tool directory and navigation surface.</p>
+      </div>
+      <div class="col-4">
+        <div class="label">Monitor</div>
+        <p class="muted small">Detailed health, history, events, and debug view.</p>
       </div>
     </div>
   </section>
