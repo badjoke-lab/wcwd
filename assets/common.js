@@ -121,52 +121,75 @@
   };
 })();
 
-/* WCWD common.js: mobile nav */
+/* WCWD common.js: responsive header nav */
 (function(){
-  try{
-    var btn = document.querySelector('[data-nav-toggle]');
-    var nav = document.querySelector('[data-site-nav]');
-    if(!btn || !nav) return;
+  "use strict";
 
-    function setOpen(open){
-      nav.classList.toggle('is-open', !!open);
-      btn.setAttribute('aria-expanded', open ? 'true' : 'false');
-      document.body.classList.toggle('nav-open', !!open);
-    }
+  function initMobileNav(){
+    try{
+      var header = document.querySelector('.header');
+      var inner = document.querySelector('.header-inner') || (header && header.querySelector('.container'));
+      var nav = document.querySelector('[data-site-nav]') || (header && header.querySelector('.nav'));
+      if(!header || !inner || !nav) return;
 
-    // 初期は閉じる
-    setOpen(false);
+      nav.setAttribute('data-site-nav', '');
+      nav.id = nav.id || 'wcwd-site-nav';
 
-    btn.addEventListener('click', function(){
-      var open = nav.classList.contains('is-open');
-      setOpen(!open);
-    });
-
-    // 背景クリックで閉じる（navの外側）
-    document.addEventListener('click', function(e){
-      if(!nav.classList.contains('is-open')) return;
-      var t = e.target;
-      if(btn.contains(t) || nav.contains(t)) return;
-      setOpen(false);
-    });
-
-    // ESCで閉じる
-    document.addEventListener('keydown', function(e){
-      if(e.key === 'Escape' && nav.classList.contains('is-open')) setOpen(false);
-    });
-
-    // リンククリックで閉じる（モバイル想定）
-    nav.addEventListener('click', function(e){
-      var a = e.target && e.target.closest ? e.target.closest('a') : null;
-      if(a) setOpen(false);
-    });
-
-    // 画面が広がったら強制クローズ（折返し事故防止）
-    window.addEventListener('resize', function(){
-      if(window.matchMedia && window.matchMedia('(min-width: 768px)').matches){
-        setOpen(false);
+      var btn = document.querySelector('[data-nav-toggle]');
+      if(!btn){
+        btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'nav-toggle';
+        btn.setAttribute('data-nav-toggle', '');
+        btn.setAttribute('aria-controls', nav.id);
+        btn.setAttribute('aria-expanded', 'false');
+        btn.setAttribute('aria-label', 'Open navigation');
+        btn.innerHTML = '<span aria-hidden="true"></span><span aria-hidden="true"></span><span aria-hidden="true"></span>';
+        inner.insertBefore(btn, nav);
       }
-    });
-  }catch(_){}
+
+      function setOpen(open){
+        nav.classList.toggle('is-open', !!open);
+        btn.classList.toggle('is-open', !!open);
+        btn.setAttribute('aria-expanded', open ? 'true' : 'false');
+        btn.setAttribute('aria-label', open ? 'Close navigation' : 'Open navigation');
+        document.body.classList.toggle('nav-open', !!open);
+      }
+
+      setOpen(false);
+
+      btn.addEventListener('click', function(){
+        setOpen(!nav.classList.contains('is-open'));
+      });
+
+      document.addEventListener('click', function(e){
+        if(!nav.classList.contains('is-open')) return;
+        var t = e.target;
+        if(btn.contains(t) || nav.contains(t)) return;
+        setOpen(false);
+      });
+
+      document.addEventListener('keydown', function(e){
+        if(e.key === 'Escape' && nav.classList.contains('is-open')) setOpen(false);
+      });
+
+      nav.addEventListener('click', function(e){
+        var a = e.target && e.target.closest ? e.target.closest('a') : null;
+        if(a) setOpen(false);
+      });
+
+      window.addEventListener('resize', function(){
+        if(window.matchMedia && window.matchMedia('(min-width: 769px)').matches){
+          setOpen(false);
+        }
+      });
+    }catch(_){}
+  }
+
+  if(document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initMobileNav);
+  } else {
+    initMobileNav();
+  }
 })();
 
