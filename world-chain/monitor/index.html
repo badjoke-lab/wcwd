@@ -82,6 +82,18 @@
       <div id="dataRetention" class="note">—</div>
     </section>
 
+    <section class="card" aria-labelledby="history-guide-title">
+      <h2 id="history-guide-title">History / Fallback Guide</h2>
+      <p class="muted">How to read the monitor panels and whether they are using summary history, series, or fallback data.</p>
+      <div class="grid">
+        <div class="metric"><div class="k">History mode</div><div class="v" id="monitorHistoryMode">—</div></div>
+        <div class="metric"><div class="k">History window</div><div class="v mono" id="monitorHistoryWindow">—</div></div>
+        <div class="metric"><div class="k">7d series</div><div class="v" id="monitorSeriesMode">—</div></div>
+        <div class="metric"><div class="k">Fallback</div><div class="v" id="monitorFallbackMode">—</div></div>
+      </div>
+      <div id="monitorHistoryNote" class="note">—</div>
+    </section>
+
     <section class="card">
       <h2>Health</h2>
       <div class="grid">
@@ -129,7 +141,7 @@
 
     <section class="card">
       <h2>Trends</h2>
-      <p class="muted">Observed by Workers Cron and KV history, not page views.</p>
+      <p class="muted">Observed by Workers Cron and KV history, not page views. Read these as recent KV samples, not full indexer charts.</p>
       <div class="mini"><div class="k">TPS (24h)</div><canvas id="sparkTps" width="720" height="48" style="width:100%;height:48px;border-radius:10px;background:#fff;"></canvas></div>
       <div class="mini"><div class="k">Gas (24h, gwei)</div><canvas id="sparkGas" width="720" height="48" style="width:100%;height:48px;border-radius:10px;background:#fff;"></canvas></div>
       <div class="mini"><div class="k">WLD USD (24h)</div><canvas id="sparkWld" width="720" height="48" style="width:100%;height:48px;border-radius:10px;background:#fff;"></canvas></div>
@@ -139,7 +151,7 @@
 
     <section class="card">
       <h2>7d Series</h2>
-      <p class="muted">7d charts come from the History Worker series API, hourly average, UTC buckets.</p>
+      <p class="muted">7d charts come from the History Worker series API, hourly average, UTC buckets. They are bounded and separate from the 24h summary history.</p>
       <div class="mini"><div class="k">TPS (7d, 1h avg)</div><canvas id="seriesTps7d" width="720" height="56" style="width:100%;height:56px;border-radius:10px;background:#fff;"></canvas><div class="note mono" id="noteSeriesTps7d">—</div></div>
       <div class="mini"><div class="k">WLD USD (7d, 1h avg)</div><canvas id="seriesWld7d" width="720" height="56" style="width:100%;height:56px;border-radius:10px;background:#fff;"></canvas><div class="note mono" id="noteSeriesWld7d">—</div></div>
     </section>
@@ -154,10 +166,11 @@
       </div>
     </section>
 
-    <section class="card"><h2>Events</h2><div id="eventsList">—</div></section>
+    <section class="card"><h2>Events</h2><p class="muted">Compact event summaries emitted by the summary path.</p><div id="eventsList">—</div></section>
 
     <section class="card">
       <h2>Daily</h2>
+      <p class="muted">Compact daily rollup. This is not raw long-term storage.</p>
       <div class="grid">
         <div class="metric"><div class="k">Date</div><div class="v" id="dailyDate">—</div></div>
         <div class="metric"><div class="k">Health (mode)</div><div class="v mono" id="dailyHealth">—</div></div>
@@ -191,5 +204,6 @@
 <script src="/assets/common.js"></script>
 <script src="/app.js" defer></script>
 <script src="/dashboard-source.js" defer></script>
+<script src="./monitor-notes.js" defer></script>
 </body>
 </html>
