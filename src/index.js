@@ -18,6 +18,60 @@ function errorJson(where, error, status = 500) {
   return json({ ok: false, where, error }, { status });
 }
 
+function cloneRequestWithUrl(request, nextUrl) {
+  return new Request(nextUrl.toString(), request);
+}
+
+async function readJsonResponse(response) {
+  try {
+    return await response.clone().json();
+  } catch {
+    return null;
+  }
+}
+
+async function proxyWithClampedQuery(request, env, ctx, url, clampSpec, enhanceJson) {
+  if (request.method !== "GET") return baseWorker.fetch(request, env, ctx);
+  const original = url.searchParams.get(clampSpec.param);
+  const safe = clampLimit(original, clampSpec);
+  url.searchParams.set(clampSpec.param, String(safe));
+  const response = await baseWorker.fetch(cloneRequestWithUrl(request, url), env, ctx);
+  const body = await readJsonResponse(response);
+  if (!body || typeof body !== "object") return response;
+  const nextBody = enhanceJson ? enhanceJson(body, safe) : body;
+  const headers = new Headers(response.headers);
+  headers.set("content-type", "application/json; charset=utf-8");
+  headers.set(`x-wcwd-${clampSpec.param}-limit`, String(safe));
+  return new Response(JSON.stringify(nextBody, null, 2), { status: response.status, headers });
+}
+
+function addSummaryRetention(body, limit) {
+  return {
+    ...body,
+    limit,
+    retention: buildRetentionMetadata({
+      source: "summary_proxy",
+      request_limit: limit,
+    }),
+  };
+}
+
+function addListRetention(body, limit) {
+  return {
+    ...body,
+    limit,
+    retention: RETENTION.summary_list,
+  };
+}
+
+function addEventsRetention(body, limit) {
+  return {
+    ...body,
+    limit,
+    retention: RETENTION.events,
+  };
+}
+
 export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
@@ -45,6 +99,54 @@ export default {
       if (request.method !== "POST") return errorJson("retention_enforce", "method_not_allowed", 405);
       const result = await enforceBaseRetention(env);
       return json(result);
+    }
+
+    if (pathname === "/api/summary") {
+      return proxyWithClampedQuery(
+        request,
+        env,
+        ctx,
+        url,
+        {
+          param: "limit",
+          min: 1,
+          max: RETENTION.summary_list.hard_max_points,
+          fallback: RETENTION.summary_list.recommended_points,
+        },
+        addSummaryRetention,
+      );
+    }
+
+    if (pathname === "/api/list") {
+      return proxyWithClampedQuery(
+        request,
+        env,
+        ctx,
+        url,
+        {
+          param: "limit",
+          min: 1,
+          max: RETENTION.summary_list.hard_max_points,
+          fallback: RETENTION.summary_list.recommended_points,
+        },
+        addListRetention,
+      );
+    }
+
+    if (pathname === "/api/events") {
+      return proxyWithClampedQuery(
+        request,
+        env,
+        ctx,
+        url,
+        {
+          param: "limit",
+          min: 1,
+          max: RETENTION.events.hard_max_items,
+          fallback: RETENTION.events.recommended_items,
+        },
+        addEventsRetention,
+      );
     }
 
     if (pathname === "/api/sell-impact/watchlist/latest") {
