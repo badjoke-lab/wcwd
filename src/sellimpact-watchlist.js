@@ -1,9 +1,11 @@
+import { RETENTION } from "./retention.js";
+
 const GT_BASE = "https://api.geckoterminal.com/api/v2";
 const GT_ACCEPT = "application/json;version=20230203";
 const NETWORK = "world-chain";
 const WATCHLIST_LATEST_KEY = "sellimpact:watchlist:latest";
 const WATCHLIST_LIST_KEY = "sellimpact:watchlist:list";
-const WATCHLIST_LIST_MAX = 96;
+const WATCHLIST_LIST_MAX = RETENTION.sellimpact_watchlist.list_points;
 const ANCHORS = {
   "USDC.e": "0x79a02482a880bce3f13e09da970dc34db4cd24d1",
 };
@@ -225,7 +227,7 @@ export async function updateSellImpactWatchlist(env) {
   for (const item of WATCHLIST) {
     items.push(await buildWatchlistItem(item));
   }
-  const payload = { ok: true, ts, items };
+  const payload = { ok: true, ts, items, retention: RETENTION.sellimpact_watchlist };
   await env.HIST.put(WATCHLIST_LATEST_KEY, JSON.stringify(payload));
   const existing = (await safeLoadJson(env, WATCHLIST_LIST_KEY)) || [];
   const next = Array.isArray(existing) ? existing.concat(payload) : [payload];
@@ -241,6 +243,7 @@ export async function getSellImpactWatchlistLatest(env) {
 export async function getSellImpactWatchlistList(env, limit = 24) {
   const list = (await safeLoadJson(env, WATCHLIST_LIST_KEY)) || [];
   if (!Array.isArray(list)) return [];
-  if (list.length <= limit) return list;
-  return list.slice(list.length - limit);
+  const safeLimit = Math.max(1, Math.min(WATCHLIST_LIST_MAX, Math.floor(Number(limit) || 24)));
+  if (list.length <= safeLimit) return list;
+  return list.slice(list.length - safeLimit);
 }
