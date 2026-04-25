@@ -1,5 +1,6 @@
 import baseWorker from "./worker.js";
 import { updateSellImpactWatchlist, getSellImpactWatchlistLatest, getSellImpactWatchlistList } from "./sellimpact-watchlist.js";
+import { RETENTION, buildRetentionMetadata, enforceBaseRetention, writeRetentionMetadata, clampLimit } from "./retention.js";
 
 function json(data, init = {}) {
   const headers = new Headers(init.headers || {});
@@ -15,12 +16,6 @@ function json(data, init = {}) {
 
 function errorJson(where, error, status = 500) {
   return json({ ok: false, where, error }, { status });
-}
-
-function clampInt(n, min, max, fallback) {
-  const x = Number(n);
-  if (!Number.isFinite(x)) return fallback;
-  return Math.max(min, Math.min(max, Math.floor(x)));
 }
 
 export default {
@@ -40,6 +35,18 @@ export default {
       });
     }
 
+    if (pathname === "/api/retention") {
+      if (request.method !== "GET") return errorJson("retention", "method_not_allowed", 405);
+      const metadata = await writeRetentionMetadata(env, { source: "api" });
+      return json(metadata);
+    }
+
+    if (pathname === "/api/retention/enforce") {
+      if (request.method !== "POST") return errorJson("retention_enforce", "method_not_allowed", 405);
+      const result = await enforceBaseRetention(env);
+      return json(result);
+    }
+
     if (pathname === "/api/sell-impact/watchlist/latest") {
       if (request.method !== "GET") return errorJson("sellimpact_watchlist_latest", "method_not_allowed", 405);
       const latest = await getSellImpactWatchlistLatest(env);
@@ -49,9 +56,13 @@ export default {
 
     if (pathname === "/api/sell-impact/watchlist/list") {
       if (request.method !== "GET") return errorJson("sellimpact_watchlist_list", "method_not_allowed", 405);
-      const limit = clampInt(url.searchParams.get("limit"), 1, 96, 24);
+      const limit = clampLimit(url.searchParams.get("limit"), {
+        min: 1,
+        max: RETENTION.sellimpact_watchlist.list_points,
+        fallback: 24,
+      });
       const list = await getSellImpactWatchlistList(env, limit);
-      return json({ ok: true, items: list, limit });
+      return json({ ok: true, items: list, limit, retention: RETENTION.sellimpact_watchlist });
     }
 
     if (pathname === "/api/sell-impact/watchlist/run") {
@@ -68,5 +79,6 @@ export default {
       await baseWorker.scheduled(event, env, ctx);
     }
     ctx.waitUntil(updateSellImpactWatchlist(env));
+    ctx.waitUntil(enforceBaseRetention(env));
   },
 };
