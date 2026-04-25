@@ -30,28 +30,77 @@ async function readJsonResponse(response) {
   }
 }
 
+function normalizeState(value) {
+  const raw = String(value || "").toLowerCase().trim();
+  if (raw === "ok" || raw === "fresh" || raw === "normal") return "fresh";
+  if (raw === "delayed") return "delayed";
+  if (raw === "stale") return "stale";
+  if (raw === "degraded" || raw === "partial" || raw === "warn" || raw === "alert") return "degraded";
+  if (raw === "error" || raw === "unavailable" || raw === "empty" || raw === "invalid" || raw === "no data") return "unavailable";
+  return "unknown";
+}
+
+function hasUsableLatest(body) {
+  return !!body?.latest && typeof body.latest === "object" && !Array.isArray(body.latest);
+}
+
+function buildNormalizedDashboardState(body) {
+  if (!body || typeof body !== "object") return "unavailable";
+  if (!hasUsableLatest(body) && (!Array.isArray(body.history) || body.history.length === 0)) return "unavailable";
+  const freshnessState = normalizeState(body?.freshness?.state);
+  const dashboardState = normalizeState(body?.dashboard_state || body?.status || freshnessState);
+  if (body?.latest?.summary_ok === false) return "degraded";
+  if (dashboardState !== "unknown") return dashboardState;
+  return freshnessState !== "unknown" ? freshnessState : "fresh";
+}
+
+function buildNormalizedReasons(body, state) {
+  const reasons = Array.isArray(body?.degraded_reasons) ? [...body.degraded_reasons] : [];
+  if (body?.latest?.summary_ok === false && !reasons.includes("latest_summary_fetch_failed")) {
+    reasons.push("latest_summary_fetch_failed");
+  }
+  if (state === "delayed" && !reasons.includes("history_delayed")) reasons.push("history_delayed");
+  if (state === "stale" && !reasons.includes("history_stale")) reasons.push("history_stale");
+  if (state === "unavailable" && !reasons.includes("summary_unavailable")) reasons.push("summary_unavailable");
+  return reasons;
+}
+
 async function proxyWithClampedQuery(request, env, ctx, url, clampSpec, enhanceJson) {
   if (request.method !== "GET") return baseWorker.fetch(request, env, ctx);
-  const original = url.searchParams.get(clampSpec.param);
-  const safe = clampLimit(original, clampSpec);
+  const safe = clampLimit(url.searchParams.get(clampSpec.param), clampSpec);
   url.searchParams.set(clampSpec.param, String(safe));
   const response = await baseWorker.fetch(cloneRequestWithUrl(request, url), env, ctx);
   const body = await readJsonResponse(response);
   if (!body || typeof body !== "object") return response;
-  const nextBody = enhanceJson ? enhanceJson(body, safe) : body;
+  const nextBody = enhanceJson ? enhanceJson(body, safe, url) : body;
   const headers = new Headers(response.headers);
   headers.set("content-type", "application/json; charset=utf-8");
   headers.set(`x-wcwd-${clampSpec.param}-limit`, String(safe));
   return new Response(JSON.stringify(nextBody, null, 2), { status: response.status, headers });
 }
 
-function addSummaryRetention(body, limit) {
+function addSummaryRetention(body, limit, url) {
+  const eventLimit = clampLimit(url.searchParams.get("event_limit"), {
+    min: 1,
+    max: RETENTION.events.hard_max_items,
+    fallback: RETENTION.events.recommended_items,
+  });
+  const dashboardState = buildNormalizedDashboardState(body);
+  const freshness = body?.freshness && typeof body.freshness === "object"
+    ? { ...body.freshness, state: normalizeState(body.freshness.state) }
+    : body?.freshness;
   return {
     ...body,
     limit,
+    event_limit: eventLimit,
+    freshness,
+    dashboard_state: dashboardState,
+    degraded: dashboardState !== "fresh",
+    degraded_reasons: buildNormalizedReasons(body, dashboardState),
     retention: buildRetentionMetadata({
       source: "summary_proxy",
       request_limit: limit,
+      event_limit: eventLimit,
     }),
   };
 }
@@ -102,6 +151,12 @@ export default {
     }
 
     if (pathname === "/api/summary") {
+      const eventLimit = clampLimit(url.searchParams.get("event_limit"), {
+        min: 1,
+        max: RETENTION.events.hard_max_items,
+        fallback: RETENTION.events.recommended_items,
+      });
+      url.searchParams.set("event_limit", String(eventLimit));
       return proxyWithClampedQuery(
         request,
         env,
