@@ -6,23 +6,21 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>WCWD — Oracle Feed Tester</title>
-  <meta name="description" content="Oracle feed tester via JSON-RPC eth_call (latestRoundData/decimals)." />
+  <meta name="description" content="Oracle feed tester via JSON-RPC eth_call with clear browser-only limitations and paid-plan next steps." />
   <link rel="stylesheet" href="/assets/common.css" />
   <link rel="stylesheet" href="/style.css" />
   <meta property="og:type" content="website">
-  <meta property="og:title" content="WCWD">
-  <meta property="og:description" content="Oracle feed tester via JSON-RPC eth_call (latestRoundData/decimals).">
-  <!-- WCWD SEO: canonical + OpenGraph + Twitter -->
+  <meta property="og:title" content="WCWD — Oracle Feed Tester">
+  <meta property="og:description" content="Oracle feed tester via JSON-RPC eth_call with clear browser-only limitations and paid-plan next steps.">
   <link rel="canonical" href="https://wcwd.badjoke-lab.com/world-chain/oracles/">
   <meta property="og:site_name" content="WCWD">
   <meta property="og:url" content="https://wcwd.badjoke-lab.com/world-chain/oracles/">
   <meta property="og:image" content="https://wcwd.badjoke-lab.com/og.png">
   <meta name="twitter:card" content="summary">
   <meta name="twitter:title" content="WCWD — Oracle Feed Tester">
-  <meta name="twitter:description" content="Oracle feed tester via JSON-RPC eth_call (latestRoundData/decimals).">
+  <meta name="twitter:description" content="Oracle feed tester via JSON-RPC eth_call with clear browser-only limitations and paid-plan next steps.">
 
 <!-- WCWD:HEAD:GA4:BEGIN -->
-<!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-0D84H0D66W"></script>
 <script>
   window.dataLayer = window.dataLayer || [];
@@ -33,7 +31,6 @@
 <!-- WCWD:HEAD:GA4:END -->
 </head>
 <body>
-<!-- WCWD:HEADER:BEGIN -->
 <header class="header">
   <div class="container header-inner">
     <a class="brand" href="/">WCWD</a>
@@ -41,27 +38,37 @@
       <a href="/">Home</a>
       <a href="/world-chain/">World Chain</a>
       <a href="/world-id/">World ID</a>
-      <a href="/test/">Test</a>
       <a href="/about/">About</a>
       <a href="/donate/">Donate</a>
     </nav>
   </div>
 </header>
-<!-- WCWD:HEADER:END -->
 <section class="hero">
   <div class="container">
-    <h1>Oracles</h1>
-    <p class="lead">Oracle feed tester via JSON-RPC eth_call.</p>
+    <h1>Oracle Feed Tester</h1>
+    <p class="lead">Browser-side AggregatorV3 feed check for World Chain builders.</p>
+    <p class="muted small">Current mode: browser-only RPC call helper. Paid-plan path: same-origin feed metadata, freshness checks, and bounded test history.</p>
   </div>
 </section>
 
 <main class="container">
-    <h1>Oracle Feed Tester</h1>
-    <p class="muted small">
-      Paste a feed contract address (AggregatorV3Interface-compatible) and call:
-      <code>decimals()</code> + <code>latestRoundData()</code> via JSON-RPC <code>eth_call</code>.
-      CORS may block some RPC endpoints.
-    </p>
+    <section class="card">
+      <p class="card-title">Tool role</p>
+      <div class="grid">
+        <div class="col-4">
+          <div class="label">Current state</div>
+          <p class="muted small">Browser-only feed tester. It calls <code>decimals()</code> and <code>latestRoundData()</code> via the RPC URL you provide.</p>
+        </div>
+        <div class="col-4">
+          <div class="label">Limitations</div>
+          <p class="muted small">RPC CORS can block requests. This page does not yet maintain server-owned feed freshness or historical feed observations.</p>
+        </div>
+        <div class="col-4">
+          <div class="label">Next paid-plan step</div>
+          <p class="muted small">Move common checks to a same-origin API, return normalized status, and store only bounded compact feed checks.</p>
+        </div>
+      </div>
+    </section>
 
     <section class="card">
       <p class="card-title">Inputs</p>
@@ -92,39 +99,26 @@
       <p class="card-title">Result</p>
       <pre id="out" class="card small" style="white-space:pre-wrap; overflow:auto; display:none;"></pre>
     </section>
+
+    <section class="card">
+      <p class="card-title">Implementation path</p>
+      <ul>
+        <li>Normalize feed result into <code>fresh / stale / degraded / unavailable</code>.</li>
+        <li>Expose a same-origin <code>/api/oracles/*</code> route for known feeds.</li>
+        <li>Keep only compact bounded history after the API contract is stable.</li>
+      </ul>
+    </section>
   </main>
-<!-- WCWD:FOOTER:BEGIN -->
 <footer class="footer">
   <div class="container">
     <div class="grid">
-      <section class="col-3">
-        <p class="card-title">Site</p>
-        <p><a href="/">Home</a></p>
-        <p><a href="/world-chain/">World Chain</a></p>
-        <p><a href="/world-id/">World ID</a></p>
-        <p><a href="/about/">About</a></p>
-        <p><a href="/donate/">Donate</a></p>
-      </section>
-      <section class="col-3">
-        <p class="card-title">Legal</p>
-        <p><a href="/about/#disclaimer">Disclaimer</a></p>
-        <p><a href="/about/#privacy">Privacy</a></p>
-        <p><a href="https://docs.google.com/forms/d/e/1FAIpQLScdv3WFVHmQO_mz-p4_HJv1RyJItghrG6A0SGQ5ec4R2NBNOw/viewform?usp=pp_url&amp;entry.148248220=WCWD" target="_blank" rel="noopener noreferrer">Contact</a></p>
-      </section>
-      <section class="col-3">
-        <p class="card-title">External</p>
-        <p><a href="https://github.com/badjoke-lab/wcwd" target="_blank" rel="noopener noreferrer">GitHub</a></p>
-        <p><a href="https://x.com/badjoke_lab" target="_blank" rel="noopener noreferrer">X</a></p>
-      </section>
-      <section class="col-3">
-        <p class="card-title">Signature</p>
-        <p>Built by BadJoke-Lab</p>
-        <p>© 2026 WCWD</p>
-      </section>
+      <section class="col-3"><p class="card-title">Site</p><p><a href="/">Home</a></p><p><a href="/world-chain/">World Chain</a></p><p><a href="/world-id/">World ID</a></p></section>
+      <section class="col-3"><p class="card-title">Legal</p><p><a href="/about/">About</a></p><p><a href="/about/#disclaimer">Disclaimer</a></p><p><a href="/about/#privacy">Privacy</a></p></section>
+      <section class="col-3"><p class="card-title">External</p><p><a href="https://github.com/badjoke-lab/wcwd" target="_blank" rel="noopener noreferrer">GitHub</a></p><p><a href="https://x.com/badjoke_lab" target="_blank" rel="noopener noreferrer">X</a></p></section>
+      <section class="col-3"><p class="card-title">Signature</p><p>Built by BadJoke-Lab</p><p>© 2026 WCWD</p></section>
     </div>
   </div>
 </footer>
-<!-- WCWD:FOOTER:END -->
   <script src="/assets/common.js"></script>
   <script src="./app.js"></script>
 </body>
