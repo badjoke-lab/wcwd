@@ -93,7 +93,6 @@
     return BigInt("0x" + h);
   }
 
-  // int256 decode (two's complement)
   function hexToSignedBigInt(h) {
     const x = hexToBigInt(h);
     const TWO_255 = 1n << 255n;
@@ -104,21 +103,17 @@
   function formatScaledInt(answer, decimals) {
     const neg = answer < 0n;
     const a = neg ? -answer : answer;
-
     const d = BigInt(decimals);
     const base = 10n ** d;
     const whole = a / base;
     const frac = a % base;
-
-    // trim trailing zeros in fractional part
     let fracStr = frac.toString().padStart(Number(d), "0");
     fracStr = fracStr.replace(/0+$/, "");
     return (neg ? "-" : "") + whole.toString() + (fracStr ? "." + fracStr : "");
   }
 
-  // selectors (keccak-256 first 4 bytes)
-  const SEL_DECIMALS = "0x313ce567";        // decimals()
-  const SEL_LATEST = "0xfeaf968c";          // latestRoundData()
+  const SEL_DECIMALS = "0x313ce567";
+  const SEL_LATEST = "0xfeaf968c";
 
   async function ethCall(url, to, data) {
     return rpc(url, "eth_call", [{ to, data }, "latest"]);
@@ -132,6 +127,84 @@
       params: [{ to, data }, "latest"]
     }).replaceAll("'", "'\"'\"'");
     return `curl -sS '${url}' -H 'content-type: application/json' --data '${body}'`;
+  }
+
+  function apiUrl(url, addr) {
+    const u = new URL("/api/oracles/feed", window.location.origin);
+    u.searchParams.set("rpc", url);
+    u.searchParams.set("feed", addr);
+    return u.toString();
+  }
+
+  async function fetchViaSameOrigin(url, addr) {
+    const res = await fetch(apiUrl(url, addr), { headers: { accept: "application/json" } });
+    const text = await res.text();
+    let json;
+    try { json = JSON.parse(text); } catch { throw new Error(`API returned non-JSON: ${text.slice(0, 120)}`); }
+    if (!res.ok) throw new Error((json.notes && json.notes[0]) || `API HTTP ${res.status}`);
+    if (!json.ok) throw new Error((json.notes && json.notes[0]) || "oracle_api_unavailable");
+    return json;
+  }
+
+  function renderApiResult(payload) {
+    const r = payload.result || {};
+    setOut([
+      "Oracle Feed Result",
+      "------------------",
+      "source: same-origin API",
+      `state: ${payload.state || "unknown"}`,
+      `rpc host: ${payload.rpc_host || "—"}`,
+      `feed: ${payload.feed || "—"}`,
+      `generated_at: ${payload.generated_at || "—"}`,
+      "",
+      `decimals: ${r.decimals ?? "—"}`,
+      `roundId: ${r.roundId ?? "—"}`,
+      `answer (raw): ${r.answer_raw ?? "—"}`,
+      `answer (scaled): ${r.answer_scaled ?? "—"}`,
+      `startedAt (unix): ${r.startedAt ?? "—"}`,
+      `updatedAt (unix): ${r.updatedAt ?? "—"}`,
+      `answeredInRound: ${r.answeredInRound ?? "—"}`,
+      `age_sec: ${r.age_sec ?? "—"}`,
+      "",
+      `notes: ${(payload.notes || []).join(", ") || "none"}`,
+      "",
+      "Fallback: if the same-origin API fails, this page can still try the old browser eth_call path."
+    ].join("\n"));
+  }
+
+  async function fetchViaBrowserRpc(url, addr) {
+    showStatus("info", "Same-origin failed. Trying browser RPC fallback: decimals()...");
+    const decHex = await ethCall(url, addr, SEL_DECIMALS);
+    const decChunks = chunk64(decHex);
+    const decimals = Number(hexToBigInt(decChunks[0] || "0"));
+
+    showStatus("info", "Browser RPC fallback: latestRoundData()...");
+    const latestHex = await ethCall(url, addr, SEL_LATEST);
+    const c = chunk64(latestHex);
+
+    const roundId = hexToBigInt(c[0] || "0");
+    const answer = hexToSignedBigInt(c[1] || "0");
+    const startedAt = hexToBigInt(c[2] || "0");
+    const updatedAt = hexToBigInt(c[3] || "0");
+    const answeredInRound = hexToBigInt(c[4] || "0");
+    const scaled = formatScaledInt(answer, decimals);
+
+    setOut([
+      "Oracle Feed Result",
+      "------------------",
+      "source: browser RPC fallback",
+      `feed: ${addr}`,
+      `decimals: ${decimals}`,
+      "",
+      `roundId: ${roundId.toString()}`,
+      `answer (raw): ${answer.toString()}`,
+      `answer (scaled): ${scaled}`,
+      `startedAt (unix): ${startedAt.toString()}`,
+      `updatedAt (unix): ${updatedAt.toString()}`,
+      `answeredInRound: ${answeredInRound.toString()}`,
+      "",
+      "Note: Browser fallback can fail because of CORS. The preferred path is /api/oracles/feed."
+    ].join("\n"));
   }
 
   btnSave.addEventListener("click", save);
@@ -148,44 +221,25 @@
     save();
 
     try {
-      showStatus("info", "Fetching decimals()...");
-      const decHex = await ethCall(url, addr, SEL_DECIMALS);
-      const decChunks = chunk64(decHex);
-      const decimals = Number(hexToBigInt(decChunks[0] || "0"));
-
-      showStatus("info", "Fetching latestRoundData()...");
-      const latestHex = await ethCall(url, addr, SEL_LATEST);
-      const c = chunk64(latestHex);
-
-      // latestRoundData returns: (uint80, int256, uint256, uint256, uint80)
-      const roundId = hexToBigInt(c[0] || "0");
-      const answer = hexToSignedBigInt(c[1] || "0");
-      const startedAt = hexToBigInt(c[2] || "0");
-      const updatedAt = hexToBigInt(c[3] || "0");
-      const answeredInRound = hexToBigInt(c[4] || "0");
-
-      const scaled = formatScaledInt(answer, decimals);
-
-      setOut([
-        "Oracle Feed Result",
-        "------------------",
-        `feed: ${addr}`,
-        `decimals: ${decimals}`,
-        "",
-        `roundId: ${roundId.toString()}`,
-        `answer (raw): ${answer.toString()}`,
-        `answer (scaled): ${scaled}`,
-        `startedAt (unix): ${startedAt.toString()}`,
-        `updatedAt (unix): ${updatedAt.toString()}`,
-        `answeredInRound: ${answeredInRound.toString()}`,
-        "",
-        "Note: If this fails, likely CORS or the contract is not AggregatorV3Interface."
-      ].join("\n"));
-
-      showStatus("success", "Fetched successfully.");
-    } catch (e) {
-      setOut(String(e && e.message ? e.message : e));
-      showStatus("error", "Fetch failed (maybe CORS / wrong contract).");
+      showStatus("info", "Fetching via same-origin API...");
+      const payload = await fetchViaSameOrigin(url, addr);
+      renderApiResult(payload);
+      showStatus(payload.state === "stale" ? "warn" : "success", `Fetched via same-origin API (${payload.state || "unknown"}).`);
+    } catch (apiError) {
+      try {
+        await fetchViaBrowserRpc(url, addr);
+        showStatus("warn", `Same-origin API failed; browser fallback succeeded. API: ${apiError && apiError.message ? apiError.message : apiError}`);
+      } catch (fallbackError) {
+        setOut([
+          "Oracle Feed Fetch Failed",
+          "------------------------",
+          `same-origin API: ${apiError && apiError.message ? apiError.message : apiError}`,
+          `browser fallback: ${fallbackError && fallbackError.message ? fallbackError.message : fallbackError}`,
+          "",
+          "Likely causes: invalid RPC URL, CORS, wrong feed contract, or the feed is not AggregatorV3Interface-compatible."
+        ].join("\n"));
+        showStatus("error", "Fetch failed on both same-origin API and browser fallback.");
+      }
     }
   });
 
