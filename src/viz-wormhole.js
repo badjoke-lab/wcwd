@@ -1,5 +1,6 @@
 import { RETENTION } from "./retention.js";
 
+const WORMHOLE_SNAPSHOTS_KEY = "viz:wormhole:recent";
 const ZERO_METRICS = Object.freeze({
   activity: 0,
   matchedRoutes: 0,
@@ -18,6 +19,29 @@ function num(value, fallback = 0) {
 
 function clamp01(value) {
   return Math.max(0, Math.min(1, num(value, 0)));
+}
+
+function safeHash(input) {
+  let hash = 0;
+  const s = String(input || "");
+  for (let i = 0; i < s.length; i += 1) {
+    hash = ((hash << 5) - hash + s.charCodeAt(i)) | 0;
+  }
+  return Math.abs(hash).toString(36);
+}
+
+async function readJson(env, key, fallback) {
+  try {
+    const raw = await env.HIST.get(key);
+    if (!raw) return fallback;
+    return JSON.parse(raw);
+  } catch {
+    return fallback;
+  }
+}
+
+async function writeJson(env, key, value) {
+  await env.HIST.put(key, JSON.stringify(value));
 }
 
 export function normalizeVizState(value) {
@@ -75,6 +99,46 @@ function buildNotes(source, statusCode, fallbackReason) {
   return Array.from(new Set(notes));
 }
 
+function snapshotFromContract(contract) {
+  return {
+    ts: contract.generated_at,
+    state: contract.state,
+    source: contract.source,
+    selection_hash: safeHash(contract.selection.addresses.join(",")),
+    configured: !!contract.selection.configured,
+    window_blocks: contract.window.blocks,
+    metrics: {
+      activity: contract.metrics.activity,
+      matchedRoutes: contract.metrics.matchedRoutes,
+      inFlow: contract.metrics.inFlow,
+      outFlow: contract.metrics.outFlow,
+      depositCount: contract.metrics.depositCount,
+      withdrawCount: contract.metrics.withdrawCount,
+      uniqueUsers: contract.metrics.uniqueUsers,
+      samples: contract.metrics.samples,
+    },
+  };
+}
+
+async function appendWormholeSnapshot(env, contract) {
+  if (!contract || contract.ok === false) return { stored: false, reason: "not_ok" };
+  const cap = RETENTION.visualizer_first_target.points;
+  const existing = await readJson(env, WORMHOLE_SNAPSHOTS_KEY, []);
+  const list = Array.isArray(existing) ? existing : [];
+  const next = list.concat([snapshotFromContract(contract)]);
+  const trimmed = next.length > cap ? next.slice(next.length - cap) : next;
+  await writeJson(env, WORMHOLE_SNAPSHOTS_KEY, trimmed);
+  return { stored: true, count: trimmed.length, cap };
+}
+
+async function readRecentSnapshots(env, selectionHash) {
+  const cap = RETENTION.visualizer_first_target.points;
+  const existing = await readJson(env, WORMHOLE_SNAPSHOTS_KEY, []);
+  const list = Array.isArray(existing) ? existing : [];
+  const filtered = selectionHash ? list.filter((item) => item?.selection_hash === selectionHash) : list;
+  return filtered.slice(Math.max(0, filtered.length - cap));
+}
+
 export function buildWormholeContract({ source = null, url, statusCode = 200, fallbackReason = "" }) {
   const addresses = parseVizAddresses(url);
   const hasSource = !!source && typeof source === "object";
@@ -96,12 +160,12 @@ export function buildWormholeContract({ source = null, url, statusCode = 200, fa
     notes,
     retention: {
       recent_points: RETENTION.visualizer_first_target.points,
+      recent_key: WORMHOLE_SNAPSHOTS_KEY,
     },
   };
 
   return {
     ...contract,
-    // Backward-compatible aliases for the current frontend.
     activity: metrics.activity,
     matchedRoutes: metrics.matchedRoutes,
     inFlow: metrics.inFlow,
@@ -135,8 +199,20 @@ export async function handleWormholeViz({ request, env, ctx, baseWorker }) {
     statusCode,
     fallbackReason: hasUsableBody ? "" : "base_viz_payload_unavailable",
   });
+  const selectionHash = safeHash(payload.selection.addresses.join(","));
+  const stored = await appendWormholeSnapshot(env, payload);
+  const recent = await readRecentSnapshots(env, selectionHash);
+  const nextPayload = {
+    ...payload,
+    recent,
+    recent_count: recent.length,
+    retention: {
+      ...payload.retention,
+      stored,
+    },
+  };
   const headers = new Headers(response?.headers || {});
   headers.set("content-type", "application/json; charset=utf-8");
   headers.set("cache-control", "no-store");
-  return new Response(JSON.stringify(payload, null, 2), { status: 200, headers });
+  return new Response(JSON.stringify(nextPayload, null, 2), { status: 200, headers });
 }
