@@ -142,7 +142,7 @@ export default {
 
     if (pathname === "/api/oracles/feed") {
       if (request.method !== "GET") return errorJson("oracles_feed", "method_not_allowed", 405);
-      return handleOracleFeed(request);
+      return handleOracleFeed(request, env);
     }
 
     if (pathname === "/api/viz/wormhole") {
