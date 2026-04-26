@@ -1,5 +1,8 @@
+import { RETENTION, readJson, writeJson } from "./retention.js";
+
 const SEL_DECIMALS = "0x313ce567";
 const SEL_LATEST = "0xfeaf968c";
+const ORACLE_CHECKS_KEY = "oracles:feed:recent";
 
 function json(data, init = {}) {
   const headers = new Headers(init.headers || {});
@@ -96,6 +99,30 @@ async function rpcCall(rpcUrl, to, data) {
   }
 }
 
+function compactCheck(payload) {
+  return {
+    ts: payload.generated_at,
+    ok: !!payload.ok,
+    state: payload.state,
+    feed: payload.feed,
+    rpc_host: payload.rpc_host,
+    answer_scaled: payload.result?.answer_scaled || null,
+    updatedAt: payload.result?.updatedAt || null,
+    age_sec: payload.result?.age_sec ?? null,
+    notes: Array.isArray(payload.notes) ? payload.notes.slice(0, 3) : [],
+  };
+}
+
+async function appendCheck(env, payload) {
+  const cap = RETENTION.oracle_feed_checks.recent_points;
+  const current = await readJson(env, ORACLE_CHECKS_KEY, []);
+  const list = Array.isArray(current) ? current : [];
+  const next = list.concat([compactCheck(payload)]);
+  const trimmed = next.length > cap ? next.slice(next.length - cap) : next;
+  await writeJson(env, ORACLE_CHECKS_KEY, trimmed);
+  return { stored: true, key: ORACLE_CHECKS_KEY, count: trimmed.length, cap };
+}
+
 function buildUnavailable(error, input = {}) {
   return {
     ok: false,
@@ -106,21 +133,33 @@ function buildUnavailable(error, input = {}) {
     rpc_host: input.rpc_host || "",
     result: null,
     notes: [String(error || "oracle_unavailable")],
-    retention: { recent_points: 0, stored: false },
+    retention: { recent_points: RETENTION.oracle_feed_checks.recent_points, stored: false },
   };
 }
 
-export async function handleOracleFeed(request) {
+async function withStorage(env, payload) {
+  if (!env?.HIST) return { ...payload, retention: { ...payload.retention, stored: false, reason: "missing_hist_binding" } };
+  try {
+    const stored = await appendCheck(env, payload);
+    return { ...payload, retention: { ...payload.retention, stored } };
+  } catch (error) {
+    return { ...payload, retention: { ...payload.retention, stored: false, reason: error?.message || "store_failed" } };
+  }
+}
+
+export async function handleOracleFeed(request, env) {
   const url = new URL(request.url);
   const feed = String(url.searchParams.get("feed") || "").trim();
   const rpcParsed = parseRpcUrl(url.searchParams.get("rpc"));
   const rpcHost = rpcParsed.ok ? new URL(rpcParsed.url).hostname : "";
 
   if (!isAddress(feed)) {
-    return json(buildUnavailable("invalid_feed_address", { feed, rpc_host: rpcHost }), { status: 400 });
+    const payload = buildUnavailable("invalid_feed_address", { feed, rpc_host: rpcHost });
+    return json(await withStorage(env, payload), { status: 400 });
   }
   if (!rpcParsed.ok) {
-    return json(buildUnavailable(rpcParsed.error, { feed, rpc_host: rpcHost }), { status: 400 });
+    const payload = buildUnavailable(rpcParsed.error, { feed, rpc_host: rpcHost });
+    return json(await withStorage(env, payload), { status: 400 });
   }
 
   try {
@@ -137,7 +176,7 @@ export async function handleOracleFeed(request) {
     const ageSec = Number.isFinite(updatedAtNum) && updatedAtNum > 0 ? Math.max(0, Math.floor(Date.now() / 1000 - updatedAtNum)) : null;
     const state = ageSec == null ? "degraded" : ageSec > 86400 ? "stale" : "fresh";
 
-    return json({
+    const payload = {
       ok: true,
       source: "same-origin",
       state,
@@ -155,9 +194,11 @@ export async function handleOracleFeed(request) {
         age_sec: ageSec,
       },
       notes: state === "stale" ? ["feed_updated_at_older_than_24h"] : [],
-      retention: { recent_points: 0, stored: false },
-    });
+      retention: { recent_points: RETENTION.oracle_feed_checks.recent_points, key: ORACLE_CHECKS_KEY },
+    };
+    return json(await withStorage(env, payload));
   } catch (error) {
-    return json(buildUnavailable(error?.message || "oracle_fetch_failed", { feed, rpc_host: rpcHost }), { status: 200 });
+    const payload = buildUnavailable(error?.message || "oracle_fetch_failed", { feed, rpc_host: rpcHost });
+    return json(await withStorage(env, payload), { status: 200 });
   }
 }
