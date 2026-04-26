@@ -3,6 +3,7 @@ import { updateSellImpactWatchlist, getSellImpactWatchlistLatest, getSellImpactW
 import { RETENTION, buildRetentionMetadata, enforceBaseRetention, writeRetentionMetadata, clampLimit } from "./retention.js";
 import { handleWormholeViz } from "./viz-wormhole.js";
 import { handleOracleFeed } from "./oracles-feed.js";
+import { handlePaymasterPreflight } from "./paymaster-preflight.js";
 
 function json(data, init = {}) {
   const headers = new Headers(init.headers || {});
@@ -138,6 +139,11 @@ export default {
           "access-control-max-age": "86400",
         },
       });
+    }
+
+    if (pathname === "/api/paymaster/preflight") {
+      if (request.method !== "GET") return errorJson("paymaster_preflight", "method_not_allowed", 405);
+      return handlePaymasterPreflight(request, env);
     }
 
     if (pathname === "/api/oracles/feed") {
