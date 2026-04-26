@@ -23,6 +23,9 @@ export const RETENTION = Object.freeze({
   visualizer_first_target: {
     points: 96,
   },
+  oracle_feed_checks: {
+    recent_points: 96,
+  },
 });
 
 export const RETENTION_KEYS = Object.freeze({
@@ -41,6 +44,7 @@ export function buildRetentionMetadata(extra = {}) {
     daily: RETENTION.daily,
     sellimpact_watchlist: RETENTION.sellimpact_watchlist,
     visualizer_first_target: RETENTION.visualizer_first_target,
+    oracle_feed_checks: RETENTION.oracle_feed_checks,
     generated_at: new Date().toISOString(),
     ...extra,
   };
