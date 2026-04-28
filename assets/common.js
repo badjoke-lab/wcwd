@@ -193,3 +193,145 @@
   }
 })();
 
+/* WCWD common.js: stable route metadata / nav polish */
+(function(){
+  "use strict";
+
+  var SITE = "https://wcwd.badjoke-lab.com";
+  var OG_IMAGE = SITE + "/og.png";
+  var ROUTES = {
+    "/": {
+      title: "WCWD — World Chain & World ID Builder Toolkit",
+      description: "Lightweight World Chain snapshots, WLD market context, Sell Impact, and World ID builder tools."
+    },
+    "/about/": {
+      title: "WCWD — About",
+      description: "About WCWD, disclaimer, privacy notes, and the independent project scope."
+    },
+    "/donate/": {
+      title: "WCWD — Donate",
+      description: "Support WCWD development and maintenance."
+    },
+    "/world-chain/": {
+      title: "WCWD — World Chain",
+      description: "World Chain hub for Monitor, Sell Impact, Ecosystem, Oracles, and Paymaster pages."
+    },
+    "/world-chain/monitor/": {
+      title: "WCWD — World Chain Monitor",
+      description: "Detailed World Chain monitor with summary freshness, network stats, WLD market data, trends, alerts, events, and daily history."
+    },
+    "/world-chain/sell-impact/": {
+      title: "WCWD — Sell Impact",
+      description: "Estimate World Chain token sell impact, pool depth, conservative max sell size, and liquidity risk."
+    },
+    "/world-chain/ecosystem/": {
+      title: "WCWD — World Chain Ecosystem",
+      description: "World Chain ecosystem directory for tokens, dApps, infra, and oracle-related entries curated in ecosystem.json."
+    },
+    "/world-chain/oracles/": {
+      title: "WCWD — Oracle Feed Tester",
+      description: "Oracle feed tester via JSON-RPC eth_call with same-origin API support and browser fallback."
+    },
+    "/world-chain/paymaster/": {
+      title: "WCWD — World Chain Paymaster Preflight",
+      description: "Paymaster and sponsor endpoint preflight helper with same-origin RPC checks and browser fallback."
+    },
+    "/world-id/": {
+      title: "WCWD — World ID Hub",
+      description: "World ID builder hub for wizard, debugger, and playground tools."
+    },
+    "/world-id/wizard/": {
+      title: "WCWD — World ID Wizard",
+      description: "Static World ID integration wizard for frontend and backend template outputs."
+    },
+    "/world-id/debugger/": {
+      title: "WCWD — World ID Debugger",
+      description: "Inspect and diagnose World ID proof JSON structure safely in-browser."
+    },
+    "/world-id/playground/": {
+      title: "WCWD — World ID Playground",
+      description: "Generate verifier request examples and optionally run browser-based fetch tests for World ID proofs."
+    }
+  };
+
+  function normalizePath(pathname){
+    var p = pathname || "/";
+    if(!p.endsWith("/")) p += "/";
+    return p;
+  }
+
+  function ensureMeta(selector, create){
+    var el = document.head.querySelector(selector);
+    if(el) return el;
+    el = create();
+    document.head.appendChild(el);
+    return el;
+  }
+
+  function setMetaName(name, content){
+    var el = ensureMeta('meta[name="' + name + '"]', function(){
+      var n = document.createElement('meta');
+      n.setAttribute('name', name);
+      return n;
+    });
+    el.setAttribute('content', content);
+  }
+
+  function setMetaProp(prop, content){
+    var el = ensureMeta('meta[property="' + prop + '"]', function(){
+      var n = document.createElement('meta');
+      n.setAttribute('property', prop);
+      return n;
+    });
+    el.setAttribute('content', content);
+  }
+
+  function setCanonical(href){
+    var el = ensureMeta('link[rel="canonical"]', function(){
+      var n = document.createElement('link');
+      n.setAttribute('rel', 'canonical');
+      return n;
+    });
+    el.setAttribute('href', href);
+  }
+
+  function removeSitemapExternalNav(){
+    try{
+      document.querySelectorAll('nav a[href="/test/"]').forEach(function(a){ a.remove(); });
+    }catch(_){}
+  }
+
+  function applyMeta(){
+    try{
+      var path = normalizePath(location.pathname);
+      var data = ROUTES[path];
+      if(!data) return;
+      var url = SITE + path;
+      document.title = data.title;
+      setMetaName('description', data.description);
+      setCanonical(url);
+      setMetaProp('og:type', 'website');
+      setMetaProp('og:site_name', 'WCWD');
+      setMetaProp('og:title', data.title);
+      setMetaProp('og:description', data.description);
+      setMetaProp('og:url', url);
+      setMetaProp('og:image', OG_IMAGE);
+      setMetaName('twitter:card', 'summary');
+      setMetaName('twitter:title', data.title);
+      setMetaName('twitter:description', data.description);
+      setMetaName('twitter:image', OG_IMAGE);
+    }catch(_){}
+  }
+
+  function run(){
+    removeSitemapExternalNav();
+    applyMeta();
+  }
+
+  if(document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', run);
+  } else {
+    run();
+  }
+})();
+
