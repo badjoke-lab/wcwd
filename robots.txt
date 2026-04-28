@@ -4,5 +4,6 @@ Disallow: /dev/
 Disallow: /infra/
 Disallow: /mini-apps/
 Disallow: /hub/
+Disallow: /test/
 
 Sitemap: https://wcwd.badjoke-lab.com/sitemap.xml
