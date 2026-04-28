@@ -10,7 +10,9 @@ PUBLIC_ROUTE_ALLOWLIST = [
     "/about/",
     "/donate/",
     "/world-chain/",
+    "/world-chain/monitor/",
     "/world-chain/sell-impact/",
+    "/world-chain/ecosystem/",
     "/world-chain/oracles/",
     "/world-chain/paymaster/",
     "/world-id/",
@@ -60,6 +62,7 @@ def main() -> None:
     robots.append("Disallow: /infra/")
     robots.append("Disallow: /mini-apps/")
     robots.append("Disallow: /hub/")
+    robots.append("Disallow: /test/")
     robots.append("")
     robots.append(f"Sitemap: {base_url}sitemap.xml")
     (REPO / "robots.txt").write_text("\n".join(robots) + "\n", encoding="utf-8")
