@@ -536,3 +536,62 @@
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", injectStructuredData);
   else injectStructuredData();
 })();
+
+(function () {
+  "use strict";
+
+  var SEO_COPY = {
+    "/": {
+      title: "Unofficial Worldcoin toolkit",
+      text: "WCWD is an unofficial Worldcoin toolkit for World Chain monitoring, WLD market context, Sell Impact checks, ecosystem browsing, and World ID builder workflows. It is built as a lightweight, donation-supported dashboard rather than an official portal."
+    },
+    "/world-chain/monitor/": {
+      title: "About this World Chain monitor",
+      text: "This monitor combines World Chain health signals, WLD market context, gas, activity, alerts, events, and bounded history. Values are best-effort server-owned summaries sampled by Workers Cron and KV, not a full chain indexer."
+    },
+    "/world-chain/sell-impact/": {
+      title: "About this Sell Impact tool",
+      text: "Sell Impact estimates token sell pressure, pool depth, conservative max sell size, and liquidity risk on World Chain using public pool snapshots. It is a rough planning aid and not financial advice."
+    },
+    "/world-chain/ecosystem/": {
+      title: "About this World Chain ecosystem directory",
+      text: "This directory organizes World Chain tokens, dApps, infrastructure, oracle-related entries, and curated ecosystem links. It is best-effort and designed to make Worldcoin ecosystem exploration easier."
+    },
+    "/about/": {
+      title: "WCWD project position",
+      text: "WCWD is independent and unofficial. The site focuses on lightweight Worldcoin, World Chain, WLD, and World ID tooling with clear disclaimers, no wallet requirement, and donation-supported maintenance."
+    }
+  };
+
+  function normalizePath(pathname) {
+    var p = pathname || "/";
+    if (!p.endsWith("/")) p += "/";
+    return p;
+  }
+
+  function injectVisibleSeoCopy() {
+    try {
+      if (document.querySelector('[data-wcwd-seo-copy="true"]')) return;
+      var path = normalizePath(location.pathname);
+      var copy = SEO_COPY[path];
+      if (!copy) return;
+      var main = document.querySelector("main");
+      if (!main) return;
+
+      var section = document.createElement("section");
+      section.className = "card";
+      section.setAttribute("data-wcwd-seo-copy", "true");
+      section.innerHTML = [
+        '<p class="card-title">' + copy.title + '</p>',
+        '<p class="muted small">' + copy.text + '</p>'
+      ].join("");
+
+      var firstCard = main.querySelector(".card");
+      if (firstCard && firstCard.parentNode) firstCard.parentNode.insertBefore(section, firstCard.nextSibling);
+      else main.insertBefore(section, main.firstChild);
+    } catch (_e) {}
+  }
+
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", injectVisibleSeoCopy);
+  else injectVisibleSeoCopy();
+})();
