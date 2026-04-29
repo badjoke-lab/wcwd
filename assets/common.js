@@ -292,3 +292,87 @@
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", run);
   else run();
 })();
+
+(function () {
+  "use strict";
+
+  var SUPPORT_BY_PATH = {
+    "/": {
+      title: "Support WCWD",
+      text: "WCWD is free to use, but the data engine, history worker, and API maintenance have real infrastructure costs.",
+      anchor: "main"
+    },
+    "/world-chain/monitor/": {
+      title: "Support the Monitor",
+      text: "The Monitor uses server-owned summaries, Workers Cron, and bounded history. Support helps keep this free public dashboard running.",
+      anchor: "main"
+    },
+    "/world-chain/sell-impact/": {
+      title: "Support Sell Impact",
+      text: "If this estimate helped, consider supporting WCWD so the free Sell Impact tool can keep improving.",
+      anchor: "#conclusionCard"
+    },
+    "/world-chain/ecosystem/": {
+      title: "Support the Ecosystem Directory",
+      text: "WCWD keeps this ecosystem directory free and best-effort. Support helps maintain data quality and public tooling.",
+      anchor: "main"
+    }
+  };
+
+  function normalizePath(pathname) {
+    var p = pathname || "/";
+    if (!p.endsWith("/")) p += "/";
+    return p;
+  }
+
+  function makeSupportCard(config) {
+    var section = document.createElement("section");
+    section.className = "card support-card";
+    section.setAttribute("aria-label", config.title);
+    section.setAttribute("data-wcwd-support-card", "true");
+    section.innerHTML = [
+      '<p class="card-title">' + config.title + '</p>',
+      '<p class="muted small">' + config.text + '</p>',
+      '<p><a class="btn donate-primary" href="/donate/">Support WCWD</a></p>'
+    ].join("");
+    return section;
+  }
+
+  function insertAfter(target, node) {
+    if (!target || !target.parentNode) return false;
+    target.parentNode.insertBefore(node, target.nextSibling);
+    return true;
+  }
+
+  function insertBeforeEnd(target, node) {
+    if (!target) return false;
+    target.appendChild(node);
+    return true;
+  }
+
+  function injectSupportCard() {
+    try {
+      if (document.querySelector('[data-wcwd-support-card="true"]')) return;
+      var path = normalizePath(location.pathname);
+      var config = SUPPORT_BY_PATH[path];
+      if (!config) return;
+      var card = makeSupportCard(config);
+
+      if (config.anchor && config.anchor.charAt(0) === "#") {
+        var target = document.querySelector(config.anchor);
+        if (insertAfter(target, card)) return;
+      }
+
+      var main = document.querySelector("main");
+      if (main) {
+        var cards = main.querySelectorAll(".card");
+        var after = cards.length ? cards[cards.length - 1] : null;
+        if (after && insertAfter(after, card)) return;
+        insertBeforeEnd(main, card);
+      }
+    } catch (_e) {}
+  }
+
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", injectSupportCard);
+  else injectSupportCard();
+})();
