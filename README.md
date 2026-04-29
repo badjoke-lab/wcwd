@@ -17,3 +17,12 @@
 実行順:
 1. `python3 scripts/build_pages.py`
 2. `python3 scripts/gen_sitemap.py`
+
+## SEO check
+静的SEO、sitemap、robots、主要SEO機能マーカーの確認:
+
+```bash
+python3 scripts/check_seo.py
+```
+
+運用時の確認手順は [docs/seo-verification.md](docs/seo-verification.md) を参照してください。
