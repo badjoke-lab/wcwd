@@ -417,3 +417,122 @@
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", injectDonateCopy);
   else injectDonateCopy();
 })();
+
+(function () {
+  "use strict";
+
+  var SITE = "https://wcwd.badjoke-lab.com";
+  var ORG = {
+    "@type": "Organization",
+    "@id": SITE + "/#organization",
+    "name": "BadJoke-Lab",
+    "url": SITE + "/",
+    "description": "Independent maintainer of the unofficial WCWD Worldcoin, World Chain, and World ID toolkit."
+  };
+
+  var TOOL_ROUTES = {
+    "/world-chain/monitor/": ["WCWD World Chain Monitor", "Monitor World Chain health, WLD market context, gas, activity, alerts, events, and bounded history using best-effort server-owned summaries.", "FinanceApplication"],
+    "/world-chain/sell-impact/": ["WCWD World Chain Sell Impact", "Estimate token sell impact, conservative max sell size, pool depth, liquidity risk, and rough exit conditions using public pool snapshots.", "FinanceApplication"],
+    "/world-chain/ecosystem/": ["WCWD World Chain Ecosystem Directory", "Browse World Chain tokens, dApps, infrastructure, oracle-related entries, and curated ecosystem links from a best-effort directory.", "ReferenceApplication"],
+    "/world-chain/oracles/": ["WCWD World Chain Oracle Feed Tester", "Test oracle feed responses through same-origin API support and browser fallback for World Chain builder workflows.", "DeveloperApplication"],
+    "/world-chain/paymaster/": ["WCWD World Chain Paymaster Preflight", "Check paymaster and sponsor endpoint readiness with same-origin RPC preflight, validation notes, and browser fallback.", "DeveloperApplication"],
+    "/world-id/wizard/": ["WCWD World ID Integration Wizard", "Generate frontend and backend template snippets for World ID integration workflows.", "DeveloperApplication"],
+    "/world-id/debugger/": ["WCWD World ID Proof Debugger", "Inspect and diagnose World ID proof JSON structure safely in the browser.", "DeveloperApplication"],
+    "/world-id/playground/": ["WCWD World ID Verifier Playground", "Generate verifier request examples and test browser-based World ID proof requests with clear CORS feedback.", "DeveloperApplication"]
+  };
+
+  var BREADCRUMBS = {
+    "/about/": ["About"],
+    "/donate/": ["Support"],
+    "/world-chain/": ["World Chain"],
+    "/world-chain/monitor/": ["World Chain", "Monitor"],
+    "/world-chain/sell-impact/": ["World Chain", "Sell Impact"],
+    "/world-chain/ecosystem/": ["World Chain", "Ecosystem"],
+    "/world-chain/oracles/": ["World Chain", "Oracles"],
+    "/world-chain/paymaster/": ["World Chain", "Paymaster"],
+    "/world-id/": ["World ID"],
+    "/world-id/wizard/": ["World ID", "Wizard"],
+    "/world-id/debugger/": ["World ID", "Debugger"],
+    "/world-id/playground/": ["World ID", "Playground"]
+  };
+
+  function normalizePath(pathname) {
+    var p = pathname || "/";
+    if (!p.endsWith("/")) p += "/";
+    return p;
+  }
+
+  function addJsonLd(data, id) {
+    if (document.querySelector('script[data-wcwd-jsonld="' + id + '"]')) return;
+    var script = document.createElement("script");
+    script.type = "application/ld+json";
+    script.setAttribute("data-wcwd-jsonld", id);
+    script.textContent = JSON.stringify(data);
+    document.head.appendChild(script);
+  }
+
+  function breadcrumbJson(names, path) {
+    var items = [{ name: "Home", url: SITE + "/" }];
+    var running = "";
+    names.forEach(function (name) {
+      if (name === "World Chain") running = "/world-chain/";
+      else if (name === "World ID") running = "/world-id/";
+      else running = path;
+      items.push({ name: name, url: SITE + running });
+    });
+    return {
+      "@context": "https://schema.org",
+      "@type": "BreadcrumbList",
+      "itemListElement": items.map(function (item, index) {
+        return {
+          "@type": "ListItem",
+          "position": index + 1,
+          "name": item.name,
+          "item": item.url
+        };
+      })
+    };
+  }
+
+  function injectStructuredData() {
+    try {
+      var path = normalizePath(location.pathname);
+      var url = SITE + path;
+
+      if (path === "/") {
+        addJsonLd({
+          "@context": "https://schema.org",
+          "@type": "WebSite",
+          "@id": SITE + "/#website",
+          "name": "WCWD",
+          "url": SITE + "/",
+          "description": "Unofficial Worldcoin toolkit for World Chain monitoring, WLD market context, Sell Impact checks, ecosystem browsing, and World ID builder workflows.",
+          "publisher": { "@id": ORG["@id"] }
+        }, "website");
+        addJsonLd(Object.assign({ "@context": "https://schema.org" }, ORG), "organization");
+        return;
+      }
+
+      if (TOOL_ROUTES[path]) {
+        addJsonLd({
+          "@context": "https://schema.org",
+          "@type": "WebApplication",
+          "name": TOOL_ROUTES[path][0],
+          "url": url,
+          "applicationCategory": TOOL_ROUTES[path][2],
+          "operatingSystem": "Web",
+          "isAccessibleForFree": true,
+          "description": TOOL_ROUTES[path][1],
+          "publisher": { "@id": ORG["@id"] }
+        }, "webapp");
+      }
+
+      if (BREADCRUMBS[path]) {
+        addJsonLd(breadcrumbJson(BREADCRUMBS[path], path), "breadcrumb");
+      }
+    } catch (_e) {}
+  }
+
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", injectStructuredData);
+  else injectStructuredData();
+})();
