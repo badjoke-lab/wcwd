@@ -376,3 +376,44 @@
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", injectSupportCard);
   else injectSupportCard();
 })();
+
+(function () {
+  "use strict";
+
+  function injectDonateCopy() {
+    try {
+      var path = location.pathname || "/";
+      if (path !== "/donate/" && path !== "/donate/index.html") return;
+      if (document.querySelector('[data-wcwd-donate-copy="true"]')) return;
+
+      var main = document.querySelector("main");
+      if (!main) return;
+
+      var firstCard = main.querySelector(".card");
+      var section = document.createElement("section");
+      section.className = "card support-card";
+      section.setAttribute("data-wcwd-donate-copy", "true");
+      section.innerHTML = [
+        '<p class="card-title">What your support funds</p>',
+        '<p class="muted small">WCWD is a free, independent, unofficial Worldcoin / World Chain / World ID toolkit. Support helps keep the data engine, history worker, and public tools online.</p>',
+        '<ul class="list">',
+          '<li>Cloudflare paid infrastructure</li>',
+          '<li>Workers Cron and bounded KV history</li>',
+          '<li>World Chain Monitor maintenance</li>',
+          '<li>Sell Impact and ecosystem data improvements</li>',
+          '<li>World ID builder tools</li>',
+        '</ul>',
+        '<p class="muted small">Support is optional. WCWD is independent and unofficial. Nothing on this site is financial advice.</p>'
+      ].join("");
+
+      if (firstCard && firstCard.parentNode) {
+        firstCard.parentNode.insertBefore(section, firstCard);
+      } else {
+        main.appendChild(section);
+      }
+    } catch (_e) {}
+  }
+
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", injectDonateCopy);
+  else injectDonateCopy();
+})();
