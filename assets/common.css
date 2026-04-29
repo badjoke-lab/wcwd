@@ -59,6 +59,20 @@ code, pre, textarea { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, 
 }
 .nav a[aria-current="page"] { border-color: #111; }
 .nav a:hover { border-color: #cfcfcf; opacity: 1; text-decoration: none; }
+.nav a[href="/donate/"],
+.nav .nav-donate {
+  border-color: #111;
+  background: #111;
+  color: #fff;
+  opacity: 1;
+  font-weight: 800;
+}
+.nav a[href="/donate/"]:hover,
+.nav .nav-donate:hover {
+  border-color: #111;
+  background: #222;
+  color: #fff;
+}
 
 .nav-toggle {
   display: none;
@@ -90,6 +104,12 @@ code, pre, textarea { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, 
 .footer .muted { color: #666; }
 .footer .grid { row-gap: 12px; }
 .footer p { margin: 6px 0; }
+.footer a[href="/donate/"],
+.footer-support-link {
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
 
 h1 { font-size: 22px; margin: 18px 0 10px; }
 h2 { font-size: 18px; margin: 18px 0 10px; }
@@ -107,6 +127,32 @@ p { margin: 10px 0; }
 .card + .card { margin-top: 12px; }
 .card-title { font-weight: 700; margin: 0 0 6px; }
 .card-sub { margin: 0; color: #555; font-size: 13px; }
+
+.support-card,
+.card.support-card {
+  border-color: rgba(0,0,0,.24);
+  background: #fafafa;
+}
+.support-card .card-title { font-size: 15px; }
+.support-card .btn,
+.donate-primary {
+  border-color: #111;
+  background: #111;
+  color: #fff;
+  font-weight: 800;
+}
+.support-inline {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px solid rgba(0,0,0,.14);
+  border-radius: 12px;
+  background: #fafafa;
+}
+.support-inline a {
+  font-weight: 800;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
 
 .grid {
   display: grid;
@@ -298,6 +344,8 @@ svg {
   .nav.is-open { display: flex; }
   .nav a { padding: 10px 12px; border-color: transparent; overflow-wrap: anywhere; }
   .nav a:hover { background: #f7f7f7; }
+  .nav a[href="/donate/"],
+  .nav .nav-donate { text-align: center; }
   .nav-open { overflow: hidden; }
 
   .row,
