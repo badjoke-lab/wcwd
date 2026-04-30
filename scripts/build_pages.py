@@ -17,6 +17,7 @@ PUBLIC_PAGES = [
     "world-chain/monitor/index.html",
     "world-chain/sell-impact/index.html",
     "world-chain/ecosystem/index.html",
+    "world-chain/token-heatmap/index.html",
     "world-chain/oracles/index.html",
     "world-chain/paymaster/index.html",
     "world-id/index.html",
@@ -61,6 +62,11 @@ SEO = {
         "/world-chain/ecosystem/",
         "WCWD — World Chain Ecosystem Directory",
         "Browse World Chain tokens, dApps, infrastructure, oracle-related entries, and curated ecosystem links from WCWD's best-effort directory.",
+    ),
+    "world-chain/token-heatmap/index.html": (
+        "/world-chain/token-heatmap/",
+        "WCWD — World Chain Token Heatmap",
+        "Treemap view of World Chain token volume, liquidity, and momentum with market, liquidity, and risk modes.",
     ),
     "world-chain/oracles/index.html": (
         "/world-chain/oracles/",
