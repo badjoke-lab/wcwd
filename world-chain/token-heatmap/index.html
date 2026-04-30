@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>WCWD — World Chain Token Heatmap</title>
+  <meta name="description" content="Treemap view of World Chain token volume, liquidity, and momentum. Visualize top token snapshots with market, liquidity, and risk modes." />
+  <link rel="canonical" href="https://wcwd.badjoke-lab.com/world-chain/token-heatmap/">
+  <meta property="og:type" content="website">
+  <meta property="og:site_name" content="WCWD">
+  <meta property="og:title" content="WCWD — World Chain Token Heatmap">
+  <meta property="og:description" content="Treemap view of World Chain token volume, liquidity, and momentum.">
+  <meta property="og:url" content="https://wcwd.badjoke-lab.com/world-chain/token-heatmap/">
+  <meta property="og:image" content="https://wcwd.badjoke-lab.com/og.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="WCWD — World Chain Token Heatmap">
+  <meta name="twitter:description" content="Treemap view of World Chain token volume, liquidity, and momentum.">
+  <meta name="twitter:image" content="https://wcwd.badjoke-lab.com/og.png">
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/assets/common.css" />
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="./token-heatmap.css" />
+<!-- WCWD:HEAD:GA4:BEGIN -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-0D84H0D66W"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-0D84H0D66W');
+</script>
+<!-- WCWD:HEAD:GA4:END -->
+</head>
+<body>
+<header class="header">
+  <div class="container header-inner">
+    <a class="brand" href="/">WCWD</a>
+    <nav class="nav" data-site-nav>
+      <a href="/">Home</a>
+      <a href="/world-chain/" aria-current="page">World Chain</a>
+      <a href="/world-id/">World ID</a>
+      <a href="/about/">About</a>
+      <a href="/donate/">Donate</a>
+    </nav>
+  </div>
+</header>
+
+<section class="hero token-heatmap-hero">
+  <div class="container">
+    <p class="eyebrow">Visualizer / Labs</p>
+    <h1>World Chain Token Heatmap</h1>
+    <p class="lead">Treemap view of World Chain token volume, liquidity, and momentum.</p>
+    <p class="muted small">Explore top World Chain tokens by trading volume, liquidity, price movement, and risk signals before opening deeper WCWD tools. This first version uses demo data only.</p>
+    <div class="row quick-links-row" style="margin-top:12px;">
+      <a class="btn" href="/world-chain/sell-impact/">Open Sell Impact</a>
+      <a class="btn secondary" href="/world-chain/ecosystem/">Open Ecosystem</a>
+      <a class="btn ghost" href="/world-chain/">World Chain Hub</a>
+    </div>
+  </div>
+</section>
+
+<main class="container token-heatmap-page">
+  <section class="card heatmap-status-card" aria-labelledby="snapshot-status-title">
+    <p class="card-title" id="snapshot-status-title">Snapshot status</p>
+    <div class="heatmap-status-grid">
+      <div><div class="label">Showing</div><div class="status-value" id="statusCount">Top 40 World Chain tokens</div></div>
+      <div><div class="label">Mode</div><div class="status-value" id="statusMode">Market</div></div>
+      <div><div class="label">Source</div><div class="status-value">Demo data</div></div>
+      <div><div class="label">Status</div><div class="status-value"><span class="heatmap-pill demo">demo</span></div></div>
+      <div><div class="label">Last updated</div><div class="status-value" id="statusUpdated">Static preview</div></div>
+    </div>
+    <p class="muted small">No D1, KV, cron, or external token fetch is used in this static preview. Top 60 and real snapshots stay gated until usage is confirmed.</p>
+  </section>
+
+  <section class="card heatmap-controls-card" aria-labelledby="controls-title">
+    <p class="card-title" id="controls-title">Controls</p>
+    <div class="heatmap-controls">
+      <div class="segmented" role="group" aria-label="Heatmap mode">
+        <button class="mode-btn is-active" type="button" data-mode="market">Market</button>
+        <button class="mode-btn" type="button" data-mode="liquidity">Liquidity</button>
+        <button class="mode-btn" type="button" data-mode="risk">Risk</button>
+      </div>
+      <div class="segmented" role="group" aria-label="Token count">
+        <button class="count-btn is-active" type="button" data-count="40">Top 40</button>
+        <button class="count-btn" type="button" data-count="60" disabled title="Usage gate">Top 60 soon</button>
+      </div>
+      <button class="btn secondary" id="resetZoom" type="button">Reset zoom</button>
+      <button class="btn ghost mobile-map-toggle" id="mobileMapToggle" type="button">Control map</button>
+    </div>
+    <p class="muted small" id="interactionHint">Page scroll · Tap tiles. Hold Ctrl / Alt / Meta + wheel to zoom on desktop.</p>
+  </section>
+
+  <section class="heatmap-layout" aria-labelledby="heatmap-title">
+    <div class="card heatmap-card">
+      <div class="heatmap-card-head">
+        <div>
+          <p class="card-title" id="heatmap-title">Token heatmap</p>
+          <p class="muted small" id="modeDescription">Area = 24h volume. Color = 24h price change.</p>
+        </div>
+        <div class="heatmap-legend" id="modeLegend" aria-label="Current mode legend"></div>
+      </div>
+      <div class="heatmap-canvas-viewport" id="heatmapViewport" aria-label="World Chain token heatmap canvas">
+        <canvas id="heatmapTiles"></canvas>
+        <canvas id="heatmapOverlay"></canvas>
+      </div>
+    </div>
+    <aside class="card selected-card" aria-labelledby="selected-title">
+      <p class="card-title" id="selected-title">Selected token</p>
+      <div id="selectedDetail" class="selected-detail">Select a tile to inspect token details.</div>
+    </aside>
+  </section>
+
+  <section class="card" aria-labelledby="ranking-title">
+    <p class="card-title" id="ranking-title">Mini ranking</p>
+    <p class="muted small">Top tokens by the selected size metric. This is a helper list, not the primary view.</p>
+    <div id="miniRanking" class="mini-ranking"></div>
+  </section>
+
+  <section class="card" aria-labelledby="how-title">
+    <p class="card-title" id="how-title">Legend / How to read</p>
+    <div class="grid">
+      <div class="col-4"><div class="label">Bigger blocks</div><p class="muted small">Show larger selected size metrics such as volume or liquidity.</p></div>
+      <div class="col-4"><div class="label">Colors</div><p class="muted small">Show the selected signal: price movement, liquidity condition, or risk state.</p></div>
+      <div class="col-4"><div class="label">Risk Mode</div><p class="muted small">Highlights thin liquidity, stale data, or unknown conditions. It is not a safety score.</p></div>
+    </div>
+    <p class="note">This heatmap is not financial advice and does not guarantee execution quality. Use Sell Impact before making execution assumptions.</p>
+  </section>
+
+  <section class="card" aria-labelledby="related-title">
+    <p class="card-title" id="related-title">Related tools</p>
+    <div class="grid">
+      <div class="col-4"><div class="label">Sell Impact</div><p class="muted small">Estimate sell impact and rough exit conditions.</p><p><a class="btn secondary" href="/world-chain/sell-impact/">Open Sell Impact</a></p></div>
+      <div class="col-4"><div class="label">Ecosystem</div><p class="muted small">Browse curated World Chain entries.</p><p><a class="btn secondary" href="/world-chain/ecosystem/">Open Ecosystem</a></p></div>
+      <div class="col-4"><div class="label">Monitor</div><p class="muted small">Check network and market context.</p><p><a class="btn secondary" href="/world-chain/monitor/">Open Monitor</a></p></div>
+    </div>
+  </section>
+</main>
+
+<footer class="footer">
+  <div class="container">
+    <div class="grid">
+      <section class="col-3"><p class="card-title">Site</p><p><a href="/">Home</a></p><p><a href="/world-chain/">World Chain</a></p><p><a href="/world-id/">World ID</a></p></section>
+      <section class="col-3"><p class="card-title">Legal</p><p><a href="/about/">About</a></p><p><a href="/about/#disclaimer">Disclaimer</a></p><p><a href="/about/#privacy">Privacy</a></p></section>
+      <section class="col-3"><p class="card-title">External</p><p><a href="https://github.com/badjoke-lab/wcwd" target="_blank" rel="noopener noreferrer">GitHub</a></p><p><a href="https://x.com/badjoke_lab" target="_blank" rel="noopener noreferrer">X</a></p></section>
+      <section class="col-3"><p class="card-title">Signature</p><p>Built by BadJoke-Lab</p><p>© 2026 WCWD</p></section>
+    </div>
+  </div>
+</footer>
+
+<script src="/assets/common.js"></script>
+<script src="./token-heatmap.js" defer></script>
+</body>
+</html>
