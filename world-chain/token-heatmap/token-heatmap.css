@@ -1,0 +1,48 @@
+/* World Chain Token Heatmap static visualizer */
+
+.token-heatmap-hero .eyebrow { margin: 0 0 8px; font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: #666; }
+.token-heatmap-page { display: grid; gap: 12px; }
+.heatmap-status-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.status-value { font-weight: 800; font-variant-numeric: tabular-nums; }
+.heatmap-pill { display: inline-flex; align-items: center; justify-content: center; min-height: 24px; padding: 3px 9px; border: 1px solid rgba(0,0,0,.14); border-radius: 999px; font-size: 12px; font-weight: 800; text-transform: uppercase; }
+.heatmap-pill.demo { background: #f5f5f5; }
+.heatmap-pill.fresh { background: #f3fff4; }
+.heatmap-pill.stale, .heatmap-pill.partial { background: #fff8ec; }
+.heatmap-pill.degraded { background: #fff0f0; }
+.heatmap-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.segmented { display: inline-flex; gap: 4px; padding: 4px; border: 1px solid rgba(0,0,0,.12); border-radius: 14px; background: #fafafa; }
+.segmented button { appearance: none; border: 1px solid transparent; border-radius: 10px; background: transparent; color: #111; font-weight: 800; padding: 8px 10px; cursor: pointer; }
+.segmented button.is-active { border-color: #111; background: #111; color: #fff; }
+.segmented button:disabled { cursor: not-allowed; opacity: .45; }
+.heatmap-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(260px, 320px); gap: 12px; align-items: stretch; }
+.heatmap-card, .selected-card { min-width: 0; }
+.heatmap-card-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.heatmap-legend { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; min-width: 160px; }
+.legend-item { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: #555; }
+.legend-dot { width: 10px; height: 10px; border-radius: 999px; border: 1px solid rgba(0,0,0,.16); }
+.heatmap-canvas-viewport { position: relative; width: 100%; min-height: 520px; border: 1px solid rgba(0,0,0,.10); border-radius: 16px; background: #f7f7f7; overflow: hidden; touch-action: pan-y; user-select: none; }
+.heatmap-canvas-viewport.is-move-mode { touch-action: none; }
+.heatmap-canvas-viewport canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.selected-detail { display: grid; gap: 10px; }
+.selected-symbol { font-size: 30px; font-weight: 900; letter-spacing: -.03em; line-height: 1; }
+.selected-name { color: #555; margin-top: -4px; }
+.detail-row { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; border-bottom: 1px solid rgba(0,0,0,.08); font-size: 13px; }
+.detail-row strong { text-align: right; font-variant-numeric: tabular-nums; }
+.detail-actions { display: grid; gap: 8px; margin-top: 6px; }
+.detail-actions .btn { display: block; width: 100%; text-align: center; }
+.risk-label { display: inline-flex; align-items: center; justify-content: center; padding: 3px 8px; border: 1px solid rgba(0,0,0,.16); border-radius: 999px; font-size: 12px; font-weight: 800; text-transform: uppercase; }
+.risk-healthy { background: #f1fff3; }
+.risk-thin-liquidity, .risk-new-or-volatile { background: #fff8e8; }
+.risk-stale, .risk-unknown { background: #f2f2f2; }
+.risk-high-risk { background: #fff0f0; }
+.mini-ranking { display: grid; gap: 8px; }
+.ranking-row { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid rgba(0,0,0,.08); }
+.ranking-rank { color: #777; font-variant-numeric: tabular-nums; }
+.ranking-symbol { font-weight: 900; }
+.ranking-sub { color: #666; font-size: 12px; }
+.ranking-value { font-weight: 900; font-variant-numeric: tabular-nums; text-align: right; }
+.note { padding: 10px 12px; border: 1px solid rgba(0,0,0,.12); border-radius: 12px; background: #fafafa; color: #555; font-size: 13px; }
+.mobile-map-toggle { display: none; }
+@media (max-width: 880px) { .heatmap-layout { grid-template-columns: 1fr; } .selected-card { order: 2; } .heatmap-card { order: 1; } .heatmap-canvas-viewport { min-height: 480px; } }
+@media (max-width: 720px) { .heatmap-card-head { display: grid; } .heatmap-legend { justify-content: flex-start; } .mobile-map-toggle { display: inline-flex; } .heatmap-canvas-viewport { min-height: 420px; } .segmented { width: 100%; } .segmented button { flex: 1; } }
+@media (max-width: 420px) { .heatmap-canvas-viewport { min-height: 360px; border-radius: 12px; } .selected-symbol { font-size: 24px; } .ranking-row { grid-template-columns: 28px minmax(0, 1fr); } .ranking-value { grid-column: 2; text-align: left; } }
