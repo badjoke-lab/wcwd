@@ -13,6 +13,7 @@ PUBLIC_ROUTE_ALLOWLIST = [
     "/world-chain/monitor/",
     "/world-chain/sell-impact/",
     "/world-chain/ecosystem/",
+    "/world-chain/token-heatmap/",
     "/world-chain/oracles/",
     "/world-chain/paymaster/",
     "/world-id/",
