@@ -20,8 +20,9 @@
 .heatmap-legend { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; min-width: 160px; }
 .legend-item { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: #555; }
 .legend-dot { width: 10px; height: 10px; border-radius: 999px; border: 1px solid rgba(0,0,0,.16); }
-.heatmap-canvas-viewport { position: relative; width: 100%; min-height: 520px; border: 1px solid rgba(0,0,0,.10); border-radius: 16px; background: #f7f7f7; overflow: hidden; touch-action: pan-y; user-select: none; }
-.heatmap-canvas-viewport.is-move-mode { touch-action: none; }
+.heatmap-canvas-viewport { position: relative; width: 100%; min-height: 520px; border: 1px solid rgba(0,0,0,.10); border-radius: 16px; background: #f7f7f7; overflow: hidden; touch-action: pan-y; user-select: none; cursor: grab; }
+.heatmap-canvas-viewport:active { cursor: grabbing; }
+.heatmap-canvas-viewport.is-move-mode { touch-action: none; box-shadow: inset 0 0 0 2px rgba(0,0,0,.18); }
 .heatmap-canvas-viewport canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
 .selected-detail { display: grid; gap: 10px; }
 .selected-symbol { font-size: 30px; font-weight: 900; letter-spacing: -.03em; line-height: 1; }
@@ -44,5 +45,5 @@
 .note { padding: 10px 12px; border: 1px solid rgba(0,0,0,.12); border-radius: 12px; background: #fafafa; color: #555; font-size: 13px; }
 .mobile-map-toggle { display: none; }
 @media (max-width: 880px) { .heatmap-layout { grid-template-columns: 1fr; } .selected-card { order: 2; } .heatmap-card { order: 1; } .heatmap-canvas-viewport { min-height: 480px; } }
-@media (max-width: 720px) { .heatmap-card-head { display: grid; } .heatmap-legend { justify-content: flex-start; } .mobile-map-toggle { display: inline-flex; } .heatmap-canvas-viewport { min-height: 420px; } .segmented { width: 100%; } .segmented button { flex: 1; } }
+@media (max-width: 720px) { .heatmap-card-head { display: grid; } .heatmap-legend { justify-content: flex-start; } .mobile-map-toggle { display: inline-flex; } .heatmap-canvas-viewport { min-height: 420px; cursor: default; } .heatmap-canvas-viewport.is-move-mode { cursor: grab; } .segmented { width: 100%; } .segmented button { flex: 1; } }
 @media (max-width: 420px) { .heatmap-canvas-viewport { min-height: 360px; border-radius: 12px; } .selected-symbol { font-size: 24px; } .ranking-row { grid-template-columns: 28px minmax(0, 1fr); } .ranking-value { grid-column: 2; text-align: left; } }
