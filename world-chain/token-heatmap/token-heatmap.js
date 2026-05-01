@@ -8,15 +8,16 @@ var tokens=names.map(function(s,i){
   var volume=Math.round(12000000*Math.pow(size/40,2.15)+70000);
   var liquidity=Math.round(8000000*Math.pow(size/40,2.55)+18000);
   var change=((i*37)%70)-24+(i%5===0?8:0);
-  return { id:'t'+i, symbol:s, name:s+' demo', volume24h:volume, liquidityUsd:liquidity, change24h:change, fdv:volume*3.4, riskState:risk[i], status:risk[i]==='stale'?'stale':'demo' };
+  return { id:'demo-'+i, symbol:s, name:s+' demo', address:'', pool:'', volume24h:volume, liquidityUsd:liquidity, change24h:change, fdv:volume*3.4, riskState:risk[i], status:risk[i]==='stale'?'stale':'demo' };
 });
+var snapshot={source:'demo',status:'demo',updatedAt:'Static preview',count:tokens.length};
 
 var modes={
   market:{label:'Market',desc:'Area = 24h volume. Color = 24h price change.',area:function(t){return t.volume24h},rank:'24h volume'},
   liquidity:{label:'Liquidity',desc:'Area = liquidity. Color = liquidity condition.',area:function(t){return t.liquidityUsd},rank:'liquidity'},
   risk:{label:'Risk',desc:'Area = liquidity. Color = risk state. Risk is not a safety score.',area:function(t){return t.liquidityUsd},rank:'liquidity'}
 };
-var state={mode:'market',nodes:[],selected:'t0',hover:null,scale:1,tx:0,ty:0,moveMode:false,pointers:{},drag:null,pinch:null,raf:0};
+var state={mode:'market',nodes:[],selected:'demo-0',hover:null,scale:1,tx:0,ty:0,moveMode:false,pointers:{},drag:null,pinch:null,raf:0};
 var el={};
 var PAN_THRESHOLD=6;
 
@@ -35,11 +36,34 @@ function boot(){
   window.addEventListener('pointercancel',onPointerUp);
   new ResizeObserver(function(){requestAnimationFrame(layout);}).observe(el.v);
   layout();
+  loadLatestSnapshot();
 }
 
 function $(id){return document.getElementById(id);}
 function setMode(mode){ if(!modes[mode]) return; state.mode=mode; document.querySelectorAll('.mode-btn').forEach(function(b){b.classList.toggle('is-active',b.dataset.mode===mode);}); layout(); }
 function toggleMoveMode(){ state.moveMode=!state.moveMode; el.v.classList.toggle('is-move-mode',state.moveMode); $('mobileMapToggle').textContent=state.moveMode?'Back to scroll':'Control map'; $('interactionHint').textContent=state.moveMode?'Pan & pinch':'Page scroll · Tap tiles'; }
+
+function normalizeApiToken(t,i){
+  var symbol=String(t.symbol||'TOKEN').trim()||'TOKEN';
+  var addr=String(t.address||'').toLowerCase();
+  return { id:addr||('api-'+i+'-'+symbol), symbol:symbol, name:String(t.name||symbol), address:addr, pool:String(t.pool||''), volume24h:num(t.volume24h), liquidityUsd:num(t.liquidityUsd), change24h:num(t.change24h), fdv:num(t.fdv), priceUsd:num(t.priceUsd), riskState:String(t.riskState||'unknown'), status:String(t.dataStatus||'fresh'), updatedAt:t.updatedAt||null };
+}
+async function loadLatestSnapshot(){
+  try{
+    var res=await fetch('/api/world-chain/token-heatmap/latest',{headers:{accept:'application/json'}});
+    if(!res.ok) throw new Error('api_http_'+res.status);
+    var body=await res.json();
+    if(!body||!Array.isArray(body.tokens)||!body.tokens.length) return;
+    tokens=body.tokens.map(normalizeApiToken).filter(function(t){return t.volume24h>0||t.liquidityUsd>0;}).slice(0,40);
+    snapshot={source:body.source||'cached_snapshot',status:body.status||'fresh',updatedAt:body.updatedAt||'—',count:tokens.length};
+    state.selected=tokens[0]&&tokens[0].id;
+    layout();
+  }catch(e){
+    snapshot.reason=e&&e.message?e.message:'api_unavailable';
+    renderMeta();
+  }
+}
+function num(v){ var n=Number.parseFloat(String(v==null?'':v)); return Number.isFinite(n)?n:0; }
 
 function layout(){
   var box=el.v.getBoundingClientRect();
@@ -124,8 +148,20 @@ function onPointerUp(e){
 }
 function pinchState(){ var pts=Object.keys(state.pointers).map(function(k){return state.pointers[k];}); var a=pts[0],b=pts[1],box=el.v.getBoundingClientRect(),cx=(a.x+b.x)/2-box.left,cy=(a.y+b.y)/2-box.top; return {distance:Math.hypot(a.x-b.x,a.y-b.y),cx:cx,cy:cy,scale:state.scale,worldX:(cx-state.tx)/state.scale,worldY:(cy-state.ty)/state.scale}; }
 
-function renderMeta(){ el.desc.textContent=modes[state.mode].desc; el.status.textContent=modes[state.mode].label; el.legend.innerHTML=legend(); }
-function renderSelected(){ var n=state.nodes.find(function(x){return x.id===state.selected;})||state.nodes[0]; if(!n) return; var t=n.meta; el.sel.innerHTML='<div><div class="selected-symbol">'+esc(t.symbol)+'</div><div class="selected-name">'+esc(t.name)+'</div></div>'+row('24h change',pct(t.change24h))+row('24h volume',usd(t.volume24h))+row('Liquidity',usd(t.liquidityUsd))+row('FDV / cap',usd(t.fdv))+row('Risk state','<span class="risk-label risk-'+esc(t.riskState)+'">'+esc(t.riskState)+'</span>')+row('Data status',esc(t.status))+'<div class="detail-actions"><a class="btn" href="/world-chain/sell-impact/">Open in Sell Impact</a><a class="btn secondary" href="/world-chain/ecosystem/?q='+encodeURIComponent(t.symbol)+'">Open in Ecosystem</a></div>'; }
+function renderMeta(){
+  el.desc.textContent=modes[state.mode].desc;
+  el.status.textContent=modes[state.mode].label;
+  el.legend.innerHTML=legend();
+  var sourceEl=document.querySelector('.heatmap-status-grid .status-value:nth-child(1)');
+  var countEl=$('statusCount'), updatedEl=$('statusUpdated');
+  if(countEl) countEl.textContent='Top '+Math.min(40,tokens.length)+' World Chain tokens';
+  if(updatedEl) updatedEl.textContent=snapshot.updatedAt||'—';
+  var statusPill=document.querySelector('.heatmap-pill');
+  if(statusPill){ statusPill.className='heatmap-pill '+esc(snapshot.status||'demo'); statusPill.textContent=snapshot.status||'demo'; }
+  var statusGrid=document.querySelector('.heatmap-status-grid');
+  if(statusGrid){ var vals=statusGrid.querySelectorAll('.status-value'); if(vals[2]) vals[2].textContent=snapshot.source||'demo'; }
+}
+function renderSelected(){ var n=state.nodes.find(function(x){return x.id===state.selected;})||state.nodes[0]; if(!n) return; var t=n.meta; el.sel.innerHTML='<div><div class="selected-symbol">'+esc(t.symbol)+'</div><div class="selected-name">'+esc(t.name)+'</div></div>'+row('24h change',pct(t.change24h))+row('24h volume',usd(t.volume24h))+row('Liquidity',usd(t.liquidityUsd))+row('FDV / cap',usd(t.fdv))+row('Risk state','<span class="risk-label risk-'+esc(t.riskState)+'">'+esc(t.riskState)+'</span>')+row('Data status',esc(t.status))+'<div class="detail-actions"><a class="btn" href="/world-chain/sell-impact/'+(t.address?'?token='+encodeURIComponent(t.address):'')+'">Open in Sell Impact</a><a class="btn secondary" href="/world-chain/ecosystem/?q='+encodeURIComponent(t.symbol)+'">Open in Ecosystem</a></div>'; }
 function renderRanking(){ var mode=modes[state.mode]; el.rank.innerHTML=tokens.slice().map(function(t){return{t:t,v:mode.area(t)};}).sort(function(a,b){return b.v-a.v;}).slice(0,12).map(function(e,i){return '<div class="ranking-row"><div class="ranking-rank">#'+(i+1)+'</div><div><div class="ranking-symbol">'+esc(e.t.symbol)+'</div><div class="ranking-sub">'+esc(e.t.name)+' · '+esc(e.t.riskState)+'</div></div><div class="ranking-value">'+usd(e.v)+'</div></div>';}).join(''); }
 function row(a,b){return '<div class="detail-row"><span>'+a+'</span><strong>'+b+'</strong></div>';}
 
@@ -133,8 +169,8 @@ function color(t){ if(state.mode==='risk') return riskColor(t.riskState); if(sta
 function riskColor(r){ return r==='healthy'?'#2f7d46':r==='thin-liquidity'?'#b47a23':r==='new-or-volatile'?'#9a6b1f':r==='stale'?'#777':'#999'; }
 function legend(){ var list=state.mode==='market'?[['Positive','#2f7d46'],['Flat','#b6b6b6'],['Negative','#a94442']]:state.mode==='liquidity'?[['Strong','#2f7d46'],['Thin','#b47a23'],['Weak','#a94442']]:[['Observed','#2f7d46'],['Caution','#b47a23'],['Unknown/stale','#777']]; return list.map(function(x){return '<span class="legend-item"><span class="legend-dot" style="background:'+x[1]+'"></span>'+x[0]+'</span>';}).join(''); }
 function textColor(c){ return c==='#2f7d46'||c==='#a94442'||c==='#9a6b1f'||c==='#777'?'#fff':'#111'; }
-function usd(v){ return v>=1e6?'$'+(v/1e6).toFixed(2)+'M':v>=1e3?'$'+(v/1e3).toFixed(1)+'K':'$'+v.toFixed(2); }
-function pct(v){ return (v>0?'+':'')+v.toFixed(1)+'%'; }
+function usd(v){ return v>=1e9?'$'+(v/1e9).toFixed(2)+'B':v>=1e6?'$'+(v/1e6).toFixed(2)+'M':v>=1e3?'$'+(v/1e3).toFixed(1)+'K':'$'+(Number(v)||0).toFixed(2); }
+function pct(v){ return (v>0?'+':'')+(Number(v)||0).toFixed(1)+'%'; }
 function esc(v){ return String(v).replace(/[&<>'"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c];}); }
 
 if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot); else boot();

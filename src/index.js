@@ -1,5 +1,6 @@
 import baseWorker from "./worker.js";
 import { updateSellImpactWatchlist, getSellImpactWatchlistLatest, getSellImpactWatchlistList } from "./sellimpact-watchlist.js";
+import { getTokenHeatmapLatest, getTokenHeatmapMeta } from "./token-heatmap.js";
 import { RETENTION, buildRetentionMetadata, enforceBaseRetention, writeRetentionMetadata, clampLimit } from "./retention.js";
 import { handleWormholeViz } from "./viz-wormhole.js";
 import { handleOracleFeed } from "./oracles-feed.js";
@@ -149,6 +150,18 @@ export default {
     if (pathname === "/api/oracles/feed") {
       if (request.method !== "GET") return errorJson("oracles_feed", "method_not_allowed", 405);
       return handleOracleFeed(request, env);
+    }
+
+    if (pathname === "/api/world-chain/token-heatmap/latest") {
+      if (request.method !== "GET") return errorJson("token_heatmap_latest", "method_not_allowed", 405);
+      const refresh = url.searchParams.get("refresh") === "1";
+      const payload = await getTokenHeatmapLatest(env, { refresh });
+      return json(payload);
+    }
+
+    if (pathname === "/api/world-chain/token-heatmap/meta") {
+      if (request.method !== "GET") return errorJson("token_heatmap_meta", "method_not_allowed", 405);
+      return json(getTokenHeatmapMeta());
     }
 
     if (pathname === "/api/viz/wormhole") {
