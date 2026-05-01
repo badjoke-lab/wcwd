@@ -6,7 +6,7 @@ on:
       base_url:
         description: "Base URL to check"
         required: true
-        default: "https://wcwd.badjoke-lab.com"
+        default: "https://wcwd-history.badjoke-lab.workers.dev"
       timeout:
         description: "Request timeout in seconds"
         required: true
