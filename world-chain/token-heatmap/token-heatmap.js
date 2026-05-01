@@ -1,6 +1,14 @@
 (function(){
 'use strict';
 
+var HEATMAP_API_BASE=(function(){
+  var h=location.hostname;
+  var isLocal=h==='localhost'||h==='127.0.0.1'||h===''||location.protocol==='file:';
+  var meta=document.querySelector('meta[name="wcwd-history-base"]');
+  var worker=meta&&meta.getAttribute('content')?meta.getAttribute('content').trim():'https://wcwd-history.badjoke-lab.workers.dev';
+  return isLocal?worker:worker;
+})();
+
 var names='WLD ORO WDD ORB WNB XAU MINI HUMN ORBID GASW WUSD BETA EYE PAY APP CHAIN SCAN WBRG FEE DAPP SPOT POOL FLOW VAULT HUB TILE NODE NOVA CRED LENS RING MAP RISK SAFE IDX DATA CORE WAVE SEED DUST'.split(' ');
 var risk=['healthy','healthy','thin-liquidity','healthy','thin-liquidity','healthy','new-or-volatile','healthy','thin-liquidity','new-or-volatile','healthy','thin-liquidity','healthy','thin-liquidity','new-or-volatile','healthy','thin-liquidity','healthy','unknown','new-or-volatile','healthy','thin-liquidity','new-or-volatile','healthy','thin-liquidity','healthy','thin-liquidity','new-or-volatile','unknown','healthy','new-or-volatile','healthy','thin-liquidity','healthy','unknown','stale','thin-liquidity','new-or-volatile','thin-liquidity','stale'];
 var tokens=names.map(function(s,i){
@@ -20,6 +28,8 @@ var modes={
 var state={mode:'market',nodes:[],selected:'demo-0',hover:null,scale:1,tx:0,ty:0,moveMode:false,pointers:{},drag:null,pinch:null,raf:0};
 var el={};
 var PAN_THRESHOLD=6;
+
+function apiUrl(path){return HEATMAP_API_BASE.replace(/\/$/,'')+path;}
 
 function boot(){
   el.v=$('heatmapViewport'); el.c=$('heatmapTiles'); el.o=$('heatmapOverlay');
@@ -51,20 +61,20 @@ function normalizeApiToken(t,i){
 }
 async function loadEndpointMeta(){
   try{
-    var res=await fetch('/api/world-chain/token-heatmap/meta',{headers:{accept:'application/json'}});
+    var res=await fetch(apiUrl('/api/world-chain/token-heatmap/meta'),{headers:{accept:'application/json'}});
     if(!res.ok) throw new Error('meta_http_'+res.status);
     var body=await res.json();
     var debug=$('apiDebug');
     if(debug) debug.textContent=JSON.stringify(body,null,2);
   }catch(e){
     var fallback=$('apiDebug');
-    if(fallback) fallback.textContent='Endpoint: /api/world-chain/token-heatmap/latest\nPolicy: meta unavailable\nReason: '+(e&&e.message?e.message:'meta_unavailable');
+    if(fallback) fallback.textContent='Endpoint: '+apiUrl('/api/world-chain/token-heatmap/latest')+'\nPolicy: meta unavailable\nReason: '+(e&&e.message?e.message:'meta_unavailable');
   }
 }
 async function loadLatestSnapshot(){
   setApiNote('loading','Loading compact latest snapshot. Demo data remains visible until usable API data is returned.');
   try{
-    var res=await fetch('/api/world-chain/token-heatmap/latest',{headers:{accept:'application/json'}});
+    var res=await fetch(apiUrl('/api/world-chain/token-heatmap/latest'),{headers:{accept:'application/json'}});
     if(!res.ok) throw new Error('api_http_'+res.status);
     var body=await res.json();
     if(!body||!Array.isArray(body.tokens)||!body.tokens.length) throw new Error((body&&body.reason)||'empty_snapshot');
