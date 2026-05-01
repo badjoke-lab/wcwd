@@ -9,7 +9,7 @@ import urllib.error
 import urllib.request
 from typing import Any
 
-DEFAULT_BASE_URL = "https://wcwd.badjoke-lab.com"
+DEFAULT_BASE_URL = "https://wcwd-history.badjoke-lab.workers.dev"
 
 
 def fetch_json(url: str, timeout: int) -> tuple[int, dict[str, Any]]:
@@ -64,7 +64,7 @@ def check_latest(base: str, timeout: int, path: str = "/api/world-chain/token-he
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Check WCWD World Chain Token Heatmap API gate conditions.")
-    parser.add_argument("--base-url", default=DEFAULT_BASE_URL, help="Base URL, default: https://wcwd.badjoke-lab.com")
+    parser.add_argument("--base-url", default=DEFAULT_BASE_URL, help=f"Base URL, default: {DEFAULT_BASE_URL}")
     parser.add_argument("--timeout", default=20, type=int)
     parser.add_argument("--sleep", default=2, type=int, help="Seconds to wait between latest calls")
     args = parser.parse_args()
@@ -77,6 +77,14 @@ def main() -> None:
         latest = check_latest(base, args.timeout)
         time.sleep(max(0, args.sleep))
         refresh = check_latest(base, args.timeout, "/api/world-chain/token-heatmap/latest?refresh=1")
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:
+            fail(
+                f"network error: HTTP 404 at {exc.url}. "
+                "The Worker route is not available yet. Deploy wcwd-history worker from main, "
+                "then rerun this check."
+            )
+        fail(f"network error: HTTP {exc.code} at {exc.url}: {exc.reason}")
     except urllib.error.URLError as exc:
         fail(f"network error: {exc}")
     except json.JSONDecodeError as exc:
