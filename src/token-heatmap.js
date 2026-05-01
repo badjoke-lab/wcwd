@@ -4,6 +4,8 @@ const NETWORK = "world-chain";
 const LATEST_KEY = "token-heatmap:latest";
 const MAX_TOKENS = 40;
 const CACHE_TTL_MS = 55 * 60 * 1000;
+const FETCH_TIMEOUT_MS = 6500;
+const PAGE_COUNT = 3;
 
 function num(value) {
   const n = Number.parseFloat(String(value ?? "").trim());
@@ -18,9 +20,18 @@ function parseTokenAddrFromId(id) {
   return "";
 }
 
-function shortAddr(addr) {
-  const s = String(addr || "");
-  return s.length > 12 ? `${s.slice(0, 6)}…${s.slice(-4)}` : s;
+function cleanSymbol(value) {
+  return String(value || "TOKEN")
+    .replace(/\s+\d+(?:\.\d+)?%.*$/, "")
+    .trim() || "TOKEN";
+}
+
+function parsePairName(name) {
+  const pair = String(name || "").split(/\s*\/\s*/);
+  return {
+    baseSymbol: cleanSymbol(pair[0]),
+    quoteSymbol: cleanSymbol(pair[1] || ""),
+  };
 }
 
 function riskState({ liquidityUsd, volume24h, priceChange24h, updatedAt }) {
@@ -32,29 +43,24 @@ function riskState({ liquidityUsd, volume24h, priceChange24h, updatedAt }) {
   return "healthy";
 }
 
-function tokenFromPool(pool) {
+function normalizePool(pool) {
   const a = pool?.attributes || {};
   const r = pool?.relationships || {};
-  const baseId = r?.base_token?.data?.id || "";
-  const quoteId = r?.quote_token?.data?.id || "";
-  const baseAddr = parseTokenAddrFromId(baseId);
-  const quoteAddr = parseTokenAddrFromId(quoteId);
+  const baseAddr = parseTokenAddrFromId(r?.base_token?.data?.id || "");
+  const quoteAddr = parseTokenAddrFromId(r?.quote_token?.data?.id || "");
   const name = String(a.name || a.pool_name || "").trim();
-  const pair = name.split(/\s*\/\s*/);
-  const baseSymbol = String(pair[0] || "TOKEN").replace(/\s+\d+(?:\.\d+)?%.*$/, "").trim();
-  const quoteSymbol = String(pair[1] || "").replace(/\s+\d+(?:\.\d+)?%.*$/, "").trim();
+  const { baseSymbol, quoteSymbol } = parsePairName(name);
   const volume24h = num(a.volume_usd?.h24);
   const liquidityUsd = num(a.reserve_in_usd);
   const priceChange24h = num(a.price_change_percentage?.h24);
   const fdv = num(a.fdv_usd || a.market_cap_usd);
-  const address = baseAddr || quoteAddr;
-  if (!address || !baseSymbol) return null;
   const updatedAt = a.updated_at || a.pool_created_at || null;
-  const state = riskState({ liquidityUsd, volume24h, priceChange24h, updatedAt });
+  if (!baseAddr || !baseSymbol) return null;
   return {
     symbol: baseSymbol,
     name: baseSymbol,
-    address,
+    address: baseAddr,
+    quoteAddress: quoteAddr,
     pool: String(a.address || "").toLowerCase(),
     poolLabel: name || `${baseSymbol}${quoteSymbol ? ` / ${quoteSymbol}` : ""}`,
     priceUsd: num(a.base_token_price_usd),
@@ -62,39 +68,61 @@ function tokenFromPool(pool) {
     volume24h,
     liquidityUsd,
     fdv,
-    riskState: state,
+    riskState: riskState({ liquidityUsd, volume24h, priceChange24h, updatedAt }),
     dataStatus: "fresh",
     updatedAt,
   };
 }
 
+function mergeToken(prev, next) {
+  const merged = { ...prev };
+  merged.volume24h += next.volume24h;
+  merged.liquidityUsd += next.liquidityUsd;
+  merged.fdv = Math.max(merged.fdv || 0, next.fdv || 0);
+  const nextIsBetterPool = (next.volume24h > prev._bestPoolVolume) ||
+    (next.volume24h === prev._bestPoolVolume && next.liquidityUsd > prev._bestPoolLiquidity);
+  if (nextIsBetterPool) {
+    merged.pool = next.pool;
+    merged.poolLabel = next.poolLabel;
+    merged.priceUsd = next.priceUsd || merged.priceUsd;
+    merged.change24h = next.change24h;
+    merged.updatedAt = next.updatedAt || merged.updatedAt;
+    merged._bestPoolVolume = next.volume24h;
+    merged._bestPoolLiquidity = next.liquidityUsd;
+  }
+  merged.riskState = riskState({
+    liquidityUsd: merged.liquidityUsd,
+    volume24h: merged.volume24h,
+    priceChange24h: merged.change24h,
+    updatedAt: merged.updatedAt,
+  });
+  return merged;
+}
+
+function stripInternal(token) {
+  const { _bestPoolVolume, _bestPoolLiquidity, quoteAddress, ...rest } = token;
+  return rest;
+}
+
 function aggregateTokens(pools) {
   const byAddr = new Map();
   for (const pool of pools) {
-    const token = tokenFromPool(pool);
+    const token = normalizePool(pool);
     if (!token) continue;
     const key = token.address.toLowerCase();
+    const withInternal = {
+      ...token,
+      _bestPoolVolume: token.volume24h,
+      _bestPoolLiquidity: token.liquidityUsd,
+    };
     const prev = byAddr.get(key);
-    if (!prev) {
-      byAddr.set(key, token);
-      continue;
-    }
-    prev.volume24h += token.volume24h;
-    prev.liquidityUsd += token.liquidityUsd;
-    prev.fdv = Math.max(prev.fdv || 0, token.fdv || 0);
-    if ((token.volume24h || 0) > (prev.volume24h || 0)) {
-      prev.pool = token.pool;
-      prev.poolLabel = token.poolLabel;
-      prev.priceUsd = token.priceUsd || prev.priceUsd;
-      prev.change24h = token.change24h;
-      prev.updatedAt = token.updatedAt || prev.updatedAt;
-    }
-    prev.riskState = riskState(prev);
+    byAddr.set(key, prev ? mergeToken(prev, withInternal) : withInternal);
   }
   return [...byAddr.values()]
     .filter((t) => t.volume24h > 0 || t.liquidityUsd > 0)
     .sort((a, b) => (b.volume24h - a.volume24h) || (b.liquidityUsd - a.liquidityUsd))
-    .slice(0, MAX_TOKENS);
+    .slice(0, MAX_TOKENS)
+    .map(stripInternal);
 }
 
 async function readLatest(env) {
@@ -116,18 +144,42 @@ function isFresh(payload) {
   return Date.now() - ts < CACHE_TTL_MS;
 }
 
-async function fetchTopPools() {
-  const pages = [1, 2, 3];
-  const out = [];
-  for (const page of pages) {
-    const url = `${GT_BASE}/networks/${NETWORK}/pools?page=${page}`;
-    const res = await fetch(url, { headers: { accept: GT_ACCEPT } });
+async function fetchGtJson(path) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort("timeout"), FETCH_TIMEOUT_MS);
+  try {
+    const res = await fetch(`${GT_BASE}/${path}`, {
+      headers: { accept: GT_ACCEPT },
+      signal: controller.signal,
+    });
     if (!res.ok) throw new Error(`gt_http_${res.status}`);
-    const body = await res.json();
-    const rows = Array.isArray(body?.data) ? body.data : [];
-    out.push(...rows);
+    return await res.json();
+  } finally {
+    clearTimeout(timeout);
   }
-  return out;
+}
+
+async function fetchTopPools() {
+  const pools = [];
+  const errors = [];
+  for (let page = 1; page <= PAGE_COUNT; page += 1) {
+    try {
+      const body = await fetchGtJson(`networks/${NETWORK}/pools?page=${page}`);
+      const rows = Array.isArray(body?.data) ? body.data : [];
+      pools.push(...rows);
+    } catch (error) {
+      errors.push(`page_${page}:${error?.message || "fetch_failed"}`);
+      if (page === 1) throw new Error(errors.join(","));
+      break;
+    }
+  }
+  return { pools, errors };
+}
+
+function classifyStatus({ tokens, errors }) {
+  if (!tokens.length) return "degraded";
+  if (errors.length) return "partial";
+  return "fresh";
 }
 
 function withStatus(payload, status, extra = {}) {
@@ -136,7 +188,7 @@ function withStatus(payload, status, extra = {}) {
     source: payload?.source || "cached_snapshot",
     status,
     stale: status === "stale",
-    degraded: status === "degraded" || status === "stale",
+    degraded: status === "degraded" || status === "stale" || status === "partial",
     ...extra,
   };
 }
@@ -160,28 +212,34 @@ function demoPayload(reason = "no_snapshot") {
   };
 }
 
-export async function getTokenHeatmapLatest(env, { refresh = false } = {}) {
+export async function getTokenHeatmapLatest(env) {
   const cached = await readLatest(env);
-  if (!refresh && cached && isFresh(cached)) return withStatus(cached, "fresh");
+  if (cached && isFresh(cached)) return withStatus(cached, cached.status || "fresh", { source: "cached_snapshot" });
 
   try {
-    const pools = await fetchTopPools();
+    const { pools, errors } = await fetchTopPools();
     const tokens = aggregateTokens(pools);
+    if (!tokens.length) throw new Error("no_drawable_tokens");
+    const status = classifyStatus({ tokens, errors });
     const payload = {
       ok: true,
       source: "live_snapshot",
-      status: "fresh",
+      status,
+      stale: false,
+      degraded: status !== "fresh",
+      reason: errors.length ? errors.join(",") : "ok",
       modeDefaults: { mode: "market", count: MAX_TOKENS },
       updatedAt: new Date().toISOString(),
       count: tokens.length,
       excludedCount: Math.max(0, pools.length - tokens.length),
+      upstream: { pages_requested: PAGE_COUNT, pools_seen: pools.length, errors },
       tokens,
     };
     await writeLatest(env, payload);
     return payload;
   } catch (error) {
     if (cached) {
-      return withStatus(cached, "stale", { reason: error?.message || "refresh_failed" });
+      return withStatus(cached, "stale", { source: "cached_snapshot", reason: error?.message || "refresh_failed" });
     }
     return demoPayload(error?.message || "refresh_failed");
   }
@@ -193,12 +251,20 @@ export function getTokenHeatmapMeta() {
     endpoint: "/api/world-chain/token-heatmap/latest",
     max_tokens: MAX_TOKENS,
     cache_ttl_min: Math.round(CACHE_TTL_MS / 60000),
+    upstream: {
+      source: "GeckoTerminal public API",
+      network: NETWORK,
+      pages_requested: PAGE_COUNT,
+      timeout_ms: FETCH_TIMEOUT_MS,
+    },
     storage: "KV latest only",
     history: "none",
     raw_storage: false,
+    public_refresh: false,
     notes: [
       "Top 40 compact snapshot only.",
-      "No D1, no raw upstream body, no cron in HM-4.",
+      "No D1, no raw upstream body, no cron in HM-6.",
+      "Public refresh query is disabled to avoid external API abuse.",
       "Failed refresh returns the last good snapshot as stale when available.",
     ],
   };

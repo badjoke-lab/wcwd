@@ -154,8 +154,7 @@ export default {
 
     if (pathname === "/api/world-chain/token-heatmap/latest") {
       if (request.method !== "GET") return errorJson("token_heatmap_latest", "method_not_allowed", 405);
-      const refresh = url.searchParams.get("refresh") === "1";
-      const payload = await getTokenHeatmapLatest(env, { refresh });
+      const payload = await getTokenHeatmapLatest(env);
       return json(payload);
     }
 
