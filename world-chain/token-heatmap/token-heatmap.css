@@ -3,12 +3,19 @@
 .token-heatmap-hero .eyebrow { margin: 0 0 8px; font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: #666; }
 .token-heatmap-page { display: grid; gap: 12px; }
 .heatmap-status-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
-.status-value { font-weight: 800; font-variant-numeric: tabular-nums; }
+.status-value { font-weight: 800; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .heatmap-pill { display: inline-flex; align-items: center; justify-content: center; min-height: 24px; padding: 3px 9px; border: 1px solid rgba(0,0,0,.14); border-radius: 999px; font-size: 12px; font-weight: 800; text-transform: uppercase; }
 .heatmap-pill.demo { background: #f5f5f5; }
+.heatmap-pill.loading { background: #eef4ff; }
 .heatmap-pill.fresh { background: #f3fff4; }
 .heatmap-pill.stale, .heatmap-pill.partial { background: #fff8ec; }
 .heatmap-pill.degraded { background: #fff0f0; }
+.heatmap-api-note { margin-top: 10px; padding: 10px 12px; border: 1px solid rgba(0,0,0,.10); border-radius: 12px; background: #fafafa; }
+.heatmap-api-note[data-status="fresh"] { background: #f5fff5; }
+.heatmap-api-note[data-status="stale"], .heatmap-api-note[data-status="degraded"] { background: #fff8ec; }
+.heatmap-api-note[data-status="demo"] { background: #f7f7f7; }
+.heatmap-debug-details { margin-top: 10px; }
+.heatmap-debug-details .code { white-space: pre-wrap; overflow: auto; max-height: 260px; }
 .heatmap-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .segmented { display: inline-flex; gap: 4px; padding: 4px; border: 1px solid rgba(0,0,0,.12); border-radius: 14px; background: #fafafa; }
 .segmented button { appearance: none; border: 1px solid transparent; border-radius: 10px; background: transparent; color: #111; font-weight: 800; padding: 8px 10px; cursor: pointer; }

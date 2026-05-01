@@ -10,7 +10,7 @@ var tokens=names.map(function(s,i){
   var change=((i*37)%70)-24+(i%5===0?8:0);
   return { id:'demo-'+i, symbol:s, name:s+' demo', address:'', pool:'', volume24h:volume, liquidityUsd:liquidity, change24h:change, fdv:volume*3.4, riskState:risk[i], status:risk[i]==='stale'?'stale':'demo' };
 });
-var snapshot={source:'demo',status:'demo',updatedAt:'Static preview',count:tokens.length};
+var snapshot={source:'demo',status:'demo',updatedAt:'Static preview',count:tokens.length,reason:'layout preview',note:'Static demo data is visible until the compact latest API returns usable token data.'};
 
 var modes={
   market:{label:'Market',desc:'Area = 24h volume. Color = 24h price change.',area:function(t){return t.volume24h},rank:'24h volume'},
@@ -36,6 +36,7 @@ function boot(){
   window.addEventListener('pointercancel',onPointerUp);
   new ResizeObserver(function(){requestAnimationFrame(layout);}).observe(el.v);
   layout();
+  loadEndpointMeta();
   loadLatestSnapshot();
 }
 
@@ -46,22 +47,50 @@ function toggleMoveMode(){ state.moveMode=!state.moveMode; el.v.classList.toggle
 function normalizeApiToken(t,i){
   var symbol=String(t.symbol||'TOKEN').trim()||'TOKEN';
   var addr=String(t.address||'').toLowerCase();
-  return { id:addr||('api-'+i+'-'+symbol), symbol:symbol, name:String(t.name||symbol), address:addr, pool:String(t.pool||''), volume24h:num(t.volume24h), liquidityUsd:num(t.liquidityUsd), change24h:num(t.change24h), fdv:num(t.fdv), priceUsd:num(t.priceUsd), riskState:String(t.riskState||'unknown'), status:String(t.dataStatus||'fresh'), updatedAt:t.updatedAt||null };
+  return { id:addr||('api-'+i+'-'+symbol), symbol:symbol, name:String(t.name||symbol), address:addr, pool:String(t.pool||''), volume24h:num(t.volume24h), liquidityUsd:num(t.liquidityUsd), change24h:num(t.change24h), fdv:num(t.fdv), priceUsd:num(t.priceUsd), riskState:String(t.riskState||'unknown'), status:String(t.dataStatus||t.status||'fresh'), updatedAt:t.updatedAt||null };
+}
+async function loadEndpointMeta(){
+  try{
+    var res=await fetch('/api/world-chain/token-heatmap/meta',{headers:{accept:'application/json'}});
+    if(!res.ok) throw new Error('meta_http_'+res.status);
+    var body=await res.json();
+    var debug=$('apiDebug');
+    if(debug) debug.textContent=JSON.stringify(body,null,2);
+  }catch(e){
+    var fallback=$('apiDebug');
+    if(fallback) fallback.textContent='Endpoint: /api/world-chain/token-heatmap/latest\nPolicy: meta unavailable\nReason: '+(e&&e.message?e.message:'meta_unavailable');
+  }
 }
 async function loadLatestSnapshot(){
+  setApiNote('loading','Loading compact latest snapshot. Demo data remains visible until usable API data is returned.');
   try{
     var res=await fetch('/api/world-chain/token-heatmap/latest',{headers:{accept:'application/json'}});
     if(!res.ok) throw new Error('api_http_'+res.status);
     var body=await res.json();
-    if(!body||!Array.isArray(body.tokens)||!body.tokens.length) return;
+    if(!body||!Array.isArray(body.tokens)||!body.tokens.length) throw new Error((body&&body.reason)||'empty_snapshot');
     tokens=body.tokens.map(normalizeApiToken).filter(function(t){return t.volume24h>0||t.liquidityUsd>0;}).slice(0,40);
-    snapshot={source:body.source||'cached_snapshot',status:body.status||'fresh',updatedAt:body.updatedAt||'—',count:tokens.length};
+    if(!tokens.length) throw new Error('no_drawable_tokens');
+    snapshot={source:body.source||'cached_snapshot',status:body.status||'fresh',updatedAt:body.updatedAt||'—',count:tokens.length,reason:body.reason||'ok',note:statusNote(body.status||'fresh',body.source||'cached_snapshot')};
     state.selected=tokens[0]&&tokens[0].id;
     layout();
   }catch(e){
+    snapshot.status='demo';
+    snapshot.source='demo_fallback';
     snapshot.reason=e&&e.message?e.message:'api_unavailable';
+    snapshot.note='The compact latest API is unavailable or returned no drawable tokens. Static demo data is still shown.';
     renderMeta();
   }
+}
+function statusNote(status,source){
+  if(status==='fresh') return 'Fresh compact latest snapshot loaded. Storage remains KV latest only.';
+  if(status==='stale') return 'Showing last-good snapshot because refresh failed. Treat values as stale.';
+  if(status==='degraded') return 'Snapshot loaded with degraded data. Some metrics may be missing.';
+  if(status==='demo') return 'Demo fallback is visible. Do not treat the token values as live market data.';
+  return 'Snapshot loaded from '+source+'.';
+}
+function setApiNote(status,text){
+  var note=$('apiNote');
+  if(note){ note.textContent=text; note.setAttribute('data-status',status||''); }
 }
 function num(v){ var n=Number.parseFloat(String(v==null?'':v)); return Number.isFinite(n)?n:0; }
 
@@ -152,16 +181,15 @@ function renderMeta(){
   el.desc.textContent=modes[state.mode].desc;
   el.status.textContent=modes[state.mode].label;
   el.legend.innerHTML=legend();
-  var sourceEl=document.querySelector('.heatmap-status-grid .status-value:nth-child(1)');
-  var countEl=$('statusCount'), updatedEl=$('statusUpdated');
+  var countEl=$('statusCount'), updatedEl=$('statusUpdated'), sourceEl=$('statusSource'), reasonEl=$('statusReason'), pill=$('statusPill');
   if(countEl) countEl.textContent='Top '+Math.min(40,tokens.length)+' World Chain tokens';
   if(updatedEl) updatedEl.textContent=snapshot.updatedAt||'—';
-  var statusPill=document.querySelector('.heatmap-pill');
-  if(statusPill){ statusPill.className='heatmap-pill '+esc(snapshot.status||'demo'); statusPill.textContent=snapshot.status||'demo'; }
-  var statusGrid=document.querySelector('.heatmap-status-grid');
-  if(statusGrid){ var vals=statusGrid.querySelectorAll('.status-value'); if(vals[2]) vals[2].textContent=snapshot.source||'demo'; }
+  if(sourceEl) sourceEl.textContent=snapshot.source||'demo';
+  if(reasonEl) reasonEl.textContent=snapshot.reason||'ok';
+  if(pill){ pill.className='heatmap-pill '+safeClass(snapshot.status||'demo'); pill.textContent=snapshot.status||'demo'; }
+  setApiNote(snapshot.status,snapshot.note||statusNote(snapshot.status||'demo',snapshot.source||'demo'));
 }
-function renderSelected(){ var n=state.nodes.find(function(x){return x.id===state.selected;})||state.nodes[0]; if(!n) return; var t=n.meta; el.sel.innerHTML='<div><div class="selected-symbol">'+esc(t.symbol)+'</div><div class="selected-name">'+esc(t.name)+'</div></div>'+row('24h change',pct(t.change24h))+row('24h volume',usd(t.volume24h))+row('Liquidity',usd(t.liquidityUsd))+row('FDV / cap',usd(t.fdv))+row('Risk state','<span class="risk-label risk-'+esc(t.riskState)+'">'+esc(t.riskState)+'</span>')+row('Data status',esc(t.status))+'<div class="detail-actions"><a class="btn" href="/world-chain/sell-impact/'+(t.address?'?token='+encodeURIComponent(t.address):'')+'">Open in Sell Impact</a><a class="btn secondary" href="/world-chain/ecosystem/?q='+encodeURIComponent(t.symbol)+'">Open in Ecosystem</a></div>'; }
+function renderSelected(){ var n=state.nodes.find(function(x){return x.id===state.selected;})||state.nodes[0]; if(!n) return; var t=n.meta; el.sel.innerHTML='<div><div class="selected-symbol">'+esc(t.symbol)+'</div><div class="selected-name">'+esc(t.name)+'</div></div>'+row('24h change',pct(t.change24h))+row('24h volume',usd(t.volume24h))+row('Liquidity',usd(t.liquidityUsd))+row('FDV / cap',usd(t.fdv))+row('Risk state','<span class="risk-label risk-'+safeClass(t.riskState)+'">'+esc(t.riskState)+'</span>')+row('Data status',esc(t.status))+'<div class="detail-actions"><a class="btn" href="/world-chain/sell-impact/'+(t.address?'?token='+encodeURIComponent(t.address):'')+'">Open in Sell Impact</a><a class="btn secondary" href="/world-chain/ecosystem/?q='+encodeURIComponent(t.symbol)+'">Open in Ecosystem</a></div>'; }
 function renderRanking(){ var mode=modes[state.mode]; el.rank.innerHTML=tokens.slice().map(function(t){return{t:t,v:mode.area(t)};}).sort(function(a,b){return b.v-a.v;}).slice(0,12).map(function(e,i){return '<div class="ranking-row"><div class="ranking-rank">#'+(i+1)+'</div><div><div class="ranking-symbol">'+esc(e.t.symbol)+'</div><div class="ranking-sub">'+esc(e.t.name)+' · '+esc(e.t.riskState)+'</div></div><div class="ranking-value">'+usd(e.v)+'</div></div>';}).join(''); }
 function row(a,b){return '<div class="detail-row"><span>'+a+'</span><strong>'+b+'</strong></div>';}
 
@@ -172,6 +200,7 @@ function textColor(c){ return c==='#2f7d46'||c==='#a94442'||c==='#9a6b1f'||c==='
 function usd(v){ return v>=1e9?'$'+(v/1e9).toFixed(2)+'B':v>=1e6?'$'+(v/1e6).toFixed(2)+'M':v>=1e3?'$'+(v/1e3).toFixed(1)+'K':'$'+(Number(v)||0).toFixed(2); }
 function pct(v){ return (v>0?'+':'')+(Number(v)||0).toFixed(1)+'%'; }
 function esc(v){ return String(v).replace(/[&<>'"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c];}); }
+function safeClass(v){ return String(v||'unknown').toLowerCase().replace(/[^a-z0-9_-]+/g,'-'); }
 
 if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot); else boot();
 })();
