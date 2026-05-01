@@ -50,7 +50,7 @@
     <p class="eyebrow">Visualizer / Labs</p>
     <h1>World Chain Token Heatmap</h1>
     <p class="lead">Treemap view of World Chain token volume, liquidity, and momentum.</p>
-    <p class="muted small">Explore top World Chain tokens by trading volume, liquidity, price movement, and risk signals before opening deeper WCWD tools. This first version uses demo data only.</p>
+    <p class="muted small">Explore top World Chain tokens by trading volume, liquidity, price movement, and risk signals before opening deeper WCWD tools. The page uses a compact latest API when available and falls back to demo data when it is not.</p>
     <div class="row quick-links-row" style="margin-top:12px;">
       <a class="btn" href="/world-chain/sell-impact/">Open Sell Impact</a>
       <a class="btn secondary" href="/world-chain/ecosystem/">Open Ecosystem</a>
@@ -65,11 +65,19 @@
     <div class="heatmap-status-grid">
       <div><div class="label">Showing</div><div class="status-value" id="statusCount">Top 40 World Chain tokens</div></div>
       <div><div class="label">Mode</div><div class="status-value" id="statusMode">Market</div></div>
-      <div><div class="label">Source</div><div class="status-value">Demo data</div></div>
-      <div><div class="label">Status</div><div class="status-value"><span class="heatmap-pill demo">demo</span></div></div>
+      <div><div class="label">Source</div><div class="status-value" id="statusSource">Demo data</div></div>
+      <div><div class="label">Status</div><div class="status-value"><span class="heatmap-pill demo" id="statusPill">demo</span></div></div>
       <div><div class="label">Last updated</div><div class="status-value" id="statusUpdated">Static preview</div></div>
+      <div><div class="label">Reason</div><div class="status-value" id="statusReason">layout preview</div></div>
     </div>
-    <p class="muted small">No D1, KV, cron, or external token fetch is used in this static preview. Top 60 and real snapshots stay gated until usage is confirmed.</p>
+    <p class="heatmap-api-note muted small" id="apiNote">API not loaded yet. The page starts from static demo data and replaces it only when the compact latest snapshot is usable.</p>
+    <details class="heatmap-debug-details">
+      <summary class="muted small">Endpoint policy</summary>
+      <pre class="code" id="apiDebug">Endpoint: /api/world-chain/token-heatmap/latest
+Storage: KV latest only
+History: none
+Top60: gated</pre>
+    </details>
   </section>
 
   <section class="card heatmap-controls-card" aria-labelledby="controls-title">
