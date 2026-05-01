@@ -1,0 +1,36 @@
+name: Check Token Heatmap API
+
+on:
+  workflow_dispatch:
+    inputs:
+      base_url:
+        description: "Base URL to check"
+        required: true
+        default: "https://wcwd.badjoke-lab.com"
+      timeout:
+        description: "Request timeout in seconds"
+        required: true
+        default: "20"
+
+permissions:
+  contents: read
+
+jobs:
+  check-token-heatmap-api:
+    name: Check token heatmap API gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run API gate check
+        run: |
+          python3 scripts/check_token_heatmap_api.py \
+            --base-url "${{ inputs.base_url }}" \
+            --timeout "${{ inputs.timeout }}"
