@@ -22,6 +22,43 @@ Top60 is not a visual-only change. It increases upstream pool reads, payload siz
 
 ---
 
+## Latest gate result
+
+First successful production Worker deploy and API gate check:
+
+```txt
+Run: https://github.com/badjoke-lab/wcwd/actions/runs/25249760489/job/74039895559
+Worker: https://wcwd-history.badjoke-lab.workers.dev
+Status: PASS
+Latest status: fresh
+Latest source: live_snapshot
+Latest drawable token count: 36
+Refresh query source: cached_snapshot
+Refresh query same updatedAt: true
+Meta max_tokens: 40
+History: none
+Raw storage: false
+Public refresh: false
+```
+
+Decision from this run:
+
+```txt
+Top40 API gate: passed
+Top60 unlock: defer
+Reason: current drawable token count is 36, so simply enabling a Top60 button would not produce 60 visible tokens.
+```
+
+Next action before Top60:
+
+```txt
+Keep Top40 default.
+Do not unlock Top60 yet.
+If expanding, first test whether increasing upstream page count or filtering can produce meaningfully more drawable tokens without raising budget risk.
+```
+
+---
+
 ## Required manual API checks
 
 Run:
@@ -33,7 +70,7 @@ python3 scripts/check_token_heatmap_api.py
 Optional staging/custom URL:
 
 ```bash
-python3 scripts/check_token_heatmap_api.py --base-url https://wcwd.badjoke-lab.com
+python3 scripts/check_token_heatmap_api.py --base-url https://wcwd-history.badjoke-lab.workers.dev
 ```
 
 The script must pass and report:
@@ -46,6 +83,7 @@ The script must pass and report:
 - `/latest` returns a non-empty `tokens` array
 - `/latest` returns at most 40 tokens
 - `/latest?refresh=1` does not bypass the cache policy
+- `top60_gate.decision` explains whether Top60 should be considered or deferred
 
 If DNS or network is unavailable from the runner, run the script locally from the user machine before Top60 work.
 
@@ -89,6 +127,7 @@ Top60 can be considered only if all of the following are true:
 5. No Home auto-load has been added.
 6. No D1 / cron / raw storage was added to support the heatmap.
 7. Cloudflare usage remains inside the WCWD visualizer budget.
+8. The latest gate script returns `top60_gate.decision == can_consider_optional_top60`, or there is a documented reason to override it.
 
 ---
 
@@ -133,6 +172,7 @@ Stop and do not unlock Top60 if:
 - `refresh=1` or another query can force repeated upstream refreshes.
 - Cloudflare usage cannot be checked.
 - External API behavior is unstable or rate-limited.
+- Top40 is not close to full and no upstream-expansion test has shown more drawable tokens.
 
 ---
 
