@@ -34,6 +34,12 @@ function parsePairName(name) {
   };
 }
 
+function capValue(marketCapUsd, fdvUsd) {
+  if (marketCapUsd > 0) return { capUsd: marketCapUsd, capSource: "market_cap_usd" };
+  if (fdvUsd > 0) return { capUsd: fdvUsd, capSource: "fdv_usd" };
+  return { capUsd: 0, capSource: "missing" };
+}
+
 function riskState({ liquidityUsd, volume24h, priceChange24h, updatedAt }) {
   if (!liquidityUsd && !volume24h) return "unknown";
   if (!updatedAt) return "unknown";
@@ -53,7 +59,9 @@ function normalizePool(pool) {
   const volume24h = num(a.volume_usd?.h24);
   const liquidityUsd = num(a.reserve_in_usd);
   const priceChange24h = num(a.price_change_percentage?.h24);
-  const fdv = num(a.fdv_usd || a.market_cap_usd);
+  const marketCapUsd = num(a.market_cap_usd);
+  const fdvUsd = num(a.fdv_usd);
+  const cap = capValue(marketCapUsd, fdvUsd);
   const updatedAt = a.updated_at || a.pool_created_at || null;
   if (!baseAddr || !baseSymbol) return null;
   return {
@@ -67,7 +75,12 @@ function normalizePool(pool) {
     change24h: priceChange24h,
     volume24h,
     liquidityUsd,
-    fdv,
+    marketCapUsd,
+    fdvUsd,
+    capUsd: cap.capUsd,
+    capSource: cap.capSource,
+    // Backward compatibility for old frontend snapshots.
+    fdv: cap.capUsd,
     riskState: riskState({ liquidityUsd, volume24h, priceChange24h, updatedAt }),
     dataStatus: "fresh",
     updatedAt,
@@ -78,7 +91,12 @@ function mergeToken(prev, next) {
   const merged = { ...prev };
   merged.volume24h += next.volume24h;
   merged.liquidityUsd += next.liquidityUsd;
-  merged.fdv = Math.max(merged.fdv || 0, next.fdv || 0);
+  merged.marketCapUsd = Math.max(merged.marketCapUsd || 0, next.marketCapUsd || 0);
+  merged.fdvUsd = Math.max(merged.fdvUsd || 0, next.fdvUsd || 0);
+  const cap = capValue(merged.marketCapUsd, merged.fdvUsd);
+  merged.capUsd = cap.capUsd;
+  merged.capSource = cap.capSource;
+  merged.fdv = merged.capUsd;
   const nextIsBetterPool = (next.volume24h > prev._bestPoolVolume) ||
     (next.volume24h === prev._bestPoolVolume && next.liquidityUsd > prev._bestPoolLiquidity);
   if (nextIsBetterPool) {
@@ -119,8 +137,8 @@ function aggregateTokens(pools) {
     byAddr.set(key, prev ? mergeToken(prev, withInternal) : withInternal);
   }
   return [...byAddr.values()]
-    .filter((t) => t.volume24h > 0 || t.liquidityUsd > 0)
-    .sort((a, b) => (b.volume24h - a.volume24h) || (b.liquidityUsd - a.liquidityUsd))
+    .filter((t) => t.capUsd > 0 || t.volume24h > 0 || t.liquidityUsd > 0)
+    .sort((a, b) => (b.capUsd - a.capUsd) || (b.volume24h - a.volume24h) || (b.liquidityUsd - a.liquidityUsd))
     .slice(0, MAX_TOKENS)
     .map(stripInternal);
 }
@@ -195,7 +213,7 @@ function withStatus(payload, status, extra = {}) {
 
 function demoPayload(reason = "no_snapshot") {
   const tokens = [
-    { symbol: "WLD", name: "Worldcoin", address: "0x2cfc85d8e48f8eab294be644d9e25c3030863003", pool: "", priceUsd: 0, change24h: 0, volume24h: 0, liquidityUsd: 0, fdv: 0, riskState: "unknown", dataStatus: "demo", updatedAt: null },
+    { symbol: "WLD", name: "Worldcoin", address: "0x2cfc85d8e48f8eab294be644d9e25c3030863003", pool: "", priceUsd: 0, change24h: 0, volume24h: 0, liquidityUsd: 0, marketCapUsd: 0, fdvUsd: 0, capUsd: 0, capSource: "missing", fdv: 0, riskState: "unknown", dataStatus: "demo", updatedAt: null },
   ];
   return {
     ok: true,
@@ -229,6 +247,7 @@ export async function getTokenHeatmapLatest(env) {
       degraded: status !== "fresh",
       reason: errors.length ? errors.join(",") : "ok",
       modeDefaults: { mode: "market", count: MAX_TOKENS },
+      metricDefaults: { area: "capUsd", color: "change24h", cap_source_order: ["market_cap_usd", "fdv_usd"] },
       updatedAt: new Date().toISOString(),
       count: tokens.length,
       excludedCount: Math.max(0, pools.length - tokens.length),
@@ -250,6 +269,8 @@ export function getTokenHeatmapMeta() {
     ok: true,
     endpoint: "/api/world-chain/token-heatmap/latest",
     max_tokens: MAX_TOKENS,
+    default_area_metric: "capUsd",
+    cap_source_order: ["market_cap_usd", "fdv_usd"],
     cache_ttl_min: Math.round(CACHE_TTL_MS / 60000),
     upstream: {
       source: "GeckoTerminal public API",
@@ -262,8 +283,9 @@ export function getTokenHeatmapMeta() {
     raw_storage: false,
     public_refresh: false,
     notes: [
+      "Market mode area uses market_cap_usd when available, then fdv_usd.",
       "Top 40 compact snapshot only.",
-      "No D1, no raw upstream body, no cron in HM-6.",
+      "No D1, no raw upstream body, no cron in HM-15.",
       "Public refresh query is disabled to avoid external API abuse.",
       "Failed refresh returns the last good snapshot as stale when available.",
     ],
