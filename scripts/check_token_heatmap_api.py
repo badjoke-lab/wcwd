@@ -62,6 +62,30 @@ def check_latest(base: str, timeout: int, path: str = "/api/world-chain/token-he
     return body
 
 
+def top60_recommendation(latest: dict[str, Any], refresh: dict[str, Any]) -> dict[str, Any]:
+    count = len(latest.get("tokens") or [])
+    latest_status = latest.get("status")
+    refresh_status = refresh.get("status")
+    stable_cache = latest.get("updatedAt") == refresh.get("updatedAt")
+    if latest_status == "fresh" and refresh_status == "fresh" and stable_cache and count >= 38:
+        decision = "can_consider_optional_top60"
+        reason = "Fresh snapshot, refresh query did not bypass cache, and Top40 is nearly full."
+    elif latest_status in {"fresh", "partial"} and stable_cache and count >= 34:
+        decision = "defer_top60_or_expand_upstream_first"
+        reason = "API is healthy, but current drawable token count is below 38; Top60 may add little unless upstream page count/filtering changes."
+    else:
+        decision = "do_not_unlock_top60"
+        reason = "API freshness/cache/count conditions are not strong enough."
+    return {
+        "decision": decision,
+        "reason": reason,
+        "latest_count": count,
+        "latest_status": latest_status,
+        "refresh_status": refresh_status,
+        "refresh_query_bypassed_cache": not stable_cache,
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Check WCWD World Chain Token Heatmap API gate conditions.")
     parser.add_argument("--base-url", default=DEFAULT_BASE_URL, help=f"Base URL, default: {DEFAULT_BASE_URL}")
@@ -92,8 +116,7 @@ def main() -> None:
 
     latest_updated = latest.get("updatedAt")
     refresh_updated = refresh.get("updatedAt")
-    print("PASS: token heatmap API gate checks")
-    print(json.dumps({
+    report = {
         "base_url": base,
         "elapsed_sec": round(time.time() - started, 2),
         "meta": {
@@ -117,7 +140,10 @@ def main() -> None:
             "updatedAt": refresh_updated,
             "same_updated_at_as_latest": latest_updated == refresh_updated,
         },
-    }, indent=2, ensure_ascii=False))
+        "top60_gate": top60_recommendation(latest, refresh),
+    }
+    print("PASS: token heatmap API gate checks")
+    print(json.dumps(report, indent=2, ensure_ascii=False))
 
 
 if __name__ == "__main__":
