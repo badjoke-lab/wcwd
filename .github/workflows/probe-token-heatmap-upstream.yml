@@ -1,0 +1,41 @@
+name: Probe Token Heatmap Upstream
+
+on:
+  workflow_dispatch:
+    inputs:
+      network:
+        description: "GeckoTerminal network id"
+        required: true
+        default: "world-chain"
+      pages:
+        description: "Comma-separated page counts to probe"
+        required: true
+        default: "3,5,8"
+      timeout:
+        description: "Request timeout in seconds"
+        required: true
+        default: "20"
+
+permissions:
+  contents: read
+
+jobs:
+  probe-token-heatmap-upstream:
+    name: Probe token heatmap upstream counts
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Run upstream page probe
+        run: |
+          python3 scripts/probe_token_heatmap_upstream.py \
+            --network "${{ inputs.network }}" \
+            --pages "${{ inputs.pages }}" \
+            --timeout "${{ inputs.timeout }}"
