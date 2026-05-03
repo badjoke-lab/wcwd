@@ -4,18 +4,18 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>WCWD — World Chain Token Heatmap</title>
-  <meta name="description" content="Treemap view of World Chain token volume, liquidity, and momentum. Visualize top token snapshots with market, liquidity, and risk modes." />
+  <meta name="description" content="Treemap view of World Chain token market cap, volume, liquidity, and momentum with asset filters for ecosystem tokens and bridged assets." />
   <meta name="wcwd-history-base" content="https://wcwd-history.badjoke-lab.workers.dev" />
   <link rel="canonical" href="https://wcwd.badjoke-lab.com/world-chain/token-heatmap/">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="WCWD">
   <meta property="og:title" content="WCWD — World Chain Token Heatmap">
-  <meta property="og:description" content="Treemap view of World Chain token volume, liquidity, and momentum.">
+  <meta property="og:description" content="Treemap view of World Chain token market cap, volume, liquidity, and momentum.">
   <meta property="og:url" content="https://wcwd.badjoke-lab.com/world-chain/token-heatmap/">
   <meta property="og:image" content="https://wcwd.badjoke-lab.com/og.png">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="WCWD — World Chain Token Heatmap">
-  <meta name="twitter:description" content="Treemap view of World Chain token volume, liquidity, and momentum.">
+  <meta name="twitter:description" content="Treemap view of World Chain token market cap, volume, liquidity, and momentum.">
   <meta name="twitter:image" content="https://wcwd.badjoke-lab.com/og.png">
   <link rel="icon" href="/favicon.ico" sizes="any" />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
@@ -50,8 +50,8 @@
   <div class="container">
     <p class="eyebrow">Visualizer / Labs</p>
     <h1>World Chain Token Heatmap</h1>
-    <p class="lead">Treemap view of World Chain token volume, liquidity, and momentum.</p>
-    <p class="muted small">Explore top World Chain tokens by trading volume, liquidity, price movement, and risk signals before opening deeper WCWD tools. The page uses a compact latest API when available and falls back to demo data when it is not.</p>
+    <p class="lead">Treemap view of World Chain token market cap, volume, liquidity, and momentum.</p>
+    <p class="muted small">Default view focuses on ecosystem tokens. Stablecoins, bridged majors, and wrapped assets are available in All Assets, because their reported cap can reflect global assets rather than World Chain-specific supply.</p>
     <div class="row quick-links-row" style="margin-top:12px;">
       <a class="btn" href="/world-chain/sell-impact/">Open Sell Impact</a>
       <a class="btn secondary" href="/world-chain/ecosystem/">Open Ecosystem</a>
@@ -65,7 +65,8 @@
     <p class="card-title" id="snapshot-status-title">Snapshot status</p>
     <div class="heatmap-status-grid">
       <div><div class="label">Showing</div><div class="status-value" id="statusCount">Top 40 World Chain tokens</div></div>
-      <div><div class="label">Mode</div><div class="status-value" id="statusMode">Market</div></div>
+      <div><div class="label">Mode</div><div class="status-value" id="statusMode">Market Cap</div></div>
+      <div><div class="label">Asset filter</div><div class="status-value" id="statusAssetFilter">Ecosystem</div></div>
       <div><div class="label">Source</div><div class="status-value" id="statusSource">Demo data</div></div>
       <div><div class="label">Status</div><div class="status-value"><span class="heatmap-pill demo" id="statusPill">demo</span></div></div>
       <div><div class="label">Last updated</div><div class="status-value" id="statusUpdated">Static preview</div></div>
@@ -85,13 +86,18 @@ Top60: gated</pre>
     <p class="card-title" id="controls-title">Controls</p>
     <div class="heatmap-controls">
       <div class="segmented" role="group" aria-label="Heatmap mode">
-        <button class="mode-btn is-active" type="button" data-mode="market">Market</button>
+        <button class="mode-btn is-active" type="button" data-mode="market">Market Cap</button>
+        <button class="mode-btn" type="button" data-mode="volume">Volume</button>
         <button class="mode-btn" type="button" data-mode="liquidity">Liquidity</button>
         <button class="mode-btn" type="button" data-mode="risk">Risk</button>
       </div>
+      <div class="segmented" role="group" aria-label="Asset filter">
+        <button class="asset-btn is-active" type="button" data-asset-filter="ecosystem">Ecosystem</button>
+        <button class="asset-btn" type="button" data-asset-filter="all">All Assets</button>
+      </div>
       <div class="segmented" role="group" aria-label="Token count">
         <button class="count-btn is-active" type="button" data-count="40">Top 40</button>
-        <button class="count-btn" type="button" data-count="60" disabled title="Usage gate">Top 60 soon</button>
+        <button class="count-btn" type="button" data-count="60" disabled title="Usage gate">Top 60 gated</button>
       </div>
       <button class="btn secondary" id="resetZoom" type="button">Reset zoom</button>
       <button class="btn ghost mobile-map-toggle" id="mobileMapToggle" type="button">Control map</button>
@@ -104,7 +110,7 @@ Top60: gated</pre>
       <div class="heatmap-card-head">
         <div>
           <p class="card-title" id="heatmap-title">Token heatmap</p>
-          <p class="muted small" id="modeDescription">Area = 24h volume. Color = 24h price change.</p>
+          <p class="muted small" id="modeDescription">Area = reported market cap, falling back to FDV. Color = 24h price change.</p>
         </div>
         <div class="heatmap-legend" id="modeLegend" aria-label="Current mode legend"></div>
       </div>
@@ -121,16 +127,16 @@ Top60: gated</pre>
 
   <section class="card" aria-labelledby="ranking-title">
     <p class="card-title" id="ranking-title">Mini ranking</p>
-    <p class="muted small">Top tokens by the selected size metric. This is a helper list, not the primary view.</p>
+    <p class="muted small" id="rankingDescription">Top tokens by the selected size metric. Market Cap mode uses reported market cap first, then FDV.</p>
     <div id="miniRanking" class="mini-ranking"></div>
   </section>
 
   <section class="card" aria-labelledby="how-title">
     <p class="card-title" id="how-title">Legend / How to read</p>
     <div class="grid">
-      <div class="col-4"><div class="label">Bigger blocks</div><p class="muted small">Show larger selected size metrics such as volume or liquidity.</p></div>
-      <div class="col-4"><div class="label">Colors</div><p class="muted small">Show the selected signal: price movement, liquidity condition, or risk state.</p></div>
-      <div class="col-4"><div class="label">Risk Mode</div><p class="muted small">Highlights thin liquidity, stale data, or unknown conditions. It is not a safety score.</p></div>
+      <div class="col-4"><div class="label">Bigger blocks</div><p class="muted small">Market Cap mode sizes blocks by reported market cap, falling back to FDV only when market cap is missing.</p></div>
+      <div class="col-4"><div class="label">Asset filter</div><p class="muted small">Ecosystem hides stablecoins and bridged majors by default. All Assets shows them for inspection.</p></div>
+      <div class="col-4"><div class="label">Missing cap</div><p class="muted small">If both market cap and FDV are missing, the token is not sized as if it had a cap.</p></div>
     </div>
     <p class="note">This heatmap is not financial advice and does not guarantee execution quality. Use Sell Impact before making execution assumptions.</p>
   </section>
