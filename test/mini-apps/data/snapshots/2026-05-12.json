@@ -1,14 +1,9 @@
 {
-  "ok": true,
   "updatedAt": "2026-05-12T04:33:26.076Z",
   "source": {
     "name": "miniapps.world",
     "url": "https://www.miniapps.world/",
     "note": "daily-updated stats"
-  },
-  "counts": {
-    "apps": 678,
-    "snapshots": 69
   },
   "apps": [
     {
