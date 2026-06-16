@@ -1,0 +1,43 @@
+name: PR1 one-shot branch patcher
+
+on:
+  pull_request_target:
+    types:
+      - opened
+
+permissions:
+  contents: write
+
+jobs:
+  patch-pr1:
+    if: ${{ github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'remediation/pr1-remove-cloudflare-cron' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+        with:
+          ref: remediation/pr1-remove-cloudflare-cron
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Apply PR1 patch
+        run: python3 scripts/apply_pr1_remediation.py
+
+      - name: Verify no-Cron state
+        run: |
+          python3 scripts/check_no_cloudflare_automation.py
+          python3 scripts/check_seo.py
+          node --check src/index.js
+          node --check src/worker.js
+          test ! -e scripts/apply_pr1_remediation.py
+          test ! -e .github/workflows/pr1-apply-remediation.yml
+          test ! -e docs/.remediation-plan-marker
+
+      - name: Commit and push PR1 changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --stat
+          git commit -m "fix: remove Cloudflare cron and add guardrails"
+          git push origin HEAD:remediation/pr1-remove-cloudflare-cron
