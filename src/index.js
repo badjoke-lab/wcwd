@@ -1,7 +1,7 @@
 import baseWorker from "./worker.js";
-import { updateSellImpactWatchlist, getSellImpactWatchlistLatest, getSellImpactWatchlistList } from "./sellimpact-watchlist.js";
+import { getSellImpactWatchlistLatest, getSellImpactWatchlistList } from "./sellimpact-watchlist.js";
 import { getTokenHeatmapLatest, getTokenHeatmapMeta } from "./token-heatmap.js";
-import { RETENTION, buildRetentionMetadata, enforceBaseRetention, writeRetentionMetadata, clampLimit } from "./retention.js";
+import { RETENTION, buildRetentionMetadata, clampLimit } from "./retention.js";
 import { handleWormholeViz } from "./viz-wormhole.js";
 import { handleOracleFeed } from "./oracles-feed.js";
 import { handlePaymasterPreflight } from "./paymaster-preflight.js";
@@ -102,7 +102,7 @@ function addSummaryRetention(body, limit, url) {
     degraded: dashboardState !== "fresh",
     degraded_reasons: buildNormalizedReasons(body, dashboardState),
     retention: buildRetentionMetadata({
-      source: "summary_proxy",
+      source: "summary_proxy_read_only",
       request_limit: limit,
       event_limit: eventLimit,
     }),
@@ -110,19 +110,11 @@ function addSummaryRetention(body, limit, url) {
 }
 
 function addListRetention(body, limit) {
-  return {
-    ...body,
-    limit,
-    retention: RETENTION.summary_list,
-  };
+  return { ...body, limit, retention: RETENTION.summary_list };
 }
 
 function addEventsRetention(body, limit) {
-  return {
-    ...body,
-    limit,
-    retention: RETENTION.events,
-  };
+  return { ...body, limit, retention: RETENTION.events };
 }
 
 export default {
@@ -154,8 +146,7 @@ export default {
 
     if (pathname === "/api/world-chain/token-heatmap/latest") {
       if (request.method !== "GET") return errorJson("token_heatmap_latest", "method_not_allowed", 405);
-      const payload = await getTokenHeatmapLatest(env);
-      return json(payload);
+      return json(await getTokenHeatmapLatest(env));
     }
 
     if (pathname === "/api/world-chain/token-heatmap/meta") {
@@ -170,14 +161,7 @@ export default {
 
     if (pathname === "/api/retention") {
       if (request.method !== "GET") return errorJson("retention", "method_not_allowed", 405);
-      const metadata = await writeRetentionMetadata(env, { source: "api" });
-      return json(metadata);
-    }
-
-    if (pathname === "/api/retention/enforce") {
-      if (request.method !== "POST") return errorJson("retention_enforce", "method_not_allowed", 405);
-      const result = await enforceBaseRetention(env);
-      return json(result);
+      return json(buildRetentionMetadata({ source: "api_read_only" }));
     }
 
     if (pathname === "/api/summary") {
@@ -187,51 +171,30 @@ export default {
         fallback: RETENTION.events.recommended_items,
       });
       url.searchParams.set("event_limit", String(eventLimit));
-      return proxyWithClampedQuery(
-        request,
-        env,
-        ctx,
-        url,
-        {
-          param: "limit",
-          min: 1,
-          max: RETENTION.summary_list.hard_max_points,
-          fallback: RETENTION.summary_list.recommended_points,
-        },
-        addSummaryRetention,
-      );
+      return proxyWithClampedQuery(request, env, ctx, url, {
+        param: "limit",
+        min: 1,
+        max: RETENTION.summary_list.hard_max_points,
+        fallback: RETENTION.summary_list.recommended_points,
+      }, addSummaryRetention);
     }
 
     if (pathname === "/api/list") {
-      return proxyWithClampedQuery(
-        request,
-        env,
-        ctx,
-        url,
-        {
-          param: "limit",
-          min: 1,
-          max: RETENTION.summary_list.hard_max_points,
-          fallback: RETENTION.summary_list.recommended_points,
-        },
-        addListRetention,
-      );
+      return proxyWithClampedQuery(request, env, ctx, url, {
+        param: "limit",
+        min: 1,
+        max: RETENTION.summary_list.hard_max_points,
+        fallback: RETENTION.summary_list.recommended_points,
+      }, addListRetention);
     }
 
     if (pathname === "/api/events") {
-      return proxyWithClampedQuery(
-        request,
-        env,
-        ctx,
-        url,
-        {
-          param: "limit",
-          min: 1,
-          max: RETENTION.events.hard_max_items,
-          fallback: RETENTION.events.recommended_items,
-        },
-        addEventsRetention,
-      );
+      return proxyWithClampedQuery(request, env, ctx, url, {
+        param: "limit",
+        min: 1,
+        max: RETENTION.events.hard_max_items,
+        fallback: RETENTION.events.recommended_items,
+      }, addEventsRetention);
     }
 
     if (pathname === "/api/sell-impact/watchlist/latest") {
@@ -252,20 +215,6 @@ export default {
       return json({ ok: true, items: list, limit, retention: RETENTION.sellimpact_watchlist });
     }
 
-    if (pathname === "/api/sell-impact/watchlist/run") {
-      if (request.method !== "POST") return errorJson("sellimpact_watchlist_run", "method_not_allowed", 405);
-      const payload = await updateSellImpactWatchlist(env);
-      return json(payload);
-    }
-
     return baseWorker.fetch(request, env, ctx);
-  },
-
-  async scheduled(event, env, ctx) {
-    if (baseWorker?.scheduled) {
-      await baseWorker.scheduled(event, env, ctx);
-    }
-    ctx.waitUntil(updateSellImpactWatchlist(env));
-    ctx.waitUntil(enforceBaseRetention(env));
   },
 };
