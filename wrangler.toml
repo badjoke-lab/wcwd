@@ -1,10 +1,8 @@
 name = "wcwd-history"
-main = "src/index.js"
+main = "src/entrypoint.js"
 compatibility_date = "2025-12-20"
 
-# Cron: every 15 minutes
-[triggers]
-crons = ["*/15 * * * *"]
+# Cloudflare Cron is intentionally disabled. Do not add [triggers] or crons.
 
 [[kv_namespaces]]
 binding = "HIST"

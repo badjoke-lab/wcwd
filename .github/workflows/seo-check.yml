@@ -19,5 +19,8 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Enforce no-background-automation guard
+        run: python3 scripts/check_no_cloudflare_automation.py
+
       - name: Run static SEO checks
         run: python3 scripts/check_seo.py
