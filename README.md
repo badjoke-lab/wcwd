@@ -1,28 +1,71 @@
-# wcwd
+# WCWD
 
-## 最短セットアップ
-1. Pages を `https://wcwd.badjoke-lab.com/` にデプロイ
-2. Worker（収集/API）を `https://wcwd-history.badjoke-lab.workers.dev` にデプロイ
-3. Cron を **15分** 間隔で設定（無料枠の推奨）
+World Chain / World ID dashboard and builder toolkit.
 
-運用・復旧・制約の詳細は [docs/ops.md](docs/ops.md) を参照してください。
+## Current architecture
 
-## Build (header/footer partials)
-公開ページは `partials/header.html` と `partials/footer.html` を使って、ビルド時に HTML へ直接注入します。
+The active architecture and cost guardrails are defined in:
 
-- ヘッダー差し込みマーカー: `<!-- WCWD:HEADER:BEGIN --> ... <!-- WCWD:HEADER:END -->`
-- フッター差し込みマーカー: `<!-- WCWD:FOOTER:BEGIN --> ... <!-- WCWD:FOOTER:END -->`
-- GA4 マーカー（`<head>` 内）: `<!-- WCWD:HEAD:GA4:BEGIN --> ... <!-- WCWD:HEAD:GA4:END -->`
+- [`docs/CURRENT_ARCHITECTURE.md`](docs/CURRENT_ARCHITECTURE.md)
+- [`docs/WCWD_REMEDIATION_PLAN.md`](docs/WCWD_REMEDIATION_PLAN.md)
+- [`docs/WCWD_REMEDIATION_STATUS.md`](docs/WCWD_REMEDIATION_STATUS.md)
 
-実行順:
-1. `python3 scripts/build_pages.py`
-2. `python3 scripts/gen_sitemap.py`
+Cloudflare Cron is intentionally disabled. Do not add Wrangler `crons`, Worker `scheduled()` exports, or GitHub Actions `schedule:` triggers.
 
-## SEO check
-静的SEO、sitemap、robots、主要SEO機能マーカーの確認:
+## Build the committed public pages
+
+Shared header/footer and SEO metadata are written into the tracked HTML files:
 
 ```bash
-python3 scripts/check_seo.py
+python3 scripts/build_pages.py
+python3 scripts/gen_sitemap.py
 ```
 
-運用時の確認手順は [docs/seo-verification.md](docs/seo-verification.md) を参照してください。
+A clean repository should have no diff after those commands:
+
+```bash
+git diff --exit-code
+```
+
+## Build the canonical Pages upload artifact
+
+```bash
+python3 scripts/build_pages_dist.py
+python3 scripts/check_pages_artifact.py dist
+```
+
+The generated `dist/` directory is the only approved static upload directory. It contains `version.json` and embeds the same commit identifier in every HTML file.
+
+## Deploy Pages
+
+Production deployment is manual through `.github/workflows/deploy-pages.yml` (`workflow_dispatch`). The operator must provide the existing Cloudflare Pages project name. The workflow:
+
+1. runs the no-background-automation guard;
+2. regenerates and checks tracked public files;
+3. builds and validates `dist/`;
+4. deploys the existing Pages project without auto-creating resources;
+5. verifies that the public site serves the expected commit and current Home structure.
+
+Do not upload the repository root directly. Do not guess the Cloudflare Pages project name.
+
+## Worker deployment
+
+Worker deployment is manual through `.github/workflows/deploy-history-worker.yml`. The workflow runs `scripts/check_no_cloudflare_automation.py` before `wrangler deploy`.
+
+The configured Worker entrypoint is fetch-only. Public write/admin endpoints remain scheduled for removal in remediation PR 3 and must not be treated as approved interfaces.
+
+## Checks
+
+```bash
+python3 scripts/check_no_cloudflare_automation.py
+python3 scripts/check_seo.py
+python3 scripts/check_pages_artifact.py dist
+```
+
+After a Pages deployment:
+
+```bash
+python3 scripts/check_production_source.py \
+  --base-url https://wcwd.badjoke-lab.com \
+  --expected-commit "$(git rev-parse HEAD)"
+```
