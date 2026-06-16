@@ -10,7 +10,7 @@ The active architecture and cost guardrails are defined in:
 - [`docs/WCWD_REMEDIATION_PLAN.md`](docs/WCWD_REMEDIATION_PLAN.md)
 - [`docs/WCWD_REMEDIATION_STATUS.md`](docs/WCWD_REMEDIATION_STATUS.md)
 
-Cloudflare Cron is intentionally disabled. Do not add Wrangler `crons`, Worker `scheduled()` exports, or GitHub Actions `schedule:` triggers.
+Cloudflare Cron is intentionally disabled. Do not add Wrangler `crons`, Worker `scheduled()` handlers, or GitHub Actions `schedule:` triggers.
 
 ## Build the committed public pages
 
@@ -50,14 +50,24 @@ Do not upload the repository root directly. Do not guess the Cloudflare Pages pr
 
 ## Worker deployment
 
-Worker deployment is manual through `.github/workflows/deploy-history-worker.yml`. The workflow runs `scripts/check_no_cloudflare_automation.py` before `wrangler deploy`.
+Worker deployment is manual through `.github/workflows/deploy-history-worker.yml`. Before `wrangler deploy`, the workflow verifies:
 
-The configured Worker entrypoint is fetch-only. Public write/admin endpoints remain scheduled for removal in remediation PR 3 and must not be treated as approved interfaces.
+- no Cron, scheduled handler, or scheduled GitHub Action;
+- no public `/run`, retention-enforcement, or watchlist-update route;
+- `GET /api/retention` performs no storage write;
+- Worker JavaScript syntax and read-only route behavior.
+
+The Worker reads existing bounded KV records. It does not contain an automatic or public unauthenticated mechanism that extends history.
 
 ## Checks
 
 ```bash
 python3 scripts/check_no_cloudflare_automation.py
+python3 scripts/check_no_public_write_routes.py
+node --check src/entrypoint.js
+node --check src/index.js
+node --check src/worker.js
+node --experimental-default-type=module scripts/test_read_only_worker.mjs
 python3 scripts/check_seo.py
 python3 scripts/check_pages_artifact.py dist
 ```
