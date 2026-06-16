@@ -24,3 +24,8 @@ jobs:
 
       - name: Run static SEO checks
         run: python3 scripts/check_seo.py
+
+      - name: Build and validate canonical Pages artifact
+        run: |
+          python3 scripts/build_pages_dist.py --commit "${GITHUB_SHA}"
+          python3 scripts/check_pages_artifact.py dist --expected-commit "${GITHUB_SHA}"
