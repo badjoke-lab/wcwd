@@ -28,6 +28,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Enforce no-background-automation guard
+        run: python3 scripts/check_no_cloudflare_automation.py
+
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
