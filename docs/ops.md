@@ -1,63 +1,105 @@
-# 運用ドキュメント（無料枠・cron間隔・確認コマンド・復旧手順）
+# WCWD Operations
 
-## 1) 全体構成（1枚図レベルの文章）
-- Pages（表示）: `https://wcwd.badjoke-lab.com/`
-- Worker（収集/API）: `https://wcwd-history.badjoke-lab.workers.dev`
-- Cron → KV に保存 → Pages が Worker API を読む（**閲覧数依存ではない**）
-- Worker は GitHub Actions（main push）で自動デプロイされる
-  - Secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`
+**Current operating model:** manual deployment, no Cloudflare Cron, no background collection.
 
-## 2) 推奨 cron 間隔（無料枠）
-- 推奨：無料は **15分**（≈ 96点/日）
-- 有料/余裕がある場合：**5分**（≈ 288点/日）
-- 15分の欠点：短期スパイクは見えにくいが、日次傾向には十分
+This document is subordinate to `docs/CURRENT_ARCHITECTURE.md`. Older Cron/KV operating instructions are cancelled.
 
-## 3) “データが増えない / 反映されない”時の確認手順（順番固定）
-1. **Cronが動いてるか（Worker側）**
-   - `npx wrangler tail wcwd-history` で `"*/15 * * * *" ... Ok` を確認
-2. **KVに入ってるか（必ず --remote）**
-   - `npx wrangler kv key list --binding HIST --remote | head`
-   - `npx wrangler kv key get "snap:latest" --binding HIST --remote | python3 -m json.tool`
-3. **APIが返してるか**
-   - `curl -s "https://wcwd-history.badjoke-lab.workers.dev/api/latest" | head`
-   - `curl -s "https://wcwd-history.badjoke-lab.workers.dev/api/list?limit=5" | head`
-4. **Pagesが見に行けてるか（CORS/ヘッダ）**
-   - `curl -sI "https://wcwd-history.badjoke-lab.workers.dev/api/list?limit=1" | tr -d '\r' | sed -n '1,40p'`
-5. **Health / Events / Daily が取れるか**
-   - `curl -s "https://wcwd-history.badjoke-lab.workers.dev/api/health" | head`
-   - `curl -s "https://wcwd-history.badjoke-lab.workers.dev/api/events?limit=5" | head`
-   - `curl -s "https://wcwd-history.badjoke-lab.workers.dev/api/daily/latest" | head`
+## 1. Services
 
-> 重要：wranglerのKV確認は **--remote なしだと空に見える**（ローカルKVを見るため）
+- Pages: `https://wcwd.badjoke-lab.com/`
+- Worker API: `https://wcwd-history.badjoke-lab.workers.dev`
+- Repository: `badjoke-lab/wcwd`
 
-## 4) 429 / 制限に当たった時（症状→対処）
-- 症状：APIが429、Cronログに失敗、KV read/write エラー
-- 対処：cron間隔を 15分以上へ、フロントのリクエスト回数削減（Task02で対応）
-- “復旧確認”は上の確認手順を使う
+Cloudflare Cron Triggers must remain at zero. The Worker must be deployed through the fetch-only entrypoint configured in `wrangler.toml`.
 
-## 5) ローカル表示と公開表示の違い
-- ローカル（python http.server）は Pages Functions が無いので `/api/summary` は 404 になりうる
-- 公開（wcwd.badjoke-lab.com）は Pages が動く（Functions/Headers含む）
-- フロントは基本 Worker API（History）を見るため、ローカルでも history-base が正しければ動く
+## 2. Canonical Pages build
 
-## 6) 何が取れないか（indexer無しの限界）
-- 新規アドレス数・総アドレス数・正確な契約種別内訳などは N/A
-- “推定/サンプル”と明記している項目は、**履歴からの推定値**や**一部サンプルからの外挿**であるため、
-  正確な母数が無い前提で読み取る
+Run from a clean checkout:
 
-## 7) 履歴保持方針（KVの自動掃除）
-- 日キーは直近7日だけ保持（`snap:day:YYYY-MM-DD` / `hist:YYYY-MM-DD` を8日以上前から削除）
-- `snap:list` は直近24h＋最大点数上限で維持（intervalに応じて自動調整）
-- `meta:retention` で現状の保持情報を確認可能
+```bash
+python3 scripts/check_no_cloudflare_automation.py
+python3 scripts/build_pages.py
+python3 scripts/gen_sitemap.py
+git diff --exit-code
+python3 scripts/build_pages_dist.py --commit "$(git rev-parse HEAD)"
+python3 scripts/check_pages_artifact.py dist --expected-commit "$(git rev-parse HEAD)"
+```
 
-## 8) Discord 通知（任意）
-- 環境変数 `DISCORD_WEBHOOK_URL` を設定すると、cron実行時に「TPS急増/急落」「Gas急増」「Summary取得失敗」を通知する
-- Daily Summary 生成時に 1 日 1 回通知する
-- 未設定の場合は通知処理をスキップ（cronは落ちない）
-- 連投防止：同じ通知タイプは 60 分に 1 回まで
+`dist/` is the approved Pages upload directory. Uploading the repository root is prohibited because it can expose internal files and makes the deployed output ambiguous.
 
-### テスト通知（任意）
-- `ADMIN_TOKEN` を設定している場合のみ利用可能
-- 例：
-  - `curl -X POST "https://wcwd-history.badjoke-lab.workers.dev/api/test-notify?type=tps_spike" -H "Authorization: Bearer $ADMIN_TOKEN"`
-  - `curl -X POST "https://wcwd-history.badjoke-lab.workers.dev/api/test-notify?type=gas_high" -H "Authorization: Bearer $ADMIN_TOKEN"`
+## 3. Canonical Pages deployment
+
+Use the manual GitHub workflow `.github/workflows/deploy-pages.yml`.
+
+Required inputs:
+
+- `project_name`: the existing Cloudflare Pages project name; do not guess it;
+- `production_branch`: normally `main`;
+- `production_url`: normally `https://wcwd.badjoke-lab.com`.
+
+Required repository secrets:
+
+- `CLOUDFLARE_API_TOKEN` with Cloudflare Pages edit permission;
+- `CLOUDFLARE_ACCOUNT_ID`.
+
+The workflow disables Wrangler auto-create/provision behavior. It must fail rather than create a new project when the supplied project name is wrong.
+
+## 4. Production verification
+
+Every production deployment must pass:
+
+```bash
+python3 scripts/check_production_source.py \
+  --base-url https://wcwd.badjoke-lab.com \
+  --expected-commit "$(git rev-parse HEAD)"
+```
+
+The verification checks:
+
+- `/version.json` commit;
+- the commit marker embedded in Home HTML;
+- current Home section markers;
+- absence of the obsolete combined Home/Monitor content.
+
+A successful repository merge is not a successful production deployment. Record repository state and production state separately.
+
+## 5. Cloudflare dashboard settings requiring manual confirmation
+
+The repository cannot inspect these settings directly. Before declaring production repaired, record evidence for:
+
+- Pages project name;
+- connected repository `badjoke-lab/wcwd`;
+- production branch `main` if Git integration remains enabled;
+- build output directory or Direct Upload method;
+- custom domain `wcwd.badjoke-lab.com` attached to the intended project;
+- Cloudflare Cron Triggers = 0;
+- no unexpected Queues, Workflows, Durable Object alarms, or other recurring resources.
+
+If Git integration is stale or points to a different branch/output, either correct it to the canonical build or disable automatic deployments and use the manual Direct Upload workflow. Do not operate two competing production deployment paths.
+
+## 6. Worker deployment
+
+Use `.github/workflows/deploy-history-worker.yml` manually. It runs the no-background-automation guard before deployment.
+
+Do not restore:
+
+- Wrangler `[triggers]` / `crons`;
+- an exported Worker `scheduled()` handler;
+- an automatic deployment schedule.
+
+Legacy public write and collection routes remain unresolved until remediation PR 3 and must not be used as normal operations.
+
+## 7. Incident recovery
+
+When production content does not match `main`:
+
+1. run the production source checker and save its exact failure;
+2. inspect `/version.json` and the Home build marker;
+3. identify the Pages project and production deployment commit in Cloudflare;
+4. verify the custom domain points to that same project;
+5. rebuild `dist/` from the intended commit;
+6. manually deploy the existing Pages project;
+7. rerun the production source checker;
+8. record the deployment commit and verification result in `docs/WCWD_REMEDIATION_STATUS.md`.
+
+Do not fix a stale site by restoring old build scripts, uploading an unknown directory, or re-enabling Cron.
