@@ -14,6 +14,9 @@ pnpm-debug.log*
 .wrangler/
 .dev.vars
 
+# ===== Generated deployment artifact =====
+dist/
+
 # ===== Editor =====
 .vscode/
 .idea/
