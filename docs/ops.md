@@ -18,6 +18,7 @@ Run from a clean checkout:
 
 ```bash
 python3 scripts/check_no_cloudflare_automation.py
+python3 scripts/check_no_public_write_routes.py
 python3 scripts/build_pages.py
 python3 scripts/gen_sitemap.py
 git diff --exit-code
@@ -79,15 +80,33 @@ If Git integration is stale or points to a different branch/output, either corre
 
 ## 6. Worker deployment
 
-Use `.github/workflows/deploy-history-worker.yml` manually. It runs the no-background-automation guard before deployment.
+Use `.github/workflows/deploy-history-worker.yml` manually. Before deployment it runs:
+
+```bash
+python3 scripts/check_no_cloudflare_automation.py
+python3 scripts/check_no_public_write_routes.py
+node --check src/entrypoint.js
+node --check src/index.js
+node --check src/worker.js
+node --experimental-default-type=module scripts/test_read_only_worker.mjs
+```
+
+The Worker reads existing bounded KV records. It does not collect new snapshots or generate history automatically.
+
+The following routes are removed and must return 404:
+
+- `POST /run`
+- `POST /api/retention/enforce`
+- `POST /api/sell-impact/watchlist/run`
+
+`GET /api/retention` is read-only. The authenticated `POST /api/test-notify` remains available only when `ADMIN_TOKEN` is explicitly configured.
 
 Do not restore:
 
 - Wrangler `[triggers]` / `crons`;
-- an exported Worker `scheduled()` handler;
-- an automatic deployment schedule.
-
-Legacy public write and collection routes remain unresolved until remediation PR 3 and must not be used as normal operations.
+- any Worker `scheduled()` handler;
+- an automatic deployment schedule;
+- a public collection or retention-enforcement route.
 
 ## 7. Incident recovery
 
