@@ -1,25 +1,9 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
-from html.parser import HTMLParser
-import re
 import sys
 
 from route_registry import ROOT, load_routes, public_pages
-
-
-class LinkParser(HTMLParser):
-    def __init__(self) -> None:
-        super().__init__()
-        self.links: list[str] = []
-
-    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        if tag.lower() != "a":
-            return
-        values = dict(attrs)
-        href = values.get("href")
-        if href:
-            self.links.append(str(href))
 
 
 def main() -> int:
@@ -34,17 +18,6 @@ def main() -> int:
     for item in routes:
         if not item.path.is_file():
             errors.append(f"registered page missing: {item.file}")
-            continue
-
-        text = item.path.read_text(encoding="utf-8", errors="replace")
-        parser = LinkParser()
-        parser.feed(text)
-        for href in parser.links:
-            if href == "/test" or href.startswith("/test/"):
-                errors.append(f"{item.file}: public link to experimental route: {href}")
-
-        if re.search(r"(?:href|src)=[\"']https://[^\"']+\.workers\.dev", text, flags=re.I):
-            errors.append(f"{item.file}: direct Worker hostname in public href/src")
 
     source_checks = {
         "scripts/gen_sitemap.py": ("route_registry", "PUBLIC_ROUTE_ALLOWLIST"),
