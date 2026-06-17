@@ -37,13 +37,18 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Enforce no-background-automation guard
-        run: python3 scripts/check_no_cloudflare_automation.py
+      - name: Enforce repository and route guards
+        run: |
+          python3 scripts/check_no_cloudflare_automation.py
+          python3 scripts/check_no_public_write_routes.py
+          python3 scripts/check_external_fetch_policy.py
+          python3 scripts/check_routes.py
 
       - name: Regenerate committed public HTML and sitemap
         run: |
-          python3 scripts/build_pages.py
+          python3 scripts/build_pages_registry.py
           python3 scripts/gen_sitemap.py
+          python3 scripts/check_seo.py
           git diff --exit-code
 
       - name: Build canonical Pages artifact
