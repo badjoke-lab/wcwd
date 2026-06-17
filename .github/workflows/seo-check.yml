@@ -61,11 +61,14 @@ jobs:
           node --check 'functions/api/[[path]].js'
           node --experimental-default-type=module scripts/test_cache_request_policy.mjs
 
-      - name: Regenerate public route artifacts
-        run: |
-          python3 scripts/build_pages_registry.py
-          python3 scripts/gen_sitemap.py
-          git diff --exit-code
+      - name: Validate registered page targets
+        run: python3 scripts/build_pages_registry.py
+
+      - name: Regenerate sitemap and robots
+        run: python3 scripts/gen_sitemap.py
+
+      - name: Reject generated-file drift
+        run: git diff --exit-code
 
       - name: Validate routes and static SEO
         run: |
