@@ -1,51 +1,33 @@
 import worker from "../src/index.js";
 
 const writes = [];
+const store = new Map([["snap:list", JSON.stringify([{ ts: "2026-06-17T00:00:00.000Z", tps: 1 }])]]);
 const env = {
   HIST: {
-    async get() {
-      return null;
-    },
-    async put(...args) {
-      writes.push(["put", ...args]);
-    },
-    async delete(...args) {
-      writes.push(["delete", ...args]);
-    },
+    async get(key) { return store.get(key) ?? null; },
+    async put(...args) { writes.push(["put", ...args]); },
+    async delete(...args) { writes.push(["delete", ...args]); },
   },
 };
 
-async function request(path, method = "GET") {
-  const response = await worker.fetch(
-    new Request(`https://worker.test${path}`, { method }),
-    env,
-    { waitUntil() { throw new Error("waitUntil must not be used"); } },
-  );
-  return response;
+async function call(path, method = "GET") {
+  return worker.fetch(new Request(`https://example.test${path}`, { method }), env, {
+    waitUntil() { throw new Error("unexpected waitUntil"); },
+  });
 }
 
-for (const path of [
-  "/run",
-  "/api/retention/enforce",
-  "/api/sell-impact/watchlist/run",
-]) {
-  const response = await request(path, "POST");
-  if (response.status !== 404) {
-    throw new Error(`${path} expected 404, got ${response.status}`);
-  }
+for (const path of ["/run", "/api/retention/enforce", "/api/sell-impact/watchlist/run"]) {
+  const response = await call(path, "POST");
+  if (response.status !== 404) throw new Error(`${path}: ${response.status}`);
 }
 
-const retentionResponse = await request("/api/retention", "GET");
-if (retentionResponse.status !== 200) {
-  throw new Error(`/api/retention expected 200, got ${retentionResponse.status}`);
-}
+const retentionResponse = await call("/api/retention");
 const retention = await retentionResponse.json();
-if (retention.source !== "api_read_only") {
-  throw new Error(`/api/retention source mismatch: ${retention.source}`);
-}
+if (retentionResponse.status !== 200 || retention.source !== "api_read_only") throw new Error("retention route mismatch");
 
-if (writes.length !== 0) {
-  throw new Error(`read-only route test observed storage writes: ${JSON.stringify(writes)}`);
-}
+const listResponse = await call("/api/list?limit=1");
+const list = await listResponse.json();
+if (listResponse.status !== 200 || !Array.isArray(list) || list.length !== 1) throw new Error("list response shape mismatch");
 
+if (writes.length !== 0) throw new Error(`storage writes observed: ${JSON.stringify(writes)}`);
 console.log("Read-only Worker route test passed.");
