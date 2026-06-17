@@ -19,8 +19,21 @@ jobs:
         with:
           python-version: '3.11'
 
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
       - name: Enforce no-background-automation guard
         run: python3 scripts/check_no_cloudflare_automation.py
+
+      - name: Enforce read-only public routes
+        run: |
+          python3 scripts/check_no_public_write_routes.py
+          node --check src/entrypoint.js
+          node --check src/index.js
+          node --check src/worker.js
+          node --experimental-default-type=module scripts/test_read_only_worker.mjs
 
       - name: Run static SEO checks
         run: python3 scripts/check_seo.py
