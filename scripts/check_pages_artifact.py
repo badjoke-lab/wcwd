@@ -9,7 +9,7 @@ from pathlib import Path
 import re
 import sys
 
-FORBIDDEN_DIRS = {".git", ".github", "docs", "scripts", "src", "partials", "functions", "node_modules"}
+FORBIDDEN_DIRS = {".git", ".github", "docs", "scripts", "src", "partials", "functions", "node_modules", "test"}
 REQUIRED_ROOT_FILES = {"index.html", "404.html", "robots.txt", "sitemap.xml", "version.json"}
 
 
@@ -35,7 +35,7 @@ def main() -> None:
     for required in sorted(REQUIRED_ROOT_FILES - names):
         errors.append(f"missing required root file: {required}")
     for forbidden in sorted(FORBIDDEN_DIRS & names):
-        errors.append(f"internal directory leaked into artifact: {forbidden}")
+        errors.append(f"internal or experimental directory leaked into artifact: {forbidden}")
 
     version_path = root / "version.json"
     version: dict[str, object] = {}
