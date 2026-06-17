@@ -31,10 +31,20 @@ jobs:
       - name: Enforce no-background-automation guard
         run: python3 scripts/check_no_cloudflare_automation.py
 
+      - name: Enforce read-only public routes
+        run: python3 scripts/check_no_public_write_routes.py
+
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
           node-version: "22"
+
+      - name: Validate Worker syntax and route behavior
+        run: |
+          node --check src/entrypoint.js
+          node --check src/index.js
+          node --check src/worker.js
+          node --experimental-default-type=module scripts/test_read_only_worker.mjs
 
       - name: Deploy Worker
         env:
