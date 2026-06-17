@@ -5,6 +5,9 @@ import { RETENTION, buildRetentionMetadata, clampLimit } from "./retention.js";
 import { handleWormholeViz } from "./viz-wormhole.js";
 import { handleOracleFeed } from "./oracles-feed.js";
 import { handlePaymasterPreflight } from "./paymaster-preflight.js";
+import { normalizeDailyRecord } from "./monitor-daily.js";
+import { normalizeVersion } from "./monitor-semantics.js";
+import { normalizeSummary } from "./monitor-summary.js";
 
 function json(data, init = {}) {
   const headers = new Headers(init.headers || {});
@@ -72,31 +75,42 @@ async function proxyWithClampedQuery(request, env, ctx, url, clampSpec, enhanceJ
   const response = await baseWorker.fetch(cloneRequestWithUrl(request, url), env, ctx);
   const body = await readJsonResponse(response);
   if (!body || typeof body !== "object") return response;
-  const nextBody = enhanceJson ? enhanceJson(body, safe, url) : body;
+  const nextBody = enhanceJson ? enhanceJson(body, safe, url, env) : body;
   const headers = new Headers(response.headers);
   headers.set("content-type", "application/json; charset=utf-8");
   headers.set(`x-wcwd-${clampSpec.param}-limit`, String(safe));
   return new Response(JSON.stringify(nextBody, null, 2), { status: response.status, headers });
 }
 
-function addSummaryRetention(body, limit, url) {
+async function proxyNormalizedJson(request, env, ctx, transform) {
+  const response = await baseWorker.fetch(request, env, ctx);
+  const body = await readJsonResponse(response);
+  if (!body || typeof body !== "object") return response;
+  const nextBody = transform(body, env);
+  const headers = new Headers(response.headers);
+  headers.set("content-type", "application/json; charset=utf-8");
+  return new Response(JSON.stringify(nextBody, null, 2), { status: response.status, headers });
+}
+
+function addSummaryRetention(body, limit, url, env) {
+  const normalized = normalizeSummary(body, env);
   const eventLimit = clampLimit(url.searchParams.get("event_limit"), {
     min: 1,
     max: RETENTION.events.hard_max_items,
     fallback: RETENTION.events.recommended_items,
   });
-  const dashboardState = buildNormalizedDashboardState(body);
-  const freshness = body?.freshness && typeof body.freshness === "object"
-    ? { ...body.freshness, state: normalizeState(body.freshness.state) }
-    : body?.freshness;
+  const dashboardState = buildNormalizedDashboardState(normalized);
+  const freshness = normalized?.freshness && typeof normalized.freshness === "object"
+    ? { ...normalized.freshness, state: normalizeState(normalized.freshness.state) }
+    : normalized?.freshness;
   return {
-    ...body,
+    ...normalized,
     limit,
     event_limit: eventLimit,
     freshness,
     dashboard_state: dashboardState,
     degraded: dashboardState !== "fresh",
-    degraded_reasons: buildNormalizedReasons(body, dashboardState),
+    degraded_reasons: buildNormalizedReasons(normalized, dashboardState),
     retention: buildRetentionMetadata({ source: "summary_proxy_read_only", request_limit: limit, event_limit: eventLimit }),
   };
 }
@@ -108,6 +122,22 @@ function addListRetention(body, limit) {
 
 function addEventsRetention(body, limit) {
   return { ...body, limit, retention: RETENTION.events };
+}
+
+function unavailableDaily(body) {
+  return normalizeDailyRecord(body) || {
+    ok: true,
+    available: false,
+    reason: "no_data",
+    date: null,
+    calendar_basis: "unknown",
+    day_start_utc: null,
+    day_end_utc_exclusive: null,
+    health: null,
+    tps: null,
+    gas: null,
+    wld: null,
+  };
 }
 
 export default {
@@ -150,6 +180,14 @@ export default {
     if (pathname === "/api/retention") {
       if (request.method !== "GET") return errorJson("retention", "method_not_allowed", 405);
       return json(buildRetentionMetadata({ source: "api_read_only" }));
+    }
+    if (pathname === "/api/version") {
+      if (request.method !== "GET") return errorJson("version", "method_not_allowed", 405);
+      return proxyNormalizedJson(request, env, ctx, normalizeVersion);
+    }
+    if (pathname === "/api/daily" || pathname === "/api/daily/latest") {
+      if (request.method !== "GET") return errorJson("daily", "method_not_allowed", 405);
+      return proxyNormalizedJson(request, env, ctx, unavailableDaily);
     }
     if (pathname === "/api/summary") {
       const eventLimit = clampLimit(url.searchParams.get("event_limit"), {
