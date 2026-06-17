@@ -13,6 +13,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -59,8 +61,16 @@ jobs:
           node --check 'functions/api/[[path]].js'
           node --experimental-default-type=module scripts/test_cache_request_policy.mjs
 
-      - name: Run static SEO checks
-        run: python3 scripts/check_seo.py
+      - name: Regenerate public route artifacts
+        run: |
+          python3 scripts/build_pages_registry.py
+          python3 scripts/gen_sitemap.py
+          git diff --exit-code
+
+      - name: Validate routes and static SEO
+        run: |
+          python3 scripts/check_routes.py
+          python3 scripts/check_seo.py
 
       - name: Build canonical Pages artifact
         run: python3 scripts/build_pages_dist.py --commit "${GITHUB_SHA}"
