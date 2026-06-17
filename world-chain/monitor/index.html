@@ -51,8 +51,8 @@
     <header class="hero">
       <p class="section-eyebrow">Detailed monitor</p>
       <h1>World Chain Monitor</h1>
-      <p class="lead">Detailed server-owned summary view for World Chain health, WLD market data, activity, history, alerts, events, and daily compacts.</p>
-      <p class="muted">History is sampled by Cloudflare Workers Cron + KV. Some metrics are best-effort because this site does not run a full indexer.</p>
+      <p class="lead">Detailed server-owned summary view for World Chain health, WLD market data, activity, stored history, alerts, events, and verified daily compacts.</p>
+      <p class="muted">History is read from existing bounded KV snapshots. Automatic collection is disabled. Estimates, observations, and unavailable values are labeled separately.</p>
       <div class="actions">
         <button id="reload" type="button">Reload</button>
         <div class="status">Status: <strong id="status">—</strong></div>
@@ -61,14 +61,14 @@
 
     <section class="card" aria-labelledby="data-source-title">
       <h2 id="data-source-title">Data Source</h2>
-      <p class="muted">Summary API snapshot, freshness, retention, and current fallback path.</p>
+      <p class="muted">Summary response time, latest observation time, retention, and current fallback path are different concepts.</p>
       <div class="grid">
         <div class="metric">
           <div class="k">Freshness</div>
           <div class="v" id="dataFreshness">—</div>
         </div>
         <div class="metric">
-          <div class="k">Snapshot generated</div>
+          <div class="k">Response generated</div>
           <div class="v mono" id="dataGeneratedAt">—</div>
         </div>
         <div class="metric">
@@ -107,11 +107,11 @@
     <section class="card">
       <h2>Network</h2>
       <div class="grid">
-        <div class="metric"><div class="k">TPS (est.)</div><div class="v" id="tps">—</div></div>
-        <div class="metric"><div class="k">Tx/day (est.)</div><div class="v" id="tx24h">—</div></div>
+        <div class="metric"><div class="k">TPS (sample estimate)</div><div class="v" id="tps">—</div></div>
+        <div class="metric"><div class="k">Transactions (rolling 24h)</div><div class="v" id="tx24h">Unavailable</div></div>
         <div class="metric"><div class="k">Gas Price (gwei)</div><div class="v" id="gasPrice">—</div></div>
-        <div class="metric"><div class="k">New addresses (24h)</div><div class="v" id="newAddr24h">N/A</div><div class="n" id="newAddrNote">History-only: no indexer.</div></div>
-        <div class="metric"><div class="k">Total addresses</div><div class="v" id="totalAddr">N/A</div><div class="n" id="totalAddrNote">History-only: no indexer.</div></div>
+        <div class="metric"><div class="k">New addresses (24h)</div><div class="v" id="newAddr24h">Unavailable</div><div class="n" id="newAddrNote">Unavailable: no full address indexer.</div></div>
+        <div class="metric"><div class="k">Total addresses</div><div class="v" id="totalAddr">Unavailable</div><div class="n" id="totalAddrNote">Unavailable: no full address indexer.</div></div>
       </div>
     </section>
 
@@ -120,46 +120,46 @@
       <div class="grid">
         <div class="metric"><div class="k">WLD (USD)</div><div class="v" id="wldUsd">—</div></div>
         <div class="metric"><div class="k">WLD (JPY)</div><div class="v" id="wldJpy">—</div></div>
-        <div class="metric"><div class="k">24h change</div><div class="v" id="wldChg24h">—</div><div class="n" id="cgNote">—</div></div>
-        <div class="metric"><div class="k">Market cap</div><div class="v" id="wldMc">—</div></div>
-        <div class="metric"><div class="k">24h volume</div><div class="v" id="wldVol">—</div></div>
-        <div class="metric"><div class="k">Sparkline (7d)</div><div class="v mono" id="wldSpark7d">—</div></div>
+        <div class="metric"><div class="k">24h change</div><div class="v" id="wldChg24h">Unavailable</div><div class="n" id="cgNote">—</div></div>
+        <div class="metric"><div class="k">Market cap</div><div class="v" id="wldMc">Unavailable</div></div>
+        <div class="metric"><div class="k">24h volume</div><div class="v" id="wldVol">Unavailable</div></div>
+        <div class="metric"><div class="k">Sparkline (7d)</div><div class="v mono" id="wldSpark7d">Unavailable</div></div>
       </div>
-      <div class="mini"><div class="k">WLD 7d (sparkline)</div><div class="v mono" id="chartWld7d">—</div></div>
+      <div class="mini"><div class="k">WLD 7d (sparkline)</div><div class="v mono" id="chartWld7d">Unavailable</div></div>
     </section>
 
     <section class="card">
       <h2>Activity</h2>
-      <p class="muted">Approximation based on server sampling. No full indexer.</p>
+      <p class="muted">Estimated from sampled transactions. This is not a full-chain classification.</p>
       <div class="grid">
         <div class="metric"><div class="k">Token-tx share</div><div class="v" id="pctToken">—</div></div>
         <div class="metric"><div class="k">Non-token share</div><div class="v" id="pctNative">—</div></div>
-        <div class="metric"><div class="k">Contract share</div><div class="v" id="pctContract">—</div></div>
-        <div class="metric"><div class="k">Other share</div><div class="v" id="pctOther">—</div></div>
+        <div class="metric"><div class="k">Contract share</div><div class="v" id="pctContract">Unavailable</div></div>
+        <div class="metric"><div class="k">Other share</div><div class="v" id="pctOther">Unavailable</div></div>
       </div>
       <div class="note" id="actNote">—</div>
     </section>
 
     <section class="card">
       <h2>Trends</h2>
-      <p class="muted">Observed by Workers Cron and KV history, not page views. Read these as recent KV samples, not full indexer charts.</p>
-      <div class="mini"><div class="k">TPS (24h)</div><canvas id="sparkTps" width="720" height="48" style="width:100%;height:48px;border-radius:10px;background:#fff;"></canvas></div>
-      <div class="mini"><div class="k">Gas (24h, gwei)</div><canvas id="sparkGas" width="720" height="48" style="width:100%;height:48px;border-radius:10px;background:#fff;"></canvas></div>
-      <div class="mini"><div class="k">WLD USD (24h)</div><canvas id="sparkWld" width="720" height="48" style="width:100%;height:48px;border-radius:10px;background:#fff;"></canvas></div>
-      <div class="mini"><div class="k">Token-tx share (24h)</div><canvas id="sparkToken" width="720" height="48" style="width:100%;height:48px;border-radius:10px;background:#fff;"></canvas></div>
+      <p class="muted">These charts read existing stored samples. They do not imply continuous collection or full-indexer coverage.</p>
+      <div class="mini"><div class="k">TPS samples (recent)</div><canvas id="sparkTps" width="720" height="48" style="width:100%;height:48px;border-radius:10px;background:#fff;"></canvas></div>
+      <div class="mini"><div class="k">Gas samples (recent, gwei)</div><canvas id="sparkGas" width="720" height="48" style="width:100%;height:48px;border-radius:10px;background:#fff;"></canvas></div>
+      <div class="mini"><div class="k">WLD USD samples (recent)</div><canvas id="sparkWld" width="720" height="48" style="width:100%;height:48px;border-radius:10px;background:#fff;"></canvas></div>
+      <div class="mini"><div class="k">Token-tx share samples (recent)</div><canvas id="sparkToken" width="720" height="48" style="width:100%;height:48px;border-radius:10px;background:#fff;"></canvas></div>
       <div class="note" id="noteHistory">—</div>
     </section>
 
     <section class="card">
       <h2>7d Series</h2>
-      <p class="muted">7d charts come from the History Worker series API, hourly average, UTC buckets. They are bounded and separate from the 24h summary history.</p>
+      <p class="muted">7d charts read existing hourly series buckets. They are bounded and do not imply that collection is currently active.</p>
       <div class="mini"><div class="k">TPS (7d, 1h avg)</div><canvas id="seriesTps7d" width="720" height="56" style="width:100%;height:56px;border-radius:10px;background:#fff;"></canvas><div class="note mono" id="noteSeriesTps7d">—</div></div>
       <div class="mini"><div class="k">WLD USD (7d, 1h avg)</div><canvas id="seriesWld7d" width="720" height="56" style="width:100%;height:56px;border-radius:10px;background:#fff;"></canvas><div class="note mono" id="noteSeriesWld7d">—</div></div>
     </section>
 
     <section class="card">
       <h2>Alerts</h2>
-      <p class="muted">Alerts compare latest values against recent history averages.</p>
+      <p class="muted">Alert fields compare the latest stored values against available stored samples. No alert is emitted automatically.</p>
       <div class="grid">
         <div class="metric"><div class="k">Spike (TPS)</div><div class="v" id="alertSpike">—</div></div>
         <div class="metric"><div class="k">Drop (TPS)</div><div class="v" id="alertDrop">—</div></div>
@@ -167,19 +167,19 @@
       </div>
     </section>
 
-    <section class="card"><h2>Events</h2><p class="muted">Compact event summaries emitted by the summary path.</p><div id="eventsList">—</div></section>
+    <section class="card"><h2>Events</h2><p class="muted">Existing compact event records, when present. WCWD no longer appends events automatically.</p><div id="eventsList">—</div></section>
 
     <section class="card">
       <h2>Daily</h2>
-      <p class="muted">Compact daily rollup. This is not raw long-term storage.</p>
+      <p class="muted">A daily compact is displayed only when the record explicitly declares a UTC calendar-day boundary.</p>
       <div class="grid">
-        <div class="metric"><div class="k">Date</div><div class="v" id="dailyDate">—</div></div>
-        <div class="metric"><div class="k">Health (mode)</div><div class="v mono" id="dailyHealth">—</div></div>
-        <div class="metric"><div class="k">TPS max</div><div class="v" id="dailyTpsMax">—</div></div>
-        <div class="metric"><div class="k">TPS min</div><div class="v" id="dailyTpsMin">—</div></div>
-        <div class="metric"><div class="k">Gas max</div><div class="v" id="dailyGasMax">—</div></div>
-        <div class="metric"><div class="k">WLD change (USD)</div><div class="v" id="dailyWldUsdChange">—</div></div>
-        <div class="metric"><div class="k">WLD change (JPY)</div><div class="v" id="dailyWldJpyChange">—</div></div>
+        <div class="metric"><div class="k">Date</div><div class="v" id="dailyDate">Unavailable</div></div>
+        <div class="metric"><div class="k">Health (mode)</div><div class="v mono" id="dailyHealth">Unavailable</div></div>
+        <div class="metric"><div class="k">TPS max</div><div class="v" id="dailyTpsMax">Unavailable</div></div>
+        <div class="metric"><div class="k">TPS min</div><div class="v" id="dailyTpsMin">Unavailable</div></div>
+        <div class="metric"><div class="k">Gas max</div><div class="v" id="dailyGasMax">Unavailable</div></div>
+        <div class="metric"><div class="k">WLD change (USD)</div><div class="v" id="dailyWldUsdChange">Unavailable</div></div>
+        <div class="metric"><div class="k">WLD change (JPY)</div><div class="v" id="dailyWldJpyChange">Unavailable</div></div>
       </div>
     </section>
 
@@ -187,7 +187,7 @@
       <h2>Debug</h2>
       <details><summary>Show API response</summary><pre id="raw">—</pre></details>
       <details><summary>Errors</summary><pre id="errors">—</pre></details>
-      <p class="muted">Phase limitations: no indexer and no historical chain-wide breakdown. Token share is sample-based and approximate.</p>
+      <p class="muted">Limitations: no full indexer, no measured rolling 24-hour transaction counter, and no verified historical chain-wide address totals.</p>
     </section>
   </section>
 </main>
