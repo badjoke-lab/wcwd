@@ -31,8 +31,10 @@ jobs:
       - name: Enforce no-background-automation guard
         run: python3 scripts/check_no_cloudflare_automation.py
 
-      - name: Enforce read-only public routes
-        run: python3 scripts/check_no_public_write_routes.py
+      - name: Enforce read-only and fixed-fetch policies
+        run: |
+          python3 scripts/check_no_public_write_routes.py
+          python3 scripts/check_external_fetch_policy.py
 
       - name: Set up Node
         uses: actions/setup-node@v4
@@ -44,7 +46,10 @@ jobs:
           node --check src/entrypoint.js
           node --check src/index.js
           node --check src/worker.js
+          node --check src/oracles-feed.js
+          node --check src/paymaster-preflight.js
           node --experimental-default-type=module scripts/test_read_only_worker.mjs
+          node --experimental-default-type=module scripts/test_external_fetch_policy.mjs
 
       - name: Deploy Worker
         env:
