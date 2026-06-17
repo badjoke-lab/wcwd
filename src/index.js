@@ -8,9 +8,7 @@ import { handlePaymasterPreflight } from "./paymaster-preflight.js";
 
 function json(data, init = {}) {
   const headers = new Headers(init.headers || {});
-  if (!headers.has("content-type")) {
-    headers.set("content-type", "application/json; charset=utf-8");
-  }
+  if (!headers.has("content-type")) headers.set("content-type", "application/json; charset=utf-8");
   headers.set("access-control-allow-origin", "*");
   headers.set("access-control-allow-headers", "content-type,authorization");
   headers.set("access-control-allow-methods", "GET,POST,OPTIONS");
@@ -60,9 +58,7 @@ function buildNormalizedDashboardState(body) {
 
 function buildNormalizedReasons(body, state) {
   const reasons = Array.isArray(body?.degraded_reasons) ? [...body.degraded_reasons] : [];
-  if (body?.latest?.summary_ok === false && !reasons.includes("latest_summary_fetch_failed")) {
-    reasons.push("latest_summary_fetch_failed");
-  }
+  if (body?.latest?.summary_ok === false && !reasons.includes("latest_summary_fetch_failed")) reasons.push("latest_summary_fetch_failed");
   if (state === "delayed" && !reasons.includes("history_delayed")) reasons.push("history_delayed");
   if (state === "stale" && !reasons.includes("history_stale")) reasons.push("history_stale");
   if (state === "unavailable" && !reasons.includes("summary_unavailable")) reasons.push("summary_unavailable");
@@ -101,15 +97,12 @@ function addSummaryRetention(body, limit, url) {
     dashboard_state: dashboardState,
     degraded: dashboardState !== "fresh",
     degraded_reasons: buildNormalizedReasons(body, dashboardState),
-    retention: buildRetentionMetadata({
-      source: "summary_proxy_read_only",
-      request_limit: limit,
-      event_limit: eventLimit,
-    }),
+    retention: buildRetentionMetadata({ source: "summary_proxy_read_only", request_limit: limit, event_limit: eventLimit }),
   };
 }
 
 function addListRetention(body, limit) {
+  if (Array.isArray(body)) return body;
   return { ...body, limit, retention: RETENTION.summary_list };
 }
 
@@ -138,32 +131,26 @@ export default {
       if (request.method !== "GET") return errorJson("paymaster_preflight", "method_not_allowed", 405);
       return handlePaymasterPreflight(request, env);
     }
-
     if (pathname === "/api/oracles/feed") {
       if (request.method !== "GET") return errorJson("oracles_feed", "method_not_allowed", 405);
       return handleOracleFeed(request, env);
     }
-
     if (pathname === "/api/world-chain/token-heatmap/latest") {
       if (request.method !== "GET") return errorJson("token_heatmap_latest", "method_not_allowed", 405);
       return json(await getTokenHeatmapLatest(env));
     }
-
     if (pathname === "/api/world-chain/token-heatmap/meta") {
       if (request.method !== "GET") return errorJson("token_heatmap_meta", "method_not_allowed", 405);
       return json(getTokenHeatmapMeta());
     }
-
     if (pathname === "/api/viz/wormhole") {
       if (request.method !== "GET") return errorJson("viz_wormhole", "method_not_allowed", 405);
       return handleWormholeViz({ request, env, ctx, baseWorker });
     }
-
     if (pathname === "/api/retention") {
       if (request.method !== "GET") return errorJson("retention", "method_not_allowed", 405);
       return json(buildRetentionMetadata({ source: "api_read_only" }));
     }
-
     if (pathname === "/api/summary") {
       const eventLimit = clampLimit(url.searchParams.get("event_limit"), {
         min: 1,
@@ -178,7 +165,6 @@ export default {
         fallback: RETENTION.summary_list.recommended_points,
       }, addSummaryRetention);
     }
-
     if (pathname === "/api/list") {
       return proxyWithClampedQuery(request, env, ctx, url, {
         param: "limit",
@@ -187,7 +173,6 @@ export default {
         fallback: RETENTION.summary_list.recommended_points,
       }, addListRetention);
     }
-
     if (pathname === "/api/events") {
       return proxyWithClampedQuery(request, env, ctx, url, {
         param: "limit",
@@ -196,14 +181,12 @@ export default {
         fallback: RETENTION.events.recommended_items,
       }, addEventsRetention);
     }
-
     if (pathname === "/api/sell-impact/watchlist/latest") {
       if (request.method !== "GET") return errorJson("sellimpact_watchlist_latest", "method_not_allowed", 405);
       const latest = await getSellImpactWatchlistLatest(env);
       if (!latest) return json({ ok: true, reason: "no_data", items: [] });
       return json(latest);
     }
-
     if (pathname === "/api/sell-impact/watchlist/list") {
       if (request.method !== "GET") return errorJson("sellimpact_watchlist_list", "method_not_allowed", 405);
       const limit = clampLimit(url.searchParams.get("limit"), {
@@ -214,7 +197,6 @@ export default {
       const list = await getSellImpactWatchlistList(env, limit);
       return json({ ok: true, items: list, limit, retention: RETENTION.sellimpact_watchlist });
     }
-
     return baseWorker.fetch(request, env, ctx);
   },
 };
