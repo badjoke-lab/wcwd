@@ -43,6 +43,15 @@ jobs:
           node --check 'functions/api/[[path]].js'
           node --experimental-default-type=module scripts/test_external_fetch_policy.mjs
 
+      - name: Enforce Monitor metric semantics
+        run: |
+          python3 scripts/check_monitor_semantics.py
+          node --check src/monitor-semantics.js
+          node --check src/monitor-daily.js
+          node --check src/monitor-summary.js
+          node --check world-chain/monitor/monitor-notes.js
+          node --experimental-default-type=module scripts/test_monitor_semantics.mjs
+
       - name: Run static SEO checks
         run: python3 scripts/check_seo.py
 
