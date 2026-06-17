@@ -1,168 +1,114 @@
-import { RETENTION, readJson, writeJson } from "./retention.js";
+const WORLDCHAIN_RPC_URL = "https://worldchain-mainnet.g.alchemy.com/public";
+const MAX_BYTES = 65536;
+const TRUSTED_ORIGINS = new Set(["https://wcwd.badjoke-lab.com", "https://wcwd.pages.dev"]);
 
-const PAYMASTER_CHECKS_KEY = "paymaster:preflight:recent";
-
-function json(data, init = {}) {
-  const headers = new Headers(init.headers || {});
+function headersFor(request, extra = {}) {
+  const headers = new Headers(extra);
   headers.set("content-type", "application/json; charset=utf-8");
   headers.set("cache-control", "no-store");
-  headers.set("access-control-allow-origin", "*");
-  return new Response(JSON.stringify(data, null, 2), { ...init, headers });
+  headers.set("vary", "Origin");
+  const origin = request.headers.get("origin");
+  if (origin && TRUSTED_ORIGINS.has(origin)) headers.set("access-control-allow-origin", origin);
+  return headers;
 }
 
-function isBlockedHost(hostname) {
-  const host = String(hostname || "").toLowerCase();
-  return (
-    host === "localhost" ||
-    host === "127.0.0.1" ||
-    host === "0.0.0.0" ||
-    host === "::1" ||
-    host.endsWith(".local") ||
-    /^10\./.test(host) ||
-    /^192\.168\./.test(host) ||
-    /^172\.(1[6-9]|2\d|3[0-1])\./.test(host)
-  );
+function json(request, data, init = {}) {
+  return new Response(JSON.stringify(data, null, 2), { ...init, headers: headersFor(request, init.headers) });
 }
 
-function parseSafeHttpsUrl(value, field) {
-  const raw = String(value || "").trim();
-  if (!raw) return { ok: true, empty: true, url: "", host: "" };
+async function parseRpcResponse(response) {
+  const declared = Number(response.headers.get("content-length"));
+  if (Number.isFinite(declared) && declared > MAX_BYTES) throw new Error("rpc_response_too_large");
+  const text = await response.text();
+  if (new TextEncoder().encode(text).byteLength > MAX_BYTES) throw new Error("rpc_response_too_large");
   try {
-    const url = new URL(raw);
-    if (url.protocol !== "https:") return { ok: false, error: `${field}_must_be_https` };
-    if (isBlockedHost(url.hostname)) return { ok: false, error: `${field}_host_blocked` };
-    return { ok: true, empty: false, url: url.toString(), host: url.hostname };
+    return JSON.parse(text);
   } catch {
-    return { ok: false, error: `invalid_${field}_url` };
+    throw new Error("rpc_invalid_json");
   }
 }
 
-async function rpcCall(rpcUrl, method, params = []) {
+async function rpcCall(method, params = []) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 8000);
   try {
-    const res = await fetch(rpcUrl, {
+    const response = await fetch(WORLDCHAIN_RPC_URL, {
       method: "POST",
+      redirect: "error",
       signal: controller.signal,
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", accept: "application/json" },
       body: JSON.stringify({ jsonrpc: "2.0", id: 1, method, params }),
     });
-    const text = await res.text();
-    let body = null;
-    try { body = JSON.parse(text); } catch { body = { raw: text }; }
-    if (!res.ok) throw new Error(`rpc_http_${res.status}`);
+    const body = await parseRpcResponse(response);
+    if (!response.ok) throw new Error(`rpc_http_${response.status}`);
     if (body?.error) throw new Error(`rpc_error_${body.error.code || "unknown"}`);
-    return body?.result;
+    if (body?.result == null) throw new Error("rpc_missing_result");
+    return body.result;
   } finally {
     clearTimeout(timer);
   }
 }
 
-function weiHexToGwei(hexWei) {
+function toGwei(value) {
   try {
-    const wei = BigInt(hexWei || "0x0");
-    return Number(wei) / 1e9;
+    return Number(BigInt(value || "0x0")) / 1e9;
   } catch {
     return null;
   }
 }
 
-function buildPayload({ ok, state, rpc = null, sponsor = null, notes = [] }) {
+function payload({ ok, state, rpc = null, notes = [] }) {
   return {
     ok,
-    source: "same-origin",
+    source: "wcwd_fixed_worldchain_rpc",
     state,
     generated_at: new Date().toISOString(),
     rpc,
-    sponsor,
+    sponsor: {
+      provided: false,
+      valid: false,
+      host: "",
+      note: "server_side_sponsor_url_checks_disabled",
+    },
     notes: Array.from(new Set(notes.map(String).filter(Boolean))),
-    retention: { recent_points: RETENTION.paymaster_preflight_checks.recent_points, key: PAYMASTER_CHECKS_KEY },
+    retention: { stored: false, reason: "public_get_is_read_only" },
   };
 }
 
-function compactCheck(payload) {
-  return {
-    ts: payload.generated_at,
-    ok: !!payload.ok,
-    state: payload.state,
-    rpc_host: payload.rpc?.host || "",
-    chainId: payload.rpc?.chainId || null,
-    gasPriceGwei: payload.rpc?.gasPriceGwei ?? null,
-    sponsor_host: payload.sponsor?.host || "",
-    sponsor_valid: payload.sponsor?.valid ?? null,
-    notes: Array.isArray(payload.notes) ? payload.notes.slice(0, 3) : [],
-  };
-}
-
-async function appendCheck(env, payload) {
-  const cap = RETENTION.paymaster_preflight_checks.recent_points;
-  const current = await readJson(env, PAYMASTER_CHECKS_KEY, []);
-  const list = Array.isArray(current) ? current : [];
-  const next = list.concat([compactCheck(payload)]);
-  const trimmed = next.length > cap ? next.slice(next.length - cap) : next;
-  await writeJson(env, PAYMASTER_CHECKS_KEY, trimmed);
-  return { stored: true, key: PAYMASTER_CHECKS_KEY, count: trimmed.length, cap };
-}
-
-async function withStorage(env, payload) {
-  if (!env?.HIST) return { ...payload, retention: { ...payload.retention, stored: false, reason: "missing_hist_binding" } };
-  try {
-    const stored = await appendCheck(env, payload);
-    return { ...payload, retention: { ...payload.retention, stored } };
-  } catch (error) {
-    return { ...payload, retention: { ...payload.retention, stored: false, reason: error?.message || "store_failed" } };
-  }
-}
-
-export async function handlePaymasterPreflight(request, env) {
+export async function handlePaymasterPreflight(request) {
   const url = new URL(request.url);
-  const rpcParsed = parseSafeHttpsUrl(url.searchParams.get("rpc"), "rpc");
-  const sponsorParsed = parseSafeHttpsUrl(url.searchParams.get("sponsor"), "sponsor");
-  const notes = [];
-
-  if (!rpcParsed.ok) {
-    const payload = buildPayload({ ok: false, state: "unavailable", notes: [rpcParsed.error] });
-    return json(await withStorage(env, payload), { status: 400 });
-  }
-  if (!sponsorParsed.ok) {
-    const payload = buildPayload({ ok: false, state: "unavailable", notes: [sponsorParsed.error] });
-    return json(await withStorage(env, payload), { status: 400 });
+  if (url.searchParams.has("rpc") || url.searchParams.has("sponsor")) {
+    return json(request, payload({
+      ok: false,
+      state: "unavailable",
+      notes: ["caller_external_urls_not_supported"],
+    }), { status: 400 });
   }
 
-  let rpc = null;
-  if (!rpcParsed.empty) {
-    try {
-      const chainId = await rpcCall(rpcParsed.url, "eth_chainId", []);
-      const gasPrice = await rpcCall(rpcParsed.url, "eth_gasPrice", []);
-      rpc = {
-        host: rpcParsed.host,
-        chainId,
-        gasPrice,
-        gasPriceGwei: weiHexToGwei(gasPrice),
-        ok: true,
-      };
-    } catch (error) {
-      rpc = { host: rpcParsed.host, ok: false, error: error?.message || "rpc_failed" };
-      notes.push(rpc.error);
-    }
-  } else {
-    notes.push("rpc_not_provided");
+  const host = new URL(WORLDCHAIN_RPC_URL).hostname;
+  try {
+    const chainId = await rpcCall("eth_chainId");
+    const gasPrice = await rpcCall("eth_gasPrice");
+    const gasPriceGwei = toGwei(gasPrice);
+    const expectedChainId = "0x1e0";
+    const chainMatches = String(chainId || "").toLowerCase() === expectedChainId;
+    const notes = [];
+    if (!chainMatches) notes.push("unexpected_chain_id");
+    if (gasPriceGwei == null) notes.push("invalid_gas_price");
+    const ok = chainMatches && gasPriceGwei != null;
+    return json(request, payload({
+      ok,
+      state: ok ? "fresh" : "degraded",
+      rpc: { host, chainId, expectedChainId, chainMatches, gasPrice, gasPriceGwei, ok },
+      notes,
+    }));
+  } catch (error) {
+    const reason = error?.name === "AbortError" ? "rpc_timeout" : error?.message || "rpc_failed";
+    return json(request, payload({
+      ok: false,
+      state: "unavailable",
+      rpc: { host, ok: false, error: reason },
+      notes: [reason],
+    }));
   }
-
-  const sponsor = sponsorParsed.empty
-    ? { provided: false, valid: false, host: "", note: "sponsor_not_provided" }
-    : {
-        provided: true,
-        valid: true,
-        host: sponsorParsed.host,
-        note: "validated_url_only_no_server_post",
-      };
-
-  if (!sponsor.provided) notes.push("sponsor_not_provided");
-  else notes.push("sponsor_url_validated_without_post");
-
-  const ok = (rpc ? rpc.ok !== false : true) && (sponsor.provided ? sponsor.valid : true);
-  const state = ok ? (sponsor.provided ? "fresh" : "degraded") : "unavailable";
-  const payload = buildPayload({ ok, state, rpc, sponsor, notes });
-  return json(await withStorage(env, payload));
 }
