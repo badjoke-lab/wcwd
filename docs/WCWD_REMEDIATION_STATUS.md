@@ -1,10 +1,10 @@
 # WCWD Remediation Status
 
 **Status:** Active  
-**Last updated:** 2026-06-18 after PR 4 merge  
-**Current position:** PR 5 — Correct Monitor metric meaning and timestamps  
-**Latest merged remediation PR:** #168  
-**Latest merge commit:** `eb60bc0a968fa69aeac2b8d8f572e4c57ba841f5`
+**Last updated:** 2026-06-18 after PR 5 merge  
+**Current position:** PR 6 — Cache, timeout, cancellation, and request consolidation  
+**Latest merged remediation PR:** #169  
+**Latest merge commit:** `0b4740a191215ce0160c47065fe46e3786f96fdf`
 
 Repository completion and production rollout are recorded separately.
 
@@ -17,8 +17,8 @@ Repository completion and production rollout are recorded separately.
 | PR 2 | Canonical Pages artifact and source verification | Merged — #166; production pending |
 | PR 3 | Read-only history API and removal of public mutation routes | Merged — #167; production pending |
 | PR 4 | Fixed external fetch and exact Pages proxy boundary | Merged — #168; production pending |
-| PR 5 | Monitor metric and timestamp semantics | Next |
-| PR 6 | Cache, timeout, cancellation, request consolidation | Not started |
+| PR 5 | Monitor metric and timestamp semantics | Merged — #169; production pending |
+| PR 6 | Cache, timeout, cancellation, request consolidation | Next |
 | PR 7 | Build, route, sitemap, and CI drift unification | Not started |
 | PR 8 | Alert thresholds and event lifecycle | Not started |
 | PR 9 | Ecosystem data validation | Not started |
@@ -66,6 +66,20 @@ Repository completion and production rollout are recorded separately.
 - Hosted SEO Check run #65 passed all guards, negative tests, syntax, SEO, build, and artifact validation.
 - Pages and Worker production deployments remain pending.
 
+### PR 5 — #169
+
+- Merge commit: `0b4740a191215ce0160c47065fe46e3786f96fdf`.
+- Merge method: non-force fast-forward after the immediate merge endpoint was blocked; GitHub records the PR as merged.
+- TPS and sampled activity shares are explicitly labeled estimates.
+- A measured rolling 24-hour transaction count is unavailable instead of being synthesized as TPS × 86,400.
+- Address totals and unsupported market fields are shown as unavailable.
+- Response-generation, observation, source, and deployment timestamps are separated.
+- Unknown deployment time remains `null`.
+- Daily records are displayed only when they declare a valid UTC calendar-day boundary.
+- Old Cron wording was removed from the Monitor.
+- Hosted SEO Check run #68 passed all existing guards plus the new Monitor semantic tests, build, and artifact validation.
+- Production deployment remains pending.
+
 ## Open production gates
 
 1. Identify the existing Pages project and custom-domain attachment.
@@ -73,16 +87,13 @@ Repository completion and production rollout are recorded separately.
 3. Disable any competing stale deployment path.
 4. Manually deploy Pages and Worker from a successful hosted-CI commit.
 5. Verify public source commit markers and removed-route behavior.
-6. Verify the hardened API boundary in production.
+6. Verify the hardened API and Monitor semantics in production.
 7. Confirm Cloudflare Cron Trigger remains zero.
 
-## Next PR: PR 5
+## Next PR: PR 6
 
-Correct Monitor metric meaning and timestamps:
-
-- remove the TPS multiplication presented as a 24-hour transaction total;
-- define UTC calendar-day semantics;
-- keep unknown deployment time unknown;
-- distinguish measured, estimated, stale, delayed, degraded, and unavailable values;
-- carry source and observation timestamps into the UI;
-- add semantic regression tests.
+- apply explicit route-specific cache policies instead of universal `no-store`;
+- ensure remaining external/browser fetches have bounded timeouts and cancellation;
+- remove duplicate Monitor summary requests;
+- consolidate related reads without introducing background work or persistent cache writes;
+- add regression tests for cache headers, timeout behavior, and request counts.
