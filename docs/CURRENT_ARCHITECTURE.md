@@ -1,7 +1,7 @@
 # WCWD Current Architecture
 
 **Status:** Active source of truth  
-**Effective date:** 2026-06-17  
+**Effective date:** 2026-06-18  
 **Repository:** `badjoke-lab/wcwd`
 
 This document overrides older WCWD notes, schedules, paid-plan drafts, and implementation plans wherever they conflict with the rules below.
@@ -28,7 +28,30 @@ WCWD is Pages-first. Static HTML, CSS, JavaScript, and reviewed static data are 
 
 `src/worker.js` is a read-only history API over existing bounded KV records. It reads latest/history/health/events/daily/series data but does not collect snapshots, append events, generate daily records, enforce retention, or expose `/run`.
 
-The only remaining Worker route that may write is `POST /api/test-notify`. It is not a public administrative route: it returns 404 when `ADMIN_TOKEN` is unset and requires an exact bearer token when configured. It is retained solely for explicit operator notification testing.
+The only remaining Worker route that may write is `POST /api/test-notify`. It returns 404 when `ADMIN_TOKEN` is unset and requires an exact bearer token when configured. It is retained solely for explicit operator notification testing and is not exposed by the Pages API proxy.
+
+## External fetch boundary
+
+Oracle and Paymaster server routes do not accept caller-selected external URLs.
+
+- `GET /api/oracles/feed` accepts only a feed contract address.
+- `GET /api/paymaster/preflight` accepts no RPC or sponsor URL.
+- Both routes use the fixed public World Chain Mainnet RPC declared in source.
+- Redirect following is disabled.
+- Requests have an eight-second timeout.
+- Responses are limited to 64 KiB and must be valid JSON-RPC payloads.
+- Public GET results are returned without being appended to KV history.
+- Sponsor endpoint testing is client-owned: WCWD can generate a curl template but does not fetch or POST to the supplied sponsor URL.
+
+The Pages Function at `functions/api/[[path]].js` is an allowlisted read proxy, not a general catch-all proxy.
+
+- Only exact approved GET routes are forwarded.
+- Unknown routes, write methods, and the notification route are rejected.
+- Only minimal request headers are forwarded.
+- The upstream origin is fixed to the WCWD Worker.
+- Redirect following is disabled.
+- Upstream responses are limited to 1 MiB and time out after ten seconds.
+- Browser CORS access is limited to trusted WCWD origins.
 
 ## Removed public write routes
 
@@ -38,11 +61,13 @@ The following routes are intentionally absent and must return 404:
 - `POST /api/retention/enforce`
 - `POST /api/sell-impact/watchlist/run`
 
-Their absence and the read-only behavior of `GET /api/retention` are enforced by:
+Their absence, read-only retention behavior, and fixed-fetch policy are enforced by:
 
 ```bash
 python3 scripts/check_no_public_write_routes.py
+python3 scripts/check_external_fetch_policy.py
 node --experimental-default-type=module scripts/test_read_only_worker.mjs
+node --experimental-default-type=module scripts/test_external_fetch_policy.mjs
 ```
 
 ## Data updates
@@ -53,18 +78,24 @@ Existing KV history may still be displayed, but WCWD no longer contains a recurr
 
 ## Deployment
 
-Worker deployment is manual. Before any Worker deployment, run:
+Worker and Pages deployments are manual. Before deploying either surface, the selected commit must have a successful hosted CI run and the relevant local guards must pass.
+
+Worker pre-deploy commands:
 
 ```bash
 python3 scripts/check_no_cloudflare_automation.py
 python3 scripts/check_no_public_write_routes.py
+python3 scripts/check_external_fetch_policy.py
 node --check src/entrypoint.js
 node --check src/index.js
 node --check src/worker.js
+node --check src/oracles-feed.js
+node --check src/paymaster-preflight.js
 node --experimental-default-type=module scripts/test_read_only_worker.mjs
+node --experimental-default-type=module scripts/test_external_fetch_policy.mjs
 ```
 
-A deployment must be rejected if any guard detects a Cron declaration, scheduled handler, unapproved scheduled GitHub Action, forbidden metered binding, removed public route, or write side effect on the retention GET route.
+A deployment must be rejected if any guard detects a Cron declaration, scheduled handler, unapproved scheduled GitHub Action, forbidden metered binding, removed public route, retention GET write, caller-selected server fetch, broad proxy route, or untrusted CORS access.
 
 ## Change control
 
