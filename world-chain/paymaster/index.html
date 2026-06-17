@@ -3,17 +3,17 @@
 <head>
   <meta charset="utf-8" />
   <title>WCWD — World Chain Paymaster Preflight</title>
-  <meta name="description" content="Check paymaster and sponsor endpoint readiness with same-origin RPC preflight, validation notes, and browser fallback." />
+  <meta name="description" content="Check World Chain RPC readiness through WCWD and prepare a local sponsor endpoint test template without server-side proxying." />
   <link rel="canonical" href="https://wcwd.badjoke-lab.com/world-chain/paymaster/">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="WCWD">
   <meta property="og:title" content="WCWD — World Chain Paymaster Preflight">
-  <meta property="og:description" content="Check paymaster and sponsor endpoint readiness with same-origin RPC preflight, validation notes, and browser fallback.">
+  <meta property="og:description" content="Check World Chain RPC readiness through WCWD and prepare a local sponsor endpoint test template without server-side proxying.">
   <meta property="og:url" content="https://wcwd.badjoke-lab.com/world-chain/paymaster/">
   <meta property="og:image" content="https://wcwd.badjoke-lab.com/og.png">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="WCWD — World Chain Paymaster Preflight">
-  <meta name="twitter:description" content="Check paymaster and sponsor endpoint readiness with same-origin RPC preflight, validation notes, and browser fallback.">
+  <meta name="twitter:description" content="Check World Chain RPC readiness through WCWD and prepare a local sponsor endpoint test template without server-side proxying.">
   <meta name="twitter:image" content="https://wcwd.badjoke-lab.com/og.png">
   <link rel="icon" href="/favicon.ico" sizes="any" />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
@@ -47,98 +47,81 @@
 <section class="hero">
   <div class="container">
     <h1>World Chain Paymaster Preflight</h1>
-    <p class="lead">Browser-side sponsor endpoint and RPC preflight helper.</p>
-    <p class="muted small">Current mode: browser-only tester. Paid-plan path: same-origin preflight templates, normalized response state, and bounded compact checks.</p>
+    <p class="lead">Check World Chain RPC readiness and prepare a sponsor request template.</p>
+    <p class="muted small">WCWD uses a fixed RPC for the network check. Sponsor endpoints are never fetched or posted to by WCWD servers.</p>
   </div>
 </section>
 
 <main class="container">
-    <section class="card">
-      <p class="card-title">Tool role</p>
+  <section class="card">
+    <p class="card-title">Tool role</p>
+    <div class="grid">
+      <div class="col-4">
+        <div class="label">Network check</div>
+        <p class="muted small">Reads chain ID and gas price through WCWD's fixed World Chain Mainnet RPC path.</p>
+      </div>
+      <div class="col-4">
+        <div class="label">Sponsor template</div>
+        <p class="muted small">Builds a copyable curl command locally. WCWD does not send it.</p>
+      </div>
+      <div class="col-4">
+        <div class="label">Storage</div>
+        <p class="muted small">Public preflight GET requests are read-only and are not added to Worker history.</p>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <p class="card-title">Local sponsor template</p>
+    <div class="form">
       <div class="grid">
-        <div class="col-4">
-          <div class="label">Current state</div>
-          <p class="muted small">Browser-only helper for RPC ping, optional sponsor POST, and copyable curl templates.</p>
+        <div class="col-6">
+          <div class="label">Sponsor / Paymaster Endpoint</div>
+          <input id="sponsorUrl" class="input" placeholder="https://.../sponsor" autocomplete="off" spellcheck="false" />
+          <p class="muted small" style="margin:6px 0 0;">Used only to build a local curl template.</p>
         </div>
-        <div class="col-4">
-          <div class="label">Limitations</div>
-          <p class="muted small">CORS can block browser calls. Sponsor APIs vary by project, so this page does not assume one schema.</p>
-        </div>
-        <div class="col-4">
-          <div class="label">Next paid-plan step</div>
-          <p class="muted small">Add a same-origin preflight route with normalized state and keep only bounded compact checks.</p>
+        <div class="col-6">
+          <div class="label">App / Project ID</div>
+          <input id="appId" class="input" placeholder="e.g. wcwd-dev" autocomplete="off" />
         </div>
       </div>
-    </section>
-
-    <section class="card">
-      <p class="card-title">Config</p>
-
-      <div class="form">
-        <div class="grid">
-          <div class="col-6">
-            <div class="label">JSON-RPC URL (optional)</div>
-            <input id="rpcUrl" class="input" placeholder="https://... (CORS may block in browser)" />
-            <p class="muted small" style="margin:6px 0 0;">If CORS blocks, use a proxy or test from a backend/worker.</p>
-          </div>
-          <div class="col-6">
-            <div class="label">Sponsor / Paymaster Endpoint (optional)</div>
-            <input id="sponsorUrl" class="input" placeholder="https://.../sponsor" />
-            <p class="muted small" style="margin:6px 0 0;">Any POST endpoint that accepts JSON. This page won’t assume a specific schema.</p>
-          </div>
-        </div>
-
-        <div class="grid">
-          <div class="col-6">
-            <div class="label">App / Project ID (optional)</div>
-            <input id="appId" class="input" placeholder="e.g. wcwd-dev" />
-          </div>
-          <div class="col-6">
-            <div class="label">Note (optional)</div>
-            <input id="note" class="input" placeholder="free memo" />
-          </div>
-        </div>
-
-        <div class="row">
-          <button id="btnSave" class="btn">Save</button>
-          <button id="btnReset" class="btn ghost" type="button">Reset</button>
-        </div>
-      </div>
-
-      <div id="statusMount"></div>
-    </section>
-
-    <section class="card">
-      <p class="card-title">Preflight</p>
-      <p class="card-sub">Try JSON-RPC calls and/or sponsor POST.</p>
-
+      <div class="label">Note</div>
+      <input id="note" class="input" placeholder="free memo" autocomplete="off" />
       <div class="row">
-        <button id="btnRpcPing" class="btn">RPC: chainId + gasPrice</button>
-        <button id="btnSponsorPing" class="btn">Sponsor: POST sample</button>
-        <button id="btnCopyCurlRpc" class="btn secondary" type="button">Copy RPC curl</button>
-        <button id="btnCopyCurlSponsor" class="btn secondary" type="button">Copy Sponsor curl</button>
+        <button id="btnSave" class="btn">Save locally</button>
+        <button id="btnReset" class="btn ghost" type="button">Reset</button>
       </div>
+    </div>
+    <div id="statusMount"></div>
+  </section>
 
-      <pre id="out" class="card small" style="white-space:pre-wrap; overflow:auto; margin-top:10px; display:none;"></pre>
-    </section>
+  <section class="card">
+    <p class="card-title">Preflight</p>
+    <div class="row">
+      <button id="btnRpcPing" class="btn">Check World Chain RPC</button>
+      <button id="btnCopyCurlSponsor" class="btn secondary" type="button">Copy Sponsor curl</button>
+    </div>
+    <pre id="out" class="card small" style="white-space:pre-wrap; overflow:auto; margin-top:10px; display:none;"></pre>
+  </section>
 
-    <section class="card">
-      <p class="card-title">Checklist (quick)</p>
-      <textarea id="checklist" class="textarea" readonly></textarea>
-      <div class="row" style="margin-top:8px;">
-        <button id="btnCopyChecklist" class="btn secondary" type="button">Copy Checklist</button>
-      </div>
-    </section>
+  <section class="card">
+    <p class="card-title">Checklist</p>
+    <textarea id="checklist" class="textarea" readonly></textarea>
+    <div class="row" style="margin-top:8px;">
+      <button id="btnCopyChecklist" class="btn secondary" type="button">Copy Checklist</button>
+    </div>
+  </section>
 
-    <section class="card">
-      <p class="card-title">Implementation path</p>
-      <ul>
-        <li>Normalize preflight result into <code>fresh / stale / degraded / unavailable</code>.</li>
-        <li>Expose a same-origin <code>/api/paymaster/preflight</code> route for safe template checks.</li>
-        <li>Keep only compact bounded check history after the API contract is stable.</li>
-      </ul>
-    </section>
-  </main>
+  <section class="card">
+    <p class="card-title">Safety model</p>
+    <ul>
+      <li>Caller-selected RPC URLs are not accepted by the Worker.</li>
+      <li>Sponsor URLs are not validated, fetched, or posted to by the Worker.</li>
+      <li>Network responses are time-limited, redirect-blocked, and size-limited.</li>
+      <li>The generated sponsor curl must be reviewed before running it yourself.</li>
+    </ul>
+  </section>
+</main>
 <footer class="footer">
   <div class="container">
     <div class="grid">
@@ -149,7 +132,7 @@
     </div>
   </div>
 </footer>
-  <script src="/assets/common.js"></script>
-  <script src="./app.js"></script>
+<script src="/assets/common.js"></script>
+<script src="./app.js"></script>
 </body>
 </html>

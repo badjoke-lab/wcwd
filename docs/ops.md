@@ -2,7 +2,7 @@
 
 **Current operating model:** manual deployment, no Cloudflare Cron, no background collection.
 
-This document is subordinate to `docs/CURRENT_ARCHITECTURE.md`. Older Cron/KV operating instructions are cancelled.
+This document is subordinate to `docs/CURRENT_ARCHITECTURE.md`. Older Cron/KV and arbitrary-proxy operating instructions are cancelled.
 
 ## 1. Services
 
@@ -19,6 +19,9 @@ Run from a clean checkout:
 ```bash
 python3 scripts/check_no_cloudflare_automation.py
 python3 scripts/check_no_public_write_routes.py
+python3 scripts/check_external_fetch_policy.py
+node --experimental-default-type=module scripts/test_read_only_worker.mjs
+node --experimental-default-type=module scripts/test_external_fetch_policy.mjs
 python3 scripts/build_pages.py
 python3 scripts/gen_sitemap.py
 git diff --exit-code
@@ -26,11 +29,11 @@ python3 scripts/build_pages_dist.py --commit "$(git rev-parse HEAD)"
 python3 scripts/check_pages_artifact.py dist --expected-commit "$(git rev-parse HEAD)"
 ```
 
-`dist/` is the approved Pages upload directory. Uploading the repository root is prohibited because it can expose internal files and makes the deployed output ambiguous.
+`dist/` is the approved Pages upload directory. Uploading the repository root is prohibited. The experimental `test/` tree must not appear in the artifact.
 
 ## 3. Canonical Pages deployment
 
-Use the manual GitHub workflow `.github/workflows/deploy-pages.yml`.
+Use the manual GitHub workflow `.github/workflows/deploy-pages.yml` only after the selected commit has a successful hosted SEO Check run.
 
 Required inputs:
 
@@ -45,7 +48,27 @@ Required repository secrets:
 
 The workflow disables Wrangler auto-create/provision behavior. It must fail rather than create a new project when the supplied project name is wrong.
 
-## 4. Production verification
+## 4. Pages API proxy policy
+
+`functions/api/[[path]].js` is an exact allowlisted GET proxy.
+
+- It forwards only listed read routes to the fixed WCWD Worker origin.
+- It does not forward POST bodies, authorization headers, cookies, or arbitrary request headers.
+- Unknown routes and non-GET methods return an error without reaching the Worker.
+- `/api/test-notify` is intentionally not proxied.
+- Browser CORS access is limited to trusted WCWD origins.
+- Redirects are rejected.
+- Upstream requests time out after ten seconds.
+- Responses larger than 1 MiB are rejected.
+
+Before deploying Pages, run:
+
+```bash
+python3 scripts/check_external_fetch_policy.py
+node --experimental-default-type=module scripts/test_external_fetch_policy.mjs
+```
+
+## 5. Production verification
 
 Every production deployment must pass:
 
@@ -55,16 +78,11 @@ python3 scripts/check_production_source.py \
   --expected-commit "$(git rev-parse HEAD)"
 ```
 
-The verification checks:
-
-- `/version.json` commit;
-- the commit marker embedded in Home HTML;
-- current Home section markers;
-- absence of the obsolete combined Home/Monitor content.
+The verification checks `/version.json`, the Home build marker, current Home structure, and absence of obsolete combined Home/Monitor content.
 
 A successful repository merge is not a successful production deployment. Record repository state and production state separately.
 
-## 5. Cloudflare dashboard settings requiring manual confirmation
+## 6. Cloudflare dashboard settings requiring manual confirmation
 
 The repository cannot inspect these settings directly. Before declaring production repaired, record evidence for:
 
@@ -76,39 +94,49 @@ The repository cannot inspect these settings directly. Before declaring producti
 - Cloudflare Cron Triggers = 0;
 - no unexpected Queues, Workflows, Durable Object alarms, or other recurring resources.
 
-If Git integration is stale or points to a different branch/output, either correct it to the canonical build or disable automatic deployments and use the manual Direct Upload workflow. Do not operate two competing production deployment paths.
+If Git integration is stale or points to a different branch/output, correct it or disable it. Do not operate two competing production deployment paths.
 
-## 6. Worker deployment
+## 7. Worker deployment
 
 Use `.github/workflows/deploy-history-worker.yml` manually. Before deployment it runs:
 
 ```bash
 python3 scripts/check_no_cloudflare_automation.py
 python3 scripts/check_no_public_write_routes.py
+python3 scripts/check_external_fetch_policy.py
 node --check src/entrypoint.js
 node --check src/index.js
 node --check src/worker.js
+node --check src/oracles-feed.js
+node --check src/paymaster-preflight.js
 node --experimental-default-type=module scripts/test_read_only_worker.mjs
+node --experimental-default-type=module scripts/test_external_fetch_policy.mjs
 ```
 
 The Worker reads existing bounded KV records. It does not collect new snapshots or generate history automatically.
 
-The following routes are removed and must return 404:
+Removed routes that must return 404:
 
 - `POST /run`
 - `POST /api/retention/enforce`
 - `POST /api/sell-impact/watchlist/run`
 
-`GET /api/retention` is read-only. The authenticated `POST /api/test-notify` remains available only when `ADMIN_TOKEN` is explicitly configured.
+`GET /api/retention` is read-only. The authenticated `POST /api/test-notify` remains available only when `ADMIN_TOKEN` is configured and is not exposed through Pages.
 
-Do not restore:
+## 8. Oracle and Paymaster external fetch policy
 
-- Wrangler `[triggers]` / `crons`;
-- any Worker `scheduled()` handler;
-- an automatic deployment schedule;
-- a public collection or retention-enforcement route.
+- The Worker uses the fixed World Chain Mainnet public RPC defined in source.
+- A request containing `rpc=` is rejected.
+- Paymaster preflight also rejects `sponsor=`.
+- Oracle and Paymaster GET requests do not write KV.
+- RPC redirects are rejected.
+- Each RPC request has an eight-second timeout.
+- Each RPC response is limited to 64 KiB.
+- Sponsor endpoint requests are never sent by WCWD; the page generates a local curl template only.
 
-## 7. Incident recovery
+Do not restore caller-selected server fetch targets, browser fallback claims in the page copy, or compact-check history writes from public GET requests.
+
+## 9. Incident recovery
 
 When production content does not match `main`:
 
@@ -121,4 +149,4 @@ When production content does not match `main`:
 7. rerun the production source checker;
 8. record the deployment commit and verification result in `docs/WCWD_REMEDIATION_STATUS.md`.
 
-Do not fix a stale site by restoring old build scripts, uploading an unknown directory, or re-enabling Cron.
+Do not fix a stale site by restoring old build scripts, uploading an unknown directory, re-enabling Cron, or reopening a general-purpose proxy.

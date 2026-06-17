@@ -3,17 +3,17 @@
 <head>
   <meta charset="utf-8" />
   <title>WCWD — World Chain Oracle Feed Tester</title>
-  <meta name="description" content="Test oracle feed responses through same-origin API support and browser fallback for World Chain builder workflows." />
+  <meta name="description" content="Check an AggregatorV3 feed on World Chain through WCWD's fixed same-origin RPC service." />
   <link rel="canonical" href="https://wcwd.badjoke-lab.com/world-chain/oracles/">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="WCWD">
   <meta property="og:title" content="WCWD — World Chain Oracle Feed Tester">
-  <meta property="og:description" content="Test oracle feed responses through same-origin API support and browser fallback for World Chain builder workflows.">
+  <meta property="og:description" content="Check an AggregatorV3 feed on World Chain through WCWD's fixed same-origin RPC service.">
   <meta property="og:url" content="https://wcwd.badjoke-lab.com/world-chain/oracles/">
   <meta property="og:image" content="https://wcwd.badjoke-lab.com/og.png">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="WCWD — World Chain Oracle Feed Tester">
-  <meta name="twitter:description" content="Test oracle feed responses through same-origin API support and browser fallback for World Chain builder workflows.">
+  <meta name="twitter:description" content="Check an AggregatorV3 feed on World Chain through WCWD's fixed same-origin RPC service.">
   <meta name="twitter:image" content="https://wcwd.badjoke-lab.com/og.png">
   <link rel="icon" href="/favicon.ico" sizes="any" />
   <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
@@ -47,69 +47,60 @@
 <section class="hero">
   <div class="container">
     <h1>Oracle Feed Tester</h1>
-    <p class="lead">Browser-side AggregatorV3 feed check for World Chain builders.</p>
-    <p class="muted small">Current mode: browser-only RPC call helper. Paid-plan path: same-origin feed metadata, freshness checks, and bounded test history.</p>
+    <p class="lead">Read an AggregatorV3 feed through WCWD's fixed World Chain RPC path.</p>
+    <p class="muted small">The server does not accept caller-selected RPC URLs, does not follow redirects, and does not save public feed checks.</p>
   </div>
 </section>
 
 <main class="container">
-    <section class="card">
-      <p class="card-title">Tool role</p>
-      <div class="grid">
-        <div class="col-4">
-          <div class="label">Current state</div>
-          <p class="muted small">Browser-only feed tester. It calls <code>decimals()</code> and <code>latestRoundData()</code> via the RPC URL you provide.</p>
-        </div>
-        <div class="col-4">
-          <div class="label">Limitations</div>
-          <p class="muted small">RPC CORS can block requests. This page does not yet maintain server-owned feed freshness or historical feed observations.</p>
-        </div>
-        <div class="col-4">
-          <div class="label">Next paid-plan step</div>
-          <p class="muted small">Move common checks to a same-origin API, return normalized status, and store only bounded compact feed checks.</p>
-        </div>
+  <section class="card">
+    <p class="card-title">Tool role</p>
+    <div class="grid">
+      <div class="col-4">
+        <div class="label">Current state</div>
+        <p class="muted small">Same-origin feed check using WCWD's fixed World Chain Mainnet RPC.</p>
       </div>
-    </section>
-
-    <section class="card">
-      <p class="card-title">Inputs</p>
-      <div class="form">
-        <div class="grid">
-          <div class="col-6">
-            <div class="label">JSON-RPC URL</div>
-            <input id="rpcUrl" class="input" placeholder="https://..." />
-          </div>
-          <div class="col-6">
-            <div class="label">Feed Contract Address</div>
-            <input id="feedAddr" class="input" placeholder="0x..." />
-          </div>
-        </div>
-
-        <div class="row">
-          <button id="btnFetch" class="btn">Fetch (decimals + latestRoundData)</button>
-          <button id="btnCopyCurl" class="btn secondary" type="button">Copy curl</button>
-          <button id="btnSave" class="btn ghost" type="button">Save</button>
-          <button id="btnReset" class="btn ghost" type="button">Reset</button>
-        </div>
+      <div class="col-4">
+        <div class="label">Server boundary</div>
+        <p class="muted small">Only the feed contract address is accepted. External RPC URL input is rejected.</p>
       </div>
+      <div class="col-4">
+        <div class="label">Storage</div>
+        <p class="muted small">Public GET requests are read-only. Results are returned to this page and are not added to history.</p>
+      </div>
+    </div>
+  </section>
 
-      <div id="statusMount"></div>
-    </section>
+  <section class="card">
+    <p class="card-title">Input</p>
+    <div class="form">
+      <div class="label">Feed Contract Address</div>
+      <input id="feedAddr" class="input" placeholder="0x..." autocomplete="off" spellcheck="false" />
+      <div class="row">
+        <button id="btnFetch" class="btn">Fetch feed</button>
+        <button id="btnCopyCurl" class="btn secondary" type="button">Copy API curl</button>
+        <button id="btnSave" class="btn ghost" type="button">Save address</button>
+        <button id="btnReset" class="btn ghost" type="button">Reset</button>
+      </div>
+    </div>
+    <div id="statusMount"></div>
+  </section>
 
-    <section class="card">
-      <p class="card-title">Result</p>
-      <pre id="out" class="card small" style="white-space:pre-wrap; overflow:auto; display:none;"></pre>
-    </section>
+  <section class="card">
+    <p class="card-title">Result</p>
+    <pre id="out" class="card small" style="white-space:pre-wrap; overflow:auto; display:none;"></pre>
+  </section>
 
-    <section class="card">
-      <p class="card-title">Implementation path</p>
-      <ul>
-        <li>Normalize feed result into <code>fresh / stale / degraded / unavailable</code>.</li>
-        <li>Expose a same-origin <code>/api/oracles/*</code> route for known feeds.</li>
-        <li>Keep only compact bounded history after the API contract is stable.</li>
-      </ul>
-    </section>
-  </main>
+  <section class="card">
+    <p class="card-title">Safety model</p>
+    <ul>
+      <li>The Worker calls only WCWD's fixed World Chain Mainnet RPC endpoint.</li>
+      <li>Caller-selected RPC, local-network, metadata, and redirect targets are not supported.</li>
+      <li>Responses are size-limited and time-limited.</li>
+      <li>This is a best-effort developer utility, not a price guarantee or financial advice.</li>
+    </ul>
+  </section>
+</main>
 <footer class="footer">
   <div class="container">
     <div class="grid">
@@ -120,7 +111,7 @@
     </div>
   </div>
 </footer>
-  <script src="/assets/common.js"></script>
-  <script src="./app.js"></script>
+<script src="/assets/common.js"></script>
+<script src="./app.js"></script>
 </body>
 </html>

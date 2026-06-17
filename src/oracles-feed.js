@@ -1,15 +1,29 @@
-import { RETENTION, readJson, writeJson } from "./retention.js";
-
 const SEL_DECIMALS = "0x313ce567";
 const SEL_LATEST = "0xfeaf968c";
-const ORACLE_CHECKS_KEY = "oracles:feed:recent";
+const WORLDCHAIN_RPC_URL = "https://worldchain-mainnet.g.alchemy.com/public";
+const RPC_RESPONSE_MAX_BYTES = 64 * 1024;
+const TRUSTED_ORIGINS = new Set([
+  "https://wcwd.badjoke-lab.com",
+  "https://wcwd.pages.dev",
+]);
 
-function json(data, init = {}) {
-  const headers = new Headers(init.headers || {});
+function responseHeaders(request, initHeaders = {}) {
+  const headers = new Headers(initHeaders);
   headers.set("content-type", "application/json; charset=utf-8");
   headers.set("cache-control", "no-store");
-  headers.set("access-control-allow-origin", "*");
-  return new Response(JSON.stringify(data, null, 2), { ...init, headers });
+  headers.set("vary", "Origin");
+  const origin = request.headers.get("origin");
+  if (origin && TRUSTED_ORIGINS.has(origin)) {
+    headers.set("access-control-allow-origin", origin);
+  }
+  return headers;
+}
+
+function json(request, data, init = {}) {
+  return new Response(JSON.stringify(data, null, 2), {
+    ...init,
+    headers: responseHeaders(request, init.headers),
+  });
 }
 
 function isAddress(value) {
@@ -17,172 +31,139 @@ function isAddress(value) {
 }
 
 function strip0x(value) {
-  const s = String(value || "");
-  return s.startsWith("0x") ? s.slice(2) : s;
+  const text = String(value || "");
+  return text.startsWith("0x") ? text.slice(2) : text;
 }
 
 function chunks64(hex) {
-  const s = strip0x(hex);
-  const out = [];
-  for (let i = 0; i < s.length; i += 64) out.push(s.slice(i, i + 64));
-  return out;
+  const text = strip0x(hex);
+  const output = [];
+  for (let index = 0; index < text.length; index += 64) output.push(text.slice(index, index + 64));
+  return output;
 }
 
 function hexToBigInt(hex) {
-  const s = strip0x(hex || "0");
-  if (!s) return 0n;
-  return BigInt("0x" + s);
+  const text = strip0x(hex || "0");
+  return text ? BigInt(`0x${text}`) : 0n;
 }
 
 function hexToSignedBigInt(hex) {
-  const x = hexToBigInt(hex);
+  const value = hexToBigInt(hex);
   const two255 = 1n << 255n;
   const two256 = 1n << 256n;
-  return x >= two255 ? x - two256 : x;
+  return value >= two255 ? value - two256 : value;
 }
 
 function formatScaled(answer, decimals) {
-  const neg = answer < 0n;
-  const value = neg ? -answer : answer;
-  const d = BigInt(decimals);
-  const base = 10n ** d;
+  const negative = answer < 0n;
+  const value = negative ? -answer : answer;
+  const digits = BigInt(decimals);
+  const base = 10n ** digits;
   const whole = value / base;
-  const frac = value % base;
-  let fracText = frac.toString().padStart(Number(d), "0").replace(/0+$/, "");
-  return `${neg ? "-" : ""}${whole.toString()}${fracText ? "." + fracText : ""}`;
+  const fraction = value % base;
+  const fractionText = fraction.toString().padStart(Number(digits), "0").replace(/0+$/, "");
+  return `${negative ? "-" : ""}${whole.toString()}${fractionText ? `.${fractionText}` : ""}`;
 }
 
-function isBlockedHost(hostname) {
-  const host = String(hostname || "").toLowerCase();
-  return (
-    host === "localhost" ||
-    host === "127.0.0.1" ||
-    host === "0.0.0.0" ||
-    host === "::1" ||
-    host.endsWith(".local") ||
-    /^10\./.test(host) ||
-    /^192\.168\./.test(host) ||
-    /^172\.(1[6-9]|2\d|3[0-1])\./.test(host)
-  );
-}
-
-function parseRpcUrl(value) {
+async function readRpcJson(response) {
+  const declared = Number(response.headers.get("content-length"));
+  if (Number.isFinite(declared) && declared > RPC_RESPONSE_MAX_BYTES) {
+    throw new Error("rpc_response_too_large");
+  }
+  const text = await response.text();
+  if (new TextEncoder().encode(text).byteLength > RPC_RESPONSE_MAX_BYTES) {
+    throw new Error("rpc_response_too_large");
+  }
   try {
-    const url = new URL(String(value || ""));
-    if (url.protocol !== "https:") return { ok: false, error: "rpc_must_be_https" };
-    if (isBlockedHost(url.hostname)) return { ok: false, error: "rpc_host_blocked" };
-    return { ok: true, url: url.toString() };
+    return JSON.parse(text);
   } catch {
-    return { ok: false, error: "invalid_rpc_url" };
+    throw new Error("rpc_invalid_json");
   }
 }
 
-async function rpcCall(rpcUrl, to, data) {
+async function rpcCall(to, data) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 8000);
   try {
-    const res = await fetch(rpcUrl, {
+    const response = await fetch(WORLDCHAIN_RPC_URL, {
       method: "POST",
+      redirect: "error",
       signal: controller.signal,
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "eth_call", params: [{ to, data }, "latest"] }),
+      headers: {
+        "content-type": "application/json",
+        "accept": "application/json",
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "eth_call",
+        params: [{ to, data }, "latest"],
+      }),
     });
-    const text = await res.text();
-    let body = null;
-    try { body = JSON.parse(text); } catch { body = { raw: text }; }
-    if (!res.ok) throw new Error(`http_${res.status}`);
+    const body = await readRpcJson(response);
+    if (!response.ok) throw new Error(`rpc_http_${response.status}`);
     if (body?.error) throw new Error(`rpc_error_${body.error.code || "unknown"}`);
-    if (typeof body?.result !== "string") throw new Error("missing_result");
+    if (typeof body?.result !== "string") throw new Error("rpc_missing_result");
     return body.result;
   } finally {
     clearTimeout(timer);
   }
 }
 
-function compactCheck(payload) {
-  return {
-    ts: payload.generated_at,
-    ok: !!payload.ok,
-    state: payload.state,
-    feed: payload.feed,
-    rpc_host: payload.rpc_host,
-    answer_scaled: payload.result?.answer_scaled || null,
-    updatedAt: payload.result?.updatedAt || null,
-    age_sec: payload.result?.age_sec ?? null,
-    notes: Array.isArray(payload.notes) ? payload.notes.slice(0, 3) : [],
-  };
-}
-
-async function appendCheck(env, payload) {
-  const cap = RETENTION.oracle_feed_checks.recent_points;
-  const current = await readJson(env, ORACLE_CHECKS_KEY, []);
-  const list = Array.isArray(current) ? current : [];
-  const next = list.concat([compactCheck(payload)]);
-  const trimmed = next.length > cap ? next.slice(next.length - cap) : next;
-  await writeJson(env, ORACLE_CHECKS_KEY, trimmed);
-  return { stored: true, key: ORACLE_CHECKS_KEY, count: trimmed.length, cap };
-}
-
-function buildUnavailable(error, input = {}) {
+function buildUnavailable(error, feed = "") {
   return {
     ok: false,
-    source: "same-origin",
+    source: "wcwd_fixed_worldchain_rpc",
     state: "unavailable",
     generated_at: new Date().toISOString(),
-    feed: input.feed || "",
-    rpc_host: input.rpc_host || "",
+    feed,
+    rpc_host: new URL(WORLDCHAIN_RPC_URL).hostname,
     result: null,
     notes: [String(error || "oracle_unavailable")],
-    retention: { recent_points: RETENTION.oracle_feed_checks.recent_points, stored: false },
+    retention: { stored: false, reason: "public_get_is_read_only" },
   };
 }
 
-async function withStorage(env, payload) {
-  if (!env?.HIST) return { ...payload, retention: { ...payload.retention, stored: false, reason: "missing_hist_binding" } };
-  try {
-    const stored = await appendCheck(env, payload);
-    return { ...payload, retention: { ...payload.retention, stored } };
-  } catch (error) {
-    return { ...payload, retention: { ...payload.retention, stored: false, reason: error?.message || "store_failed" } };
-  }
-}
-
-export async function handleOracleFeed(request, env) {
+export async function handleOracleFeed(request) {
   const url = new URL(request.url);
   const feed = String(url.searchParams.get("feed") || "").trim();
-  const rpcParsed = parseRpcUrl(url.searchParams.get("rpc"));
-  const rpcHost = rpcParsed.ok ? new URL(rpcParsed.url).hostname : "";
 
-  if (!isAddress(feed)) {
-    const payload = buildUnavailable("invalid_feed_address", { feed, rpc_host: rpcHost });
-    return json(await withStorage(env, payload), { status: 400 });
+  if (url.searchParams.has("rpc")) {
+    return json(request, buildUnavailable("caller_rpc_not_supported", feed), { status: 400 });
   }
-  if (!rpcParsed.ok) {
-    const payload = buildUnavailable(rpcParsed.error, { feed, rpc_host: rpcHost });
-    return json(await withStorage(env, payload), { status: 400 });
+  if (!isAddress(feed)) {
+    return json(request, buildUnavailable("invalid_feed_address", feed), { status: 400 });
   }
 
   try {
-    const decHex = await rpcCall(rpcParsed.url, feed, SEL_DECIMALS);
-    const decimals = Number(hexToBigInt(chunks64(decHex)[0] || "0"));
-    const latestHex = await rpcCall(rpcParsed.url, feed, SEL_LATEST);
-    const c = chunks64(latestHex);
-    const roundId = hexToBigInt(c[0] || "0");
-    const answer = hexToSignedBigInt(c[1] || "0");
-    const startedAt = hexToBigInt(c[2] || "0");
-    const updatedAt = hexToBigInt(c[3] || "0");
-    const answeredInRound = hexToBigInt(c[4] || "0");
-    const updatedAtNum = Number(updatedAt);
-    const ageSec = Number.isFinite(updatedAtNum) && updatedAtNum > 0 ? Math.max(0, Math.floor(Date.now() / 1000 - updatedAtNum)) : null;
-    const state = ageSec == null ? "degraded" : ageSec > 86400 ? "stale" : "fresh";
+    const decimalsHex = await rpcCall(feed, SEL_DECIMALS);
+    const decimals = Number(hexToBigInt(chunks64(decimalsHex)[0] || "0"));
+    if (!Number.isInteger(decimals) || decimals < 0 || decimals > 255) {
+      throw new Error("invalid_feed_decimals");
+    }
 
-    const payload = {
+    const latestHex = await rpcCall(feed, SEL_LATEST);
+    const chunks = chunks64(latestHex);
+    if (chunks.length < 5) throw new Error("invalid_latest_round_data");
+
+    const roundId = hexToBigInt(chunks[0] || "0");
+    const answer = hexToSignedBigInt(chunks[1] || "0");
+    const startedAt = hexToBigInt(chunks[2] || "0");
+    const updatedAt = hexToBigInt(chunks[3] || "0");
+    const answeredInRound = hexToBigInt(chunks[4] || "0");
+    const updatedAtNumber = Number(updatedAt);
+    const ageSeconds = Number.isFinite(updatedAtNumber) && updatedAtNumber > 0
+      ? Math.max(0, Math.floor(Date.now() / 1000 - updatedAtNumber))
+      : null;
+    const state = ageSeconds == null ? "degraded" : ageSeconds > 86400 ? "stale" : "fresh";
+
+    return json(request, {
       ok: true,
-      source: "same-origin",
+      source: "wcwd_fixed_worldchain_rpc",
       state,
       generated_at: new Date().toISOString(),
       feed: feed.toLowerCase(),
-      rpc_host: rpcHost,
+      rpc_host: new URL(WORLDCHAIN_RPC_URL).hostname,
       result: {
         decimals,
         roundId: roundId.toString(),
@@ -191,14 +172,12 @@ export async function handleOracleFeed(request, env) {
         startedAt: startedAt.toString(),
         updatedAt: updatedAt.toString(),
         answeredInRound: answeredInRound.toString(),
-        age_sec: ageSec,
+        age_sec: ageSeconds,
       },
       notes: state === "stale" ? ["feed_updated_at_older_than_24h"] : [],
-      retention: { recent_points: RETENTION.oracle_feed_checks.recent_points, key: ORACLE_CHECKS_KEY },
-    };
-    return json(await withStorage(env, payload));
+      retention: { stored: false, reason: "public_get_is_read_only" },
+    });
   } catch (error) {
-    const payload = buildUnavailable(error?.message || "oracle_fetch_failed", { feed, rpc_host: rpcHost });
-    return json(await withStorage(env, payload), { status: 200 });
+    return json(request, buildUnavailable(error?.name === "AbortError" ? "rpc_timeout" : error?.message, feed));
   }
 }
