@@ -1,3 +1,5 @@
+import { routeCacheControl } from "../../src/cache-policy.js";
+
 const UPSTREAM_ORIGIN = "https://wcwd-history.badjoke-lab.workers.dev";
 const MAX_RESPONSE_BYTES = 1024 * 1024;
 const TRUSTED_ORIGINS = new Set([
@@ -33,21 +35,20 @@ function isTrustedOrigin(request) {
   return !origin || TRUSTED_ORIGINS.has(origin);
 }
 
-function proxyHeaders(request, pagesVersion, extra = {}) {
+function proxyHeaders(request, pagesVersion, cacheControl = "no-store", extra = {}) {
   const headers = new Headers(extra);
   const origin = requestOrigin(request);
-  if (origin && TRUSTED_ORIGINS.has(origin)) {
-    headers.set("access-control-allow-origin", origin);
-  }
+  if (origin && TRUSTED_ORIGINS.has(origin)) headers.set("access-control-allow-origin", origin);
   headers.set("vary", "Origin");
   headers.set("x-wcwd-proxy", "pages");
   headers.set("x-wcwd-pages-version", pagesVersion);
-  headers.set("cache-control", "no-store");
+  headers.set("cache-control", cacheControl);
+  headers.set("x-wcwd-cache-policy", cacheControl === "no-store" ? "no-store" : "bounded-read");
   return headers;
 }
 
 function json(request, pagesVersion, data, status) {
-  const headers = proxyHeaders(request, pagesVersion, {
+  const headers = proxyHeaders(request, pagesVersion, "no-store", {
     "content-type": "application/json; charset=utf-8",
   });
   return new Response(JSON.stringify(data), { status, headers });
@@ -56,21 +57,15 @@ function json(request, pagesVersion, data, status) {
 function normalizePath(params) {
   const value = params?.path;
   const path = Array.isArray(value) ? value.join("/") : String(value || "");
-  if (!path || path.startsWith("/") || path.includes("\\") || path.split("/").some((part) => !part || part === "." || part === "..")) {
-    return "";
-  }
+  if (!path || path.startsWith("/") || path.includes("\\") || path.split("/").some((part) => !part || part === "." || part === "..")) return "";
   return path;
 }
 
 async function readLimitedBody(response) {
   const declared = Number(response.headers.get("content-length"));
-  if (Number.isFinite(declared) && declared > MAX_RESPONSE_BYTES) {
-    throw new Error("upstream_response_too_large");
-  }
+  if (Number.isFinite(declared) && declared > MAX_RESPONSE_BYTES) throw new Error("upstream_response_too_large");
   const bytes = await response.arrayBuffer();
-  if (bytes.byteLength > MAX_RESPONSE_BYTES) {
-    throw new Error("upstream_response_too_large");
-  }
+  if (bytes.byteLength > MAX_RESPONSE_BYTES) throw new Error("upstream_response_too_large");
   return bytes;
 }
 
@@ -78,33 +73,26 @@ export async function onRequest({ request, params, env }) {
   const pagesVersion = env?.CF_PAGES_COMMIT_SHA || "unknown";
   const method = request.method.toUpperCase();
 
-  if (!isTrustedOrigin(request)) {
-    return json(request, pagesVersion, { ok: false, error: "origin_not_allowed" }, 403);
-  }
+  if (!isTrustedOrigin(request)) return json(request, pagesVersion, { ok: false, error: "origin_not_allowed" }, 403);
 
   if (method === "OPTIONS") {
     const requestedMethod = String(request.headers.get("access-control-request-method") || "GET").toUpperCase();
-    if (requestedMethod !== "GET") {
-      return json(request, pagesVersion, { ok: false, error: "method_not_allowed" }, 405);
-    }
-    const headers = proxyHeaders(request, pagesVersion);
+    if (requestedMethod !== "GET") return json(request, pagesVersion, { ok: false, error: "method_not_allowed" }, 405);
+    const headers = proxyHeaders(request, pagesVersion, "no-store");
     headers.set("access-control-allow-methods", "GET, OPTIONS");
     headers.set("access-control-allow-headers", "accept, if-none-match");
     headers.set("access-control-max-age", "600");
     return new Response(null, { status: 204, headers });
   }
 
-  if (method !== "GET") {
-    return json(request, pagesVersion, { ok: false, error: "method_not_allowed" }, 405);
-  }
+  if (method !== "GET") return json(request, pagesVersion, { ok: false, error: "method_not_allowed" }, 405);
 
   const path = normalizePath(params);
-  if (!ALLOWED_GET_PATHS.has(path)) {
-    return json(request, pagesVersion, { ok: false, error: "route_not_allowed" }, 404);
-  }
+  if (!ALLOWED_GET_PATHS.has(path)) return json(request, pagesVersion, { ok: false, error: "route_not_allowed" }, 404);
 
   const incomingUrl = new URL(request.url);
-  const targetUrl = new URL(`/api/${path}`, UPSTREAM_ORIGIN);
+  const pathname = `/api/${path}`;
+  const targetUrl = new URL(pathname, UPSTREAM_ORIGIN);
   targetUrl.search = incomingUrl.search;
 
   const forwardedHeaders = new Headers({ accept: "application/json" });
@@ -121,7 +109,8 @@ export async function onRequest({ request, params, env }) {
       signal: controller.signal,
     });
     const body = await readLimitedBody(upstream);
-    const responseHeaders = proxyHeaders(request, pagesVersion);
+    const cacheControl = routeCacheControl(pathname, method, upstream.status);
+    const responseHeaders = proxyHeaders(request, pagesVersion, cacheControl);
     const contentType = upstream.headers.get("content-type");
     if (contentType) responseHeaders.set("content-type", contentType.slice(0, 128));
     const etag = upstream.headers.get("etag");

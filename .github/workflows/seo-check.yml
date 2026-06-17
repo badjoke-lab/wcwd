@@ -52,6 +52,13 @@ jobs:
           node --check world-chain/monitor/monitor-notes.js
           node --experimental-default-type=module scripts/test_monitor_semantics.mjs
 
+      - name: Enforce cache and request policy
+        run: |
+          node --check src/cache-policy.js
+          node --check assets/runtime-request-policy.js
+          node --check 'functions/api/[[path]].js'
+          node --experimental-default-type=module scripts/test_cache_request_policy.mjs
+
       - name: Run static SEO checks
         run: python3 scripts/check_seo.py
 

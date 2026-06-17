@@ -17,6 +17,11 @@ PUBLIC_DIRS = ("assets", "about", "donate", "world-chain", "world-id")
 ROOT_SUFFIXES = {".html", ".css", ".js", ".json", ".xml", ".txt", ".ico", ".svg", ".png", ".webmanifest"}
 ROOT_NAMES = {"_headers", "_redirects"}
 BUILD_MARKER_RE = re.compile(r"\n?\s*<meta\s+name=[\"']wcwd-build-commit[\"'][^>]*>", re.I)
+RUNTIME_POLICY_PATHS = {
+    Path("world-chain/monitor/index.html"),
+    Path("world-chain/sell-impact/index.html"),
+}
+RUNTIME_POLICY_TAG = '<script src="/assets/runtime-request-policy.js"></script>'
 
 
 def detect_commit(explicit: str | None) -> str:
@@ -58,6 +63,19 @@ def copy_public_tree(output: Path) -> None:
                 output / dirname,
                 ignore=shutil.ignore_patterns(".DS_Store", "*.md", "*.py", "__pycache__"),
             )
+
+
+def inject_runtime_policy(output: Path) -> None:
+    for relative in sorted(RUNTIME_POLICY_PATHS):
+        path = output / relative
+        if not path.is_file():
+            raise RuntimeError(f"Runtime policy target is missing: {relative}")
+        text = path.read_text(encoding="utf-8")
+        text = text.replace(RUNTIME_POLICY_TAG, "")
+        if "</body>" not in text.lower():
+            raise RuntimeError(f"HTML has no </body>: {relative}")
+        text = re.sub(r"</body>", RUNTIME_POLICY_TAG + "\n</body>", text, count=1, flags=re.I)
+        path.write_text(text, encoding="utf-8")
 
 
 def inject_commit_marker(output: Path, commit: str) -> int:
@@ -103,6 +121,7 @@ def main() -> None:
 
     commit = detect_commit(args.commit)
     copy_public_tree(output)
+    inject_runtime_policy(output)
     html_count = inject_commit_marker(output, commit)
     write_version(output, commit)
 
