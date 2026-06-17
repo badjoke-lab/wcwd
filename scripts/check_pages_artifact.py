@@ -11,6 +11,11 @@ import sys
 
 FORBIDDEN_DIRS = {".git", ".github", "docs", "scripts", "src", "partials", "functions", "node_modules", "test"}
 REQUIRED_ROOT_FILES = {"index.html", "404.html", "robots.txt", "sitemap.xml", "version.json"}
+RUNTIME_POLICY_PAGES = {
+    Path("world-chain/monitor/index.html"),
+    Path("world-chain/sell-impact/index.html"),
+}
+RUNTIME_POLICY_TAG = '<script src="/assets/runtime-request-policy.js"></script>'
 
 
 def fail(errors: list[str]) -> None:
@@ -36,6 +41,10 @@ def main() -> None:
         errors.append(f"missing required root file: {required}")
     for forbidden in sorted(FORBIDDEN_DIRS & names):
         errors.append(f"internal or experimental directory leaked into artifact: {forbidden}")
+
+    runtime_asset = root / "assets" / "runtime-request-policy.js"
+    if not runtime_asset.is_file():
+        errors.append("missing runtime request policy asset")
 
     version_path = root / "version.json"
     version: dict[str, object] = {}
@@ -69,6 +78,8 @@ def main() -> None:
             errors.append(f"{relative}: expected exactly one build marker, found {len(matches)}")
         elif matches[0] != commit:
             errors.append(f"{relative}: build marker does not match version.json")
+        if relative in RUNTIME_POLICY_PAGES and text.count(RUNTIME_POLICY_TAG) != 1:
+            errors.append(f"{relative}: expected exactly one runtime request policy tag")
 
     index = root / "index.html"
     if index.is_file():
