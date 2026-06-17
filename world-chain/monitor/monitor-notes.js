@@ -81,7 +81,110 @@ function mnErrorText() {
   return txt && txt !== "—" ? txt : "";
 }
 
+function mnEnsureNote(id, targetId, text) {
+  let note = document.getElementById(id);
+  if (!note) {
+    const target = document.getElementById(targetId);
+    if (!target) return null;
+    note = document.createElement("p");
+    note.id = id;
+    note.className = "muted small";
+    target.insertAdjacentElement("afterend", note);
+  }
+  if (text && note.textContent !== text) note.textContent = text;
+  return note;
+}
+
+function mnUnavailable(id, reason) {
+  const element = document.getElementById(id);
+  if (!element) return;
+  if (element.textContent !== "Unavailable") element.textContent = "Unavailable";
+  element.title = reason;
+}
+
+function mnFormatObservedAt(value) {
+  const ms = Date.parse(value || "");
+  return Number.isFinite(ms) ? new Date(ms).toLocaleString() : "Unavailable";
+}
+
+function renderMonitorMetricSemantics(summary) {
+  const latest = summary?.latest && typeof summary.latest === "object" ? summary.latest : null;
+  const noMeasuredSource = [
+    "tx24h",
+    "newAddr24h",
+    "totalAddr",
+    "wldChg24h",
+    "wldMc",
+    "wldVol",
+    "wldSpark7d",
+    "chartWld7d",
+    "pctContract",
+    "pctOther",
+  ];
+  for (const id of noMeasuredSource) {
+    mnUnavailable(id, "This metric is not measured by the current WCWD source.");
+  }
+
+  mnEnsureNote(
+    "tx24hNote",
+    "tx24h",
+    "Unavailable: WCWD has no measured rolling 24-hour transaction counter. TPS is not multiplied into a daily total."
+  );
+  mnEnsureNote(
+    "tpsNote",
+    "tps",
+    Number.isFinite(latest?.tps)
+      ? "Estimated from a sampled block window; it is not a chain-wide daily count."
+      : "Unavailable: the latest snapshot has no TPS estimate."
+  );
+  mnEnsureNote(
+    "gasNote",
+    "gas",
+    Number.isFinite(latest?.gas_gwei)
+      ? "Observed in the latest stored snapshot."
+      : "Unavailable: the latest snapshot has no gas value."
+  );
+  mnSet("newAddrNote", "Unavailable: WCWD does not run a full address indexer.");
+  mnSet("totalAddrNote", "Unavailable: WCWD does not run a full address indexer.");
+
+  const sourceAnchor = document.getElementById("snapshotGen") || document.getElementById("freshAsOf");
+  if (sourceAnchor) {
+    const observed = mnEnsureNote("metricObservedAt", sourceAnchor.id);
+    if (observed) observed.textContent = `Latest observation: ${mnFormatObservedAt(latest?.observed_at || latest?.ts)}`;
+    const source = mnEnsureNote("metricSource", "metricObservedAt");
+    if (source) source.textContent = `Metric source: ${latest?.source || (latest ? "Existing KV snapshot" : "Unavailable")}`;
+  }
+
+  const daily = summary?.daily;
+  if (daily?.available === true && daily?.calendar_basis === "utc_calendar_day") {
+    mnSet("dailyDate", `${daily.date} UTC`);
+    mnEnsureNote(
+      "dailyNote",
+      "dailyDate",
+      `Verified UTC calendar day: ${daily.day_start_utc} to ${daily.day_end_utc_exclusive} (exclusive).`
+    );
+  } else {
+    for (const id of [
+      "dailyDate",
+      "dailyHealth",
+      "dailyTpsMax",
+      "dailyTpsMin",
+      "dailyGasMax",
+      "dailyWldUsdChange",
+      "dailyWldJpyChange",
+    ]) {
+      mnUnavailable(id, "The stored record does not prove UTC calendar-day boundaries.");
+    }
+    mnEnsureNote(
+      "dailyNote",
+      "dailyDate",
+      `Unavailable: ${daily?.reason || "no_data"}. A daily compact is shown only when its UTC calendar boundary is explicit.`
+    );
+  }
+}
+
 function renderMonitorNotes(summary) {
+  renderMonitorMetricSemantics(summary);
   if (!summary || typeof summary !== "object") {
     mnSet(MONITOR_NOTE_UI.historyMode, "Waiting");
     mnSet(MONITOR_NOTE_UI.historyWindow, "—");
@@ -104,7 +207,7 @@ function renderMonitorNotes(summary) {
   mnSet(MONITOR_NOTE_UI.fallbackMode, usedFallback ? `Fallback / partial · ${state}` : `Normal · ${state}`);
   mnSet(
     MONITOR_NOTE_UI.note,
-    `Read 24h charts as recent KV samples, 7d charts as hourly series, and Events/Daily as compact summaries. Retention: ${mnRetention(summary)}.`
+    `Read 24h charts as recent stored samples, 7d charts as hourly series, and verified Daily records as UTC calendar summaries. Retention: ${mnRetention(summary)}.`
   );
 }
 
@@ -136,6 +239,11 @@ function attachMonitorNoteObservers() {
   if (MONITOR_NOTE_UI.errors) {
     const errorObserver = new MutationObserver(() => { refreshMonitorNotes(); });
     errorObserver.observe(MONITOR_NOTE_UI.errors, { childList: true, characterData: true, subtree: true });
+  }
+  const tx24h = document.getElementById("tx24h");
+  if (tx24h) {
+    const semanticObserver = new MutationObserver(() => { renderMonitorMetricSemantics(mnParseRawSummary()); });
+    semanticObserver.observe(tx24h, { childList: true, characterData: true, subtree: true });
   }
   MONITOR_NOTE_UI.reload?.addEventListener("click", () => {
     setTimeout(() => { refreshMonitorNotes(); }, 800);
