@@ -70,10 +70,11 @@ jobs:
       - name: Reject generated-file drift
         run: git diff --exit-code
 
-      - name: Validate routes and static SEO
-        run: |
-          python3 scripts/check_routes.py
-          python3 scripts/check_seo.py
+      - name: Validate registered routes
+        run: python3 scripts/check_routes.py
+
+      - name: Validate static SEO
+        run: python3 scripts/check_seo.py
 
       - name: Build canonical Pages artifact
         run: python3 scripts/build_pages_dist.py --commit "${GITHUB_SHA}"
