@@ -1,0 +1,147 @@
+{
+  "site": "https://wcwd.badjoke-lab.com",
+  "og_image": "https://wcwd.badjoke-lab.com/og.png",
+  "routes": [
+    {
+      "route": "/",
+      "file": "index.html",
+      "title": "WCWD — Worldcoin, World Chain, WLD & World ID Tools",
+      "description": "Unofficial Worldcoin toolkit for World Chain monitoring, WLD market context, Sell Impact checks, ecosystem browsing, and World ID builder workflows.",
+      "indexable": true,
+      "lastmod": "2026-06-17",
+      "breadcrumbs": [],
+      "application": null
+    },
+    {
+      "route": "/about/",
+      "file": "about/index.html",
+      "title": "WCWD — About This Unofficial Worldcoin Toolkit",
+      "description": "About WCWD, an independent Worldcoin, World Chain, and World ID toolkit with best-effort data, disclaimers, privacy notes, and a no-background-collection operating model.",
+      "indexable": true,
+      "lastmod": "2026-06-17",
+      "breadcrumbs": ["About"],
+      "application": null
+    },
+    {
+      "route": "/donate/",
+      "file": "donate/index.html",
+      "title": "WCWD — Support This Free Worldcoin Toolkit",
+      "description": "Support WCWD's free Worldcoin, World Chain, WLD, and World ID tools, including public API maintenance, manual data review, and bounded read-only history.",
+      "indexable": true,
+      "lastmod": "2026-06-17",
+      "breadcrumbs": ["Support"],
+      "application": null
+    },
+    {
+      "route": "/world-chain/",
+      "file": "world-chain/index.html",
+      "title": "WCWD — World Chain Tools",
+      "description": "World Chain tool hub for Monitor, Sell Impact, Ecosystem, Oracles, and Paymaster utilities.",
+      "indexable": true,
+      "lastmod": "2026-06-17",
+      "breadcrumbs": ["World Chain"],
+      "application": null
+    },
+    {
+      "route": "/world-chain/monitor/",
+      "file": "world-chain/monitor/index.html",
+      "title": "WCWD — World Chain Monitor for WLD, Gas, Activity & History",
+      "description": "Monitor World Chain health, WLD market context, gas, sampled activity, alerts, events, and bounded read-only history using WCWD's best-effort summaries.",
+      "indexable": true,
+      "lastmod": "2026-06-17",
+      "breadcrumbs": ["World Chain", "Monitor"],
+      "application": {"name": "WCWD World Chain Monitor", "category": "FinanceApplication"}
+    },
+    {
+      "route": "/world-chain/sell-impact/",
+      "file": "world-chain/sell-impact/index.html",
+      "title": "WCWD — World Chain Sell Impact & Liquidity Risk Tool",
+      "description": "Estimate World Chain token sell impact, conservative max sell size, pool depth, liquidity risk, and rough exit conditions using public pool snapshots.",
+      "indexable": true,
+      "lastmod": "2026-06-17",
+      "breadcrumbs": ["World Chain", "Sell Impact"],
+      "application": {"name": "WCWD World Chain Sell Impact", "category": "FinanceApplication"}
+    },
+    {
+      "route": "/world-chain/ecosystem/",
+      "file": "world-chain/ecosystem/index.html",
+      "title": "WCWD — World Chain Ecosystem Directory",
+      "description": "Browse World Chain tokens, dApps, infrastructure, oracle-related entries, and curated ecosystem links from WCWD's best-effort directory.",
+      "indexable": true,
+      "lastmod": "2026-06-17",
+      "breadcrumbs": ["World Chain", "Ecosystem"],
+      "application": {"name": "WCWD World Chain Ecosystem Directory", "category": "ReferenceApplication"}
+    },
+    {
+      "route": "/world-chain/token-heatmap/",
+      "file": "world-chain/token-heatmap/index.html",
+      "title": "WCWD — World Chain Token Heatmap",
+      "description": "Treemap view of World Chain token volume, liquidity, and momentum. Data availability and source status are shown explicitly.",
+      "indexable": true,
+      "lastmod": "2026-06-17",
+      "breadcrumbs": ["World Chain", "Token Heatmap"],
+      "application": {"name": "WCWD World Chain Token Heatmap", "category": "FinanceApplication"}
+    },
+    {
+      "route": "/world-chain/oracles/",
+      "file": "world-chain/oracles/index.html",
+      "title": "WCWD — World Chain Oracle Feed Tester",
+      "description": "Check an AggregatorV3 feed through WCWD's fixed same-origin World Chain RPC path without caller-selected server fetches.",
+      "indexable": true,
+      "lastmod": "2026-06-17",
+      "breadcrumbs": ["World Chain", "Oracles"],
+      "application": {"name": "WCWD World Chain Oracle Feed Tester", "category": "DeveloperApplication"}
+    },
+    {
+      "route": "/world-chain/paymaster/",
+      "file": "world-chain/paymaster/index.html",
+      "title": "WCWD — World Chain Paymaster Preflight",
+      "description": "Check World Chain RPC readiness through WCWD and prepare a local sponsor endpoint test template without server-side proxying.",
+      "indexable": true,
+      "lastmod": "2026-06-17",
+      "breadcrumbs": ["World Chain", "Paymaster"],
+      "application": {"name": "WCWD World Chain Paymaster Preflight", "category": "DeveloperApplication"}
+    },
+    {
+      "route": "/world-id/",
+      "file": "world-id/index.html",
+      "title": "WCWD — World ID Builder Tools",
+      "description": "World ID builder hub for integration snippets, proof debugging, and verifier request testing.",
+      "indexable": true,
+      "lastmod": "2026-06-17",
+      "breadcrumbs": ["World ID"],
+      "application": null
+    },
+    {
+      "route": "/world-id/wizard/",
+      "file": "world-id/wizard/index.html",
+      "title": "WCWD — World ID Integration Wizard",
+      "description": "Generate frontend and backend template snippets for World ID integration workflows.",
+      "indexable": true,
+      "lastmod": "2026-06-17",
+      "breadcrumbs": ["World ID", "Wizard"],
+      "application": {"name": "WCWD World ID Integration Wizard", "category": "DeveloperApplication"}
+    },
+    {
+      "route": "/world-id/debugger/",
+      "file": "world-id/debugger/index.html",
+      "title": "WCWD — World ID Proof Debugger",
+      "description": "Inspect and diagnose World ID proof JSON structure ephemerally in the browser.",
+      "indexable": true,
+      "lastmod": "2026-06-17",
+      "breadcrumbs": ["World ID", "Debugger"],
+      "application": {"name": "WCWD World ID Proof Debugger", "category": "DeveloperApplication"}
+    },
+    {
+      "route": "/world-id/playground/",
+      "file": "world-id/playground/index.html",
+      "title": "WCWD — World ID Verifier Playground",
+      "description": "Generate verifier request examples and test browser-based World ID proof requests with clear CORS feedback.",
+      "indexable": true,
+      "lastmod": "2026-06-17",
+      "breadcrumbs": ["World ID", "Playground"],
+      "application": {"name": "WCWD World ID Verifier Playground", "category": "DeveloperApplication"}
+    }
+  ],
+  "non_indexable_pages": ["404.html"]
+}
