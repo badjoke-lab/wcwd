@@ -13,18 +13,14 @@ import shutil
 import subprocess
 
 ROOT = Path(__file__).resolve().parents[1]
-PUBLIC_DIRS = ("assets", "about", "donate", "world-chain", "world-id", "test")
+PUBLIC_DIRS = ("assets", "about", "donate", "world-chain", "world-id")
 ROOT_SUFFIXES = {".html", ".css", ".js", ".json", ".xml", ".txt", ".ico", ".svg", ".png", ".webmanifest"}
 ROOT_NAMES = {"_headers", "_redirects"}
 BUILD_MARKER_RE = re.compile(r"\n?\s*<meta\s+name=[\"']wcwd-build-commit[\"'][^>]*>", re.I)
 
 
 def detect_commit(explicit: str | None) -> str:
-    candidates = (
-        explicit,
-        os.getenv("CF_PAGES_COMMIT_SHA"),
-        os.getenv("GITHUB_SHA"),
-    )
+    candidates = (explicit, os.getenv("CF_PAGES_COMMIT_SHA"), os.getenv("GITHUB_SHA"))
     for value in candidates:
         if value and re.fullmatch(r"[0-9a-fA-F]{7,64}", value.strip()):
             return value.strip().lower()
