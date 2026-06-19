@@ -7,6 +7,9 @@ const DASHBOARD_SOURCE_UI = {
   raw: document.getElementById("raw"),
   status: document.getElementById("status"),
   reload: document.getElementById("reload"),
+  alertSpike: document.getElementById("alertSpike"),
+  alertDrop: document.getElementById("alertDrop"),
+  alertHighGas: document.getElementById("alertHighGas"),
 };
 
 function dsIsLocalMode() {
@@ -75,6 +78,36 @@ function dsFormatInterval(value) {
   return Number.isFinite(n) && n > 0 ? `${n} min` : "—";
 }
 
+function dsFormatMetric(value, digits) {
+  return Number.isFinite(value) ? Number(value).toFixed(digits) : "—";
+}
+
+function dsRenderAlertDecision(el, decision) {
+  if (!el) return;
+  if (!decision || decision.state === "insufficient_data") {
+    el.textContent = "Insufficient data";
+    el.title = "The server-owned alert policy does not have enough baseline samples.";
+    return;
+  }
+  if (!decision.active) {
+    el.textContent = "Clear";
+    el.title = `${decision.label}: ratio ${dsFormatMetric(decision.ratio, 3)}.`;
+    return;
+  }
+  const digits = decision.id === "gas_high" ? 6 : 2;
+  el.textContent = `Active · ${dsFormatMetric(decision.current, digits)} / ${dsFormatMetric(decision.baseline, digits)}`;
+  el.title = `${decision.label}: threshold ${decision.threshold_ratio}, ratio ${dsFormatMetric(decision.ratio, 3)}.`;
+}
+
+function dsRenderAlerts(summary) {
+  const decisions = Array.isArray(summary?.alerts?.decisions) ? summary.alerts.decisions : [];
+  const byId = new Map(decisions.map((item) => [item?.id, item]));
+  dsRenderAlertDecision(DASHBOARD_SOURCE_UI.alertSpike, byId.get("tps_spike"));
+  dsRenderAlertDecision(DASHBOARD_SOURCE_UI.alertDrop, byId.get("tps_drop"));
+  dsRenderAlertDecision(DASHBOARD_SOURCE_UI.alertHighGas, byId.get("gas_high"));
+  document.documentElement.dataset.alertPolicySource = decisions.length ? "summary-api" : "unavailable";
+}
+
 function dsParseRawSummary() {
   const rawText = DASHBOARD_SOURCE_UI.raw?.textContent?.trim();
   if (!rawText || rawText === "—") return null;
@@ -110,7 +143,7 @@ function dsRenderFromSummary(summary) {
   dsSetText(DASHBOARD_SOURCE_UI.interval, dsFormatInterval(intervalMin));
   dsSetText(DASHBOARD_SOURCE_UI.path, sourcePath);
   dsSetText(DASHBOARD_SOURCE_UI.retention, `${dsStateHelp(freshnessState)} ${dsBuildRetentionText(summary?.retention)}`);
-  document.dispatchEvent(new CustomEvent("wcwd:summary", { detail: summary }));
+  dsRenderAlerts(summary);
   return true;
 }
 
@@ -134,6 +167,7 @@ async function dsRefreshCard() {
   dsSetText(DASHBOARD_SOURCE_UI.interval, "—");
   dsSetText(DASHBOARD_SOURCE_UI.path, dsIsLocalMode() ? `${dsApiBase()}/api/summary` : "/api/summary");
   dsSetText(DASHBOARD_SOURCE_UI.retention, "Summary payload has not loaded yet. Retention metadata is unavailable.");
+  dsRenderAlerts(null);
 }
 
 function dsAttachObservers() {
