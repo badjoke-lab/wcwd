@@ -100,12 +100,15 @@ function dsRenderAlertDecision(el, decision) {
 }
 
 function dsRenderAlerts(summary) {
-  const decisions = Array.isArray(summary?.alerts?.decisions) ? summary.alerts.decisions : [];
+  const payload = summary?.alerts || summary?.health?.alerts;
+  const decisions = Array.isArray(payload?.decisions) ? payload.decisions : null;
+  if (!decisions) return false;
   const byId = new Map(decisions.map((item) => [item?.id, item]));
   dsRenderAlertDecision(DASHBOARD_SOURCE_UI.alertSpike, byId.get("tps_spike"));
   dsRenderAlertDecision(DASHBOARD_SOURCE_UI.alertDrop, byId.get("tps_drop"));
   dsRenderAlertDecision(DASHBOARD_SOURCE_UI.alertHighGas, byId.get("gas_high"));
-  document.documentElement.dataset.alertPolicySource = decisions.length ? "summary-api" : "unavailable";
+  document.documentElement.dataset.alertPolicySource = "summary-api";
+  return true;
 }
 
 function dsParseRawSummary() {
@@ -159,7 +162,10 @@ async function dsFetchSummaryFallback() {
 
 async function dsRefreshCard() {
   const rawSummary = dsParseRawSummary();
-  if (dsRenderFromSummary(rawSummary)) return;
+  if (rawSummary) {
+    dsRenderFromSummary(rawSummary);
+    if (dsRenderAlerts(rawSummary)) return;
+  }
   const fetched = await dsFetchSummaryFallback();
   if (dsRenderFromSummary(fetched)) return;
   dsRenderStateBadge(DASHBOARD_SOURCE_UI.freshness, DASHBOARD_SOURCE_UI.status?.textContent || "unavailable");
@@ -167,7 +173,7 @@ async function dsRefreshCard() {
   dsSetText(DASHBOARD_SOURCE_UI.interval, "—");
   dsSetText(DASHBOARD_SOURCE_UI.path, dsIsLocalMode() ? `${dsApiBase()}/api/summary` : "/api/summary");
   dsSetText(DASHBOARD_SOURCE_UI.retention, "Summary payload has not loaded yet. Retention metadata is unavailable.");
-  dsRenderAlerts(null);
+  document.documentElement.dataset.alertPolicySource = "unavailable";
 }
 
 function dsAttachObservers() {
