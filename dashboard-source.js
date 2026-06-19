@@ -1,4 +1,4 @@
-const DASHBOARD_SOURCE_UI = {
+const DS = {
   freshness: document.getElementById("dataFreshness"),
   generatedAt: document.getElementById("dataGeneratedAt"),
   interval: document.getElementById("dataInterval"),
@@ -7,147 +7,147 @@ const DASHBOARD_SOURCE_UI = {
   raw: document.getElementById("raw"),
   status: document.getElementById("status"),
   reload: document.getElementById("reload"),
+  alerts: {
+    tps_spike: document.getElementById("alertSpike"),
+    tps_drop: document.getElementById("alertDrop"),
+    gas_high: document.getElementById("alertHighGas"),
+  },
 };
 
-function dsIsLocalMode() {
-  const h = location.hostname;
-  return h === "localhost" || h === "127.0.0.1" || h === "" || location.protocol === "file:";
+function dsLocal() {
+  return ["localhost", "127.0.0.1", ""].includes(location.hostname) || location.protocol === "file:";
 }
 
-function dsApiBase() {
-  if (!dsIsLocalMode()) return "";
-  const meta = document.querySelector('meta[name="wcwd-history-base"]');
-  return meta?.getAttribute("content")?.trim() || "https://wcwd-history.badjoke-lab.workers.dev";
+function dsBase() {
+  if (!dsLocal()) return "";
+  return document.querySelector('meta[name="wcwd-history-base"]')?.content?.trim() || "";
 }
 
-function dsSetText(el, value) {
-  if (!el) return;
-  el.textContent = value || "—";
+function dsText(element, value) {
+  if (element) element.textContent = value || "—";
 }
 
-function dsNormalizeState(state) {
-  const key = String(state || "").toLowerCase().trim();
-  if (key === "ok" || key === "fresh" || key === "normal") return "fresh";
-  if (key === "delayed") return "delayed";
-  if (key === "stale") return "stale";
-  if (key === "degraded" || key === "partial" || key === "warn" || key === "alert") return "degraded";
-  if (key === "error" || key === "unavailable" || key === "empty" || key === "no data") return "unavailable";
+function dsState(value) {
+  const key = String(value || "").toLowerCase().trim();
+  if (["ok", "fresh", "normal"].includes(key)) return "fresh";
+  if (["delayed", "stale"].includes(key)) return key;
+  if (["degraded", "partial", "warn", "alert"].includes(key)) return "degraded";
+  if (["error", "unavailable", "empty", "no data"].includes(key)) return "unavailable";
   return "unknown";
 }
 
-function dsStateLabel(state) {
-  const key = dsNormalizeState(state);
-  if (key === "fresh") return "Fresh";
-  if (key === "delayed") return "Delayed";
-  if (key === "stale") return "Stale";
-  if (key === "degraded") return "Degraded";
-  if (key === "unavailable") return "Unavailable";
-  return "Unknown";
+function dsHelp(state) {
+  return {
+    fresh: "Summary API is current enough for normal dashboard use.",
+    delayed: "Latest snapshot is late, but still usable.",
+    stale: "Latest snapshot is old. Read trends as delayed data.",
+    degraded: "One or more sources are failing, but partial data is available.",
+    unavailable: "Summary path is not available right now.",
+    unknown: "Summary state could not be classified.",
+  }[dsState(state)];
 }
 
-function dsStateHelp(state) {
-  const key = dsNormalizeState(state);
-  if (key === "fresh") return "Summary API is current enough for normal dashboard use.";
-  if (key === "delayed") return "Latest snapshot is late, but still usable.";
-  if (key === "stale") return "Latest snapshot is old. Read trends as delayed data.";
-  if (key === "degraded") return "One or more sources are failing, but partial data is available.";
-  if (key === "unavailable") return "Summary path is not available right now.";
-  return "Summary state could not be classified.";
+function dsBadge(state) {
+  if (!DS.freshness) return;
+  const key = dsState(state);
+  DS.freshness.className = `v state-badge state-${key}`;
+  DS.freshness.textContent = key[0].toUpperCase() + key.slice(1);
+  DS.freshness.title = dsHelp(key);
 }
 
-function dsRenderStateBadge(el, state) {
-  if (!el) return;
-  const key = dsNormalizeState(state);
-  el.className = `v state-badge state-${key}`;
-  el.textContent = dsStateLabel(state);
-  el.title = dsStateHelp(state);
+function dsDate(value) {
+  const time = Date.parse(value || "");
+  return Number.isFinite(time) ? new Date(time).toLocaleString() : (value || "—");
 }
 
-function dsFormatGeneratedAt(value) {
-  if (!value) return "—";
-  const ms = Date.parse(value);
-  if (!Number.isFinite(ms)) return String(value);
-  return new Date(ms).toLocaleString();
+function dsRetention(value) {
+  if (!value || typeof value !== "object") return "Retention: summary metadata unavailable.";
+  const parts = [];
+  if (value.list_limit) parts.push(`list ${value.list_limit}`);
+  if (value.events_limit) parts.push(`events ${value.events_limit}`);
+  if (value.daily_limit) parts.push(`daily ${value.daily_limit}`);
+  if (value.series_days) parts.push(`series ${value.series_days}d`);
+  return parts.length ? `Retention: ${parts.join(" · ")}` : "Retention: summary metadata unavailable.";
 }
 
-function dsFormatInterval(value) {
-  const n = Number(value);
-  return Number.isFinite(n) && n > 0 ? `${n} min` : "—";
+function dsNumber(value, digits) {
+  return Number.isFinite(value) ? Number(value).toFixed(digits) : "—";
 }
 
-function dsParseRawSummary() {
-  const rawText = DASHBOARD_SOURCE_UI.raw?.textContent?.trim();
-  if (!rawText || rawText === "—") return null;
+function dsAlert(decision) {
+  const element = DS.alerts[decision?.id];
+  if (!element) return;
+  if (!decision || decision.state === "insufficient_data") {
+    element.textContent = "Insufficient data";
+    element.title = "The server-owned policy does not have enough baseline samples.";
+  } else if (!decision.active) {
+    element.textContent = "Clear";
+    element.title = `${decision.label}: ratio ${dsNumber(decision.ratio, 3)}.`;
+  } else {
+    const digits = decision.id === "gas_high" ? 6 : 2;
+    element.textContent = `Active · ${dsNumber(decision.current, digits)} / ${dsNumber(decision.baseline, digits)}`;
+    element.title = `${decision.label}: threshold ${decision.threshold_ratio}, ratio ${dsNumber(decision.ratio, 3)}.`;
+  }
+}
+
+function dsAlerts(summary) {
+  const payload = summary?.alerts || summary?.health?.alerts;
+  const decisions = Array.isArray(payload?.decisions) ? payload.decisions : null;
+  if (!decisions) return false;
+  for (const id of Object.keys(DS.alerts)) dsAlert(decisions.find((item) => item?.id === id) || { id, state: "insufficient_data" });
+  document.documentElement.dataset.alertPolicySource = "summary-api";
+  return true;
+}
+
+function dsParseRaw() {
   try {
-    return JSON.parse(rawText);
+    const text = DS.raw?.textContent?.trim();
+    return text && text !== "—" ? JSON.parse(text) : null;
   } catch {
     return null;
   }
 }
 
-function dsBuildRetentionText(retention) {
-  if (!retention || typeof retention !== "object") return "Retention: summary metadata unavailable.";
-  const pieces = [];
-  if (retention.list_limit) pieces.push(`list ${retention.list_limit}`);
-  if (retention.events_limit) pieces.push(`events ${retention.events_limit}`);
-  if (retention.daily_limit) pieces.push(`daily ${retention.daily_limit}`);
-  if (retention.series_days) pieces.push(`series ${retention.series_days}d`);
-  return pieces.length ? `Retention: ${pieces.join(" · ")}` : "Retention: summary metadata unavailable.";
-}
-
-function dsExtractFreshnessState(summary) {
-  return summary?.dashboard_state || summary?.freshness?.state || summary?.status || "unknown";
-}
-
-function dsRenderFromSummary(summary) {
+function dsRender(summary) {
   if (!summary || typeof summary !== "object") return false;
-  const freshnessState = dsExtractFreshnessState(summary);
-  const generatedAt = summary?.generated_at || summary?.ts || "—";
-  const intervalMin = summary?.interval_min || summary?.freshness?.interval_min || summary?.retention?.interval_min || null;
-  const sourcePath = dsIsLocalMode() ? `${dsApiBase()}/api/summary` : "/api/summary";
-  dsRenderStateBadge(DASHBOARD_SOURCE_UI.freshness, freshnessState);
-  dsSetText(DASHBOARD_SOURCE_UI.generatedAt, dsFormatGeneratedAt(generatedAt));
-  dsSetText(DASHBOARD_SOURCE_UI.interval, dsFormatInterval(intervalMin));
-  dsSetText(DASHBOARD_SOURCE_UI.path, sourcePath);
-  dsSetText(DASHBOARD_SOURCE_UI.retention, `${dsStateHelp(freshnessState)} ${dsBuildRetentionText(summary?.retention)}`);
+  const state = summary.dashboard_state || summary?.freshness?.state || summary.status || "unknown";
+  const interval = Number(summary.interval_min || summary?.freshness?.interval_min || summary?.retention?.interval_min);
+  dsBadge(state);
+  dsText(DS.generatedAt, dsDate(summary.generated_at || summary.ts));
+  dsText(DS.interval, Number.isFinite(interval) && interval > 0 ? `${interval} min` : "—");
+  dsText(DS.path, dsLocal() ? `${dsBase()}/api/summary` : "/api/summary");
+  dsText(DS.retention, `${dsHelp(state)} ${dsRetention(summary.retention)}`);
+  dsAlerts(summary);
   return true;
 }
 
 async function dsFetchSummaryFallback() {
   try {
-    const res = await fetch(`${dsApiBase()}/api/summary?limit=1&event_limit=1`, { headers: { accept: "application/json" } });
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    return await res.json();
+    const response = await fetch(`${dsBase()}/api/summary?limit=96&event_limit=20`, { headers: { accept: "application/json" } });
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    return await response.json();
   } catch {
     return null;
   }
 }
 
-async function dsRefreshCard() {
-  const rawSummary = dsParseRawSummary();
-  if (dsRenderFromSummary(rawSummary)) return;
-  const fetched = await dsFetchSummaryFallback();
-  if (dsRenderFromSummary(fetched)) return;
-  dsRenderStateBadge(DASHBOARD_SOURCE_UI.freshness, DASHBOARD_SOURCE_UI.status?.textContent || "unavailable");
-  dsSetText(DASHBOARD_SOURCE_UI.generatedAt, "Waiting for summary payload");
-  dsSetText(DASHBOARD_SOURCE_UI.interval, "—");
-  dsSetText(DASHBOARD_SOURCE_UI.path, dsIsLocalMode() ? `${dsApiBase()}/api/summary` : "/api/summary");
-  dsSetText(DASHBOARD_SOURCE_UI.retention, "Summary payload has not loaded yet. Retention metadata is unavailable.");
-}
-
-function dsAttachObservers() {
-  if (DASHBOARD_SOURCE_UI.raw) {
-    const rawObserver = new MutationObserver(() => { dsRefreshCard(); });
-    rawObserver.observe(DASHBOARD_SOURCE_UI.raw, { childList: true, characterData: true, subtree: true });
+async function dsRefresh() {
+  const raw = dsParseRaw();
+  if (raw) {
+    dsRender(raw);
+    if (dsAlerts(raw)) return;
   }
-  if (DASHBOARD_SOURCE_UI.reload) {
-    DASHBOARD_SOURCE_UI.reload.addEventListener("click", () => {
-      setTimeout(() => { dsRefreshCard(); }, 600);
-    });
-  }
+  if (dsRender(await dsFetchSummaryFallback())) return;
+  dsBadge(DS.status?.textContent || "unavailable");
+  dsText(DS.generatedAt, "Waiting for summary payload");
+  dsText(DS.interval, "—");
+  dsText(DS.path, dsLocal() ? `${dsBase()}/api/summary` : "/api/summary");
+  dsText(DS.retention, "Summary payload has not loaded yet. Retention metadata is unavailable.");
+  document.documentElement.dataset.alertPolicySource = "unavailable";
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-  dsAttachObservers();
-  dsRefreshCard();
+  if (DS.raw) new MutationObserver(dsRefresh).observe(DS.raw, { childList: true, characterData: true, subtree: true });
+  DS.reload?.addEventListener("click", () => setTimeout(dsRefresh, 600));
+  dsRefresh();
 });

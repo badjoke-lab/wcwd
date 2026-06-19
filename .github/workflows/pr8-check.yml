@@ -1,0 +1,17 @@
+name: PR8 Check
+on:
+  pull_request:
+  push:
+    branches: [main]
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --check src/alert-policy.js
+      - run: node --check dashboard-source.js
+      - run: node --experimental-default-type=module scripts/test_alert_policy.mjs
+      - run: node --experimental-default-type=module scripts/test_event_lifecycle.mjs
