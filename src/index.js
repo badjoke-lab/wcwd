@@ -8,6 +8,7 @@ import { handlePaymasterPreflight } from "./paymaster-preflight.js";
 import { normalizeDailyRecord } from "./monitor-daily.js";
 import { normalizeVersion } from "./monitor-semantics.js";
 import { normalizeSummary } from "./monitor-summary.js";
+import { collapseEventLifecycle, computeAlertDecisions } from "./alert-policy.js";
 
 function json(data, init = {}) {
   const headers = new Headers(init.headers || {});
@@ -103,6 +104,17 @@ function addSummaryRetention(body, limit, url, env) {
   const freshness = normalized?.freshness && typeof normalized.freshness === "object"
     ? { ...normalized.freshness, state: normalizeState(normalized.freshness.state) }
     : normalized?.freshness;
+  const history = Array.isArray(normalized?.history) ? normalized.history : [];
+  const latest = normalized?.latest && typeof normalized.latest === "object"
+    ? normalized.latest
+    : (history[history.length - 1] || null);
+  const intervalMin = Number.isFinite(Number(normalized?.interval_min))
+    ? Number(normalized.interval_min)
+    : 15;
+  const lifecycleEvents = collapseEventLifecycle(normalized?.events);
+  const events = lifecycleEvents.length > eventLimit
+    ? lifecycleEvents.slice(lifecycleEvents.length - eventLimit)
+    : lifecycleEvents;
   return {
     ...normalized,
     limit,
@@ -111,6 +123,13 @@ function addSummaryRetention(body, limit, url, env) {
     dashboard_state: dashboardState,
     degraded: dashboardState !== "fresh",
     degraded_reasons: buildNormalizedReasons(normalized, dashboardState),
+    alerts: computeAlertDecisions(latest, history, intervalMin),
+    events,
+    event_lifecycle: {
+      model: "identity_collapsed",
+      input_records: Array.isArray(normalized?.events) ? normalized.events.length : 0,
+      visible_records: events.length,
+    },
     retention: buildRetentionMetadata({ source: "summary_proxy_read_only", request_limit: limit, event_limit: eventLimit }),
   };
 }
@@ -121,7 +140,19 @@ function addListRetention(body, limit) {
 }
 
 function addEventsRetention(body, limit) {
-  return { ...body, limit, retention: RETENTION.events };
+  const lifecycle = collapseEventLifecycle(body?.events);
+  const events = lifecycle.length > limit ? lifecycle.slice(lifecycle.length - limit) : lifecycle;
+  return {
+    ...body,
+    events,
+    limit,
+    event_lifecycle: {
+      model: "identity_collapsed",
+      input_records: Array.isArray(body?.events) ? body.events.length : 0,
+      visible_records: events.length,
+    },
+    retention: RETENTION.events,
+  };
 }
 
 function unavailableDaily(body) {
