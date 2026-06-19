@@ -110,6 +110,7 @@ function dsRenderFromSummary(summary) {
   dsSetText(DASHBOARD_SOURCE_UI.interval, dsFormatInterval(intervalMin));
   dsSetText(DASHBOARD_SOURCE_UI.path, sourcePath);
   dsSetText(DASHBOARD_SOURCE_UI.retention, `${dsStateHelp(freshnessState)} ${dsBuildRetentionText(summary?.retention)}`);
+  document.dispatchEvent(new CustomEvent("wcwd:summary", { detail: summary }));
   return true;
 }
 
