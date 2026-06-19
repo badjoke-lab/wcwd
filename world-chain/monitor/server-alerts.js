@@ -4,7 +4,6 @@
     tps_drop: document.getElementById("serverAlertDrop"),
     gas_high: document.getElementById("serverAlertHighGas"),
   };
-  const raw = document.getElementById("raw");
 
   function format(value, digits) {
     return Number.isFinite(value) ? Number(value).toFixed(digits) : "—";
@@ -15,6 +14,7 @@
     if (!target) return;
     if (!decision || decision.state === "insufficient_data") {
       target.textContent = "Insufficient data";
+      target.title = "The server-owned policy does not have enough baseline samples.";
       return;
     }
     if (!decision.active) {
@@ -27,21 +27,14 @@
     target.title = `${decision.label}: threshold ${decision.threshold_ratio}, ratio ${format(decision.ratio, 3)}.`;
   }
 
-  function refresh() {
-    let payload = null;
-    try {
-      const parsed = JSON.parse(raw?.textContent || "null");
-      payload = parsed?.alerts || parsed?.health?.alerts || null;
-    } catch {
-      payload = null;
-    }
-    const decisions = Array.isArray(payload?.decisions) ? payload.decisions : [];
+  function render(summary) {
+    const decisions = Array.isArray(summary?.alerts?.decisions) ? summary.alerts.decisions : [];
     for (const id of Object.keys(targets)) {
       renderDecision(decisions.find((item) => item?.id === id) || { id, state: "insufficient_data" });
     }
     document.documentElement.dataset.alertPolicySource = decisions.length ? "summary-api" : "unavailable";
   }
 
-  if (raw) new MutationObserver(refresh).observe(raw, { childList: true, characterData: true, subtree: true });
-  document.addEventListener("DOMContentLoaded", refresh, { once: true });
+  document.addEventListener("wcwd:summary", (event) => render(event.detail));
+  document.addEventListener("DOMContentLoaded", () => render(null), { once: true });
 })();
