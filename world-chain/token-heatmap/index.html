@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="robots" content="noindex,nofollow" />
+  <title>WCWD — World Chain Token Heatmap</title>
+  <meta name="description" content="Experimental read-only World Chain token snapshot. Unavailable when a reviewed source snapshot is missing." />
+  <link rel="canonical" href="https://wcwd.badjoke-lab.com/world-chain/token-heatmap/" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="WCWD" />
+  <meta property="og:title" content="WCWD — World Chain Token Heatmap" />
+  <meta property="og:description" content="Experimental read-only World Chain token snapshot. No generated fallback values." />
+  <meta property="og:url" content="https://wcwd.badjoke-lab.com/world-chain/token-heatmap/" />
+  <meta property="og:image" content="https://wcwd.badjoke-lab.com/og.png" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="WCWD — World Chain Token Heatmap" />
+  <meta name="twitter:description" content="Experimental read-only World Chain token snapshot. No generated fallback values." />
+  <meta name="twitter:image" content="https://wcwd.badjoke-lab.com/og.png" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/assets/common.css" />
+  <link rel="stylesheet" href="/style.css" />
+  <link rel="stylesheet" href="./token-heatmap.css" />
+<!-- WCWD:HEAD:GA4:BEGIN -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-0D84H0D66W"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-0D84H0D66W');
+</script>
+<!-- WCWD:HEAD:GA4:END -->
+</head>
+<body>
+<header class="header"><div class="container header-inner">
+  <a class="brand" href="/">WCWD</a>
+  <nav class="nav" data-site-nav><a href="/">Home</a><a href="/world-chain/">World Chain</a><a href="/world-id/">World ID</a><a href="/about/">About</a><a href="/donate/">Donate</a></nav>
+</div></header>
+<section class="hero token-heatmap-hero"><div class="container">
+  <p class="eyebrow">Visualizer / Experimental</p>
+  <h1>World Chain Token Heatmap</h1>
+  <p class="lead">Read-only view of a reviewed stored World Chain token snapshot.</p>
+  <p class="muted small">Token identity, a World Chain contract address, source metadata, observation time, and freshness are required. Otherwise this page remains unavailable.</p>
+</div></section>
+<main class="container token-heatmap-page">
+  <section class="card heatmap-status-card">
+    <p class="card-title">Snapshot status</p>
+    <div class="heatmap-status-grid">
+      <div><div class="label">Showing</div><div class="status-value" id="statusCount">No verified snapshot</div></div>
+      <div><div class="label">Mode</div><div class="status-value" id="statusMode">Market</div></div>
+      <div><div class="label">Source</div><div class="status-value" id="statusSource">Unavailable</div></div>
+      <div><div class="label">Status</div><div class="status-value"><span class="heatmap-pill unavailable" id="statusPill">unavailable</span></div></div>
+      <div><div class="label">Last updated</div><div class="status-value" id="statusUpdated">—</div></div>
+      <div><div class="label">Reason</div><div class="status-value" id="statusReason">no_reviewed_snapshot</div></div>
+    </div>
+    <p class="heatmap-api-note muted small" id="apiNote">No reviewed snapshot is loaded. WCWD does not substitute generated token values.</p>
+    <details><summary class="muted small">Endpoint policy</summary><pre class="code" id="apiDebug">Endpoint: /api/world-chain/token-heatmap/latest
+Mode: read-only stored snapshot
+Indexing: disabled
+Generated fallback: disabled</pre></details>
+  </section>
+  <section class="card heatmap-controls-card">
+    <p class="card-title">Controls</p>
+    <div class="heatmap-controls">
+      <div class="segmented" role="group" aria-label="Heatmap mode"><button class="mode-btn is-active" type="button" data-mode="market">Market</button><button class="mode-btn" type="button" data-mode="liquidity">Liquidity</button><button class="mode-btn" type="button" data-mode="risk">Risk</button></div>
+      <button class="btn secondary" id="resetZoom" type="button">Reset view</button>
+      <button class="btn ghost" id="mobileMapToggle" type="button" disabled>Read-only map</button>
+    </div>
+    <p class="muted small" id="interactionHint">Tiles appear only when a reviewed snapshot is available.</p>
+  </section>
+  <section class="heatmap-layout">
+    <div class="card heatmap-card"><div class="heatmap-card-head"><div><p class="card-title">Token heatmap</p><p class="muted small" id="modeDescription">Area = reported cap or volume.</p></div><div class="heatmap-legend" id="modeLegend"></div></div><div class="heatmap-canvas-viewport" id="heatmapViewport"><canvas id="heatmapTiles"></canvas><canvas id="heatmapOverlay"></canvas></div></div>
+    <aside class="card selected-card"><p class="card-title">Selected token</p><div id="selectedDetail" class="selected-detail">No reviewed token is available to inspect.</div></aside>
+  </section>
+  <section class="card"><p class="card-title">Mini ranking</p><p class="muted small">Shown only for a reviewed snapshot.</p><div id="miniRanking" class="mini-ranking"><p class="muted small">No reviewed tokens available.</p></div></section>
+  <section class="card"><p class="card-title">Related tools</p><p><a class="btn" href="/world-chain/sell-impact/">Sell Impact</a> <a class="btn secondary" href="/world-chain/ecosystem/">Ecosystem</a> <a class="btn secondary" href="/world-chain/monitor/">Monitor</a></p><p class="note">This experimental page is not financial advice and is excluded from indexing until its real-data gate is consistently satisfied.</p></section>
+</main>
+<footer class="footer"><div class="container"><p><a href="/world-chain/">World Chain</a> · <a href="/about/">About</a> · <a href="/donate/">Donate</a></p><p>Built by BadJoke-Lab · © 2026 WCWD</p></div></footer>
+<script src="/assets/common.js"></script>
+<script src="./token-heatmap.js" defer></script>
+</body>
+</html>
