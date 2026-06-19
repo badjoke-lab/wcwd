@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import re
 import sys
 
 from route_registry import ROOT, load_routes, public_pages
@@ -18,6 +19,10 @@ def main() -> int:
     for item in routes:
         if not item.path.is_file():
             errors.append(f"registered page missing: {item.file}")
+            continue
+        text = item.path.read_text(encoding="utf-8", errors="replace")
+        if re.search(r'(?:href|src)=["\']/test(?:/|["\'])', text, flags=re.I):
+            errors.append(f"{item.file}: public reference to /test/")
 
     source_checks = {
         "scripts/gen_sitemap.py": ("route_registry", "PUBLIC_ROUTE_ALLOWLIST"),
@@ -35,13 +40,17 @@ def main() -> int:
         if forbidden in text:
             errors.append(f"{relative}: hard-coded route list remains")
 
+    build_script = (ROOT / "scripts/build_pages_dist.py").read_text(encoding="utf-8")
+    if '"test"' in build_script or "'test'" in build_script:
+        errors.append("production artifact must not copy the test tree")
+
     if errors:
         print("Route registry check failed:", file=sys.stderr)
         for error in errors:
             print(f"- {error}", file=sys.stderr)
         return 1
 
-    print(f"Route registry check passed: {len(routes)} public routes.")
+    print(f"Route registry check passed: {len(routes)} public routes; test routes excluded.")
     return 0
 
 
