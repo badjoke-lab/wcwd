@@ -40,43 +40,21 @@
       <a href="/">Home</a>
       <a href="/world-chain/">World Chain</a>
       <a href="/world-id/">World ID</a>
-      <a href="/test/">Test</a>
       <a href="/about/">About</a>
-      <a href="/donate/">Donate</a>
+      <a class="nav-donate" href="/donate/">Support</a>
     </nav>
   </div>
 </header>
 <!-- WCWD:HEADER:END -->
-  <main class="container">
-    <h1>World ID Hub</h1>
-    <p class="muted">Builder-focused entry point for integration, debugging, and request testing flows.</p>
-
-    <section class="card">
-      <p class="card-title">Wizard</p>
-      <p class="muted small">For building integration scaffolds with frontend/backend snippets, env templates, and setup checklist guidance.</p>
-      <p><a class="btn" href="/world-id/wizard/">Open Wizard</a></p>
-    </section>
-
-    <section class="card">
-      <p class="card-title">Debugger</p>
-      <p class="muted small">For integration debugging: inspect proof payloads, run validations, and view categorized diagnosis output.</p>
-      <p><a class="btn" href="/world-id/debugger/">Open Debugger</a></p>
-    </section>
-
-    <section class="card">
-      <p class="card-title">Playground</p>
-      <p class="muted small">For testing verifier endpoints: create curl/fetch requests and evaluate request/response behavior including CORS constraints.</p>
-      <p><a class="btn" href="/world-id/playground/">Open Playground</a></p>
-    </section>
-
-    <section class="card">
-      <p class="card-title">WLD Visualizers</p>
-      <p class="muted small">For exploring concept visualizers (Metro Map, Human vs Bot Flow, Planet System, Wormhole) from a single entry point.</p>
-      <p><a class="btn" href="/test/visualizers/">Open Visualizers Hub</a></p>
-    </section>
-
-    <p><a href="/">Back to Home</a></p>
-  </main>
+<main class="container">
+  <section class="hero"><h1>World ID Builder Tools</h1><p class="muted">Production-facing integration, proof inspection, and verifier request tools.</p></section>
+  <section class="grid">
+    <article class="card col-4"><p class="card-title">Integration Wizard</p><p class="muted small">Generate frontend and backend scaffolds, environment templates, and setup guidance.</p><p><a class="btn" href="/world-id/wizard/">Open Wizard</a></p></article>
+    <article class="card col-4"><p class="card-title">Proof Debugger</p><p class="muted small">Inspect proof JSON structure locally in the active page session.</p><p><a class="btn" href="/world-id/debugger/">Open Debugger</a></p></article>
+    <article class="card col-4"><p class="card-title">Verifier Playground</p><p class="muted small">Create verifier request examples and inspect browser request constraints.</p><p><a class="btn" href="/world-id/playground/">Open Playground</a></p></article>
+  </section>
+  <p><a href="/">Back to Home</a></p>
+</main>
 <!-- WCWD:FOOTER:BEGIN -->
 <footer class="footer">
   <div class="container">
@@ -87,7 +65,7 @@
         <p><a href="/world-chain/">World Chain</a></p>
         <p><a href="/world-id/">World ID</a></p>
         <p><a href="/about/">About</a></p>
-        <p><a href="/donate/">Donate</a></p>
+        <p><a class="footer-support-link" href="/donate/">Support this free toolkit</a></p>
       </section>
       <section class="col-3">
         <p class="card-title">Legal</p>
@@ -103,12 +81,13 @@
       <section class="col-3">
         <p class="card-title">Signature</p>
         <p>Built by BadJoke-Lab</p>
+        <p>Donation-supported</p>
         <p>© 2026 WCWD</p>
       </section>
     </div>
   </div>
 </footer>
 <!-- WCWD:FOOTER:END -->
-  <script src="/assets/common.js"></script>
+<script src="/assets/common.js"></script>
 </body>
 </html>

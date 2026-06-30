@@ -2,14 +2,8 @@
 <html lang="en" data-lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>WCWD — Worldcoin, World Chain, WLD &amp; World ID Tools</title>
   <meta name="description" content="Unofficial Worldcoin toolkit for World Chain monitoring, WLD market context, Sell Impact checks, ecosystem browsing, and World ID builder workflows." />
-  <meta name="wcwd-history-base" content="https://wcwd-history.badjoke-lab.workers.dev" />
-  <link rel="icon" href="/favicon.ico" sizes="any" />
-  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-  <link rel="stylesheet" href="/assets/common.css" />
-  <link rel="stylesheet" href="./style.css" />
   <link rel="canonical" href="https://wcwd.badjoke-lab.com/">
   <meta property="og:type" content="website">
   <meta property="og:site_name" content="WCWD">
@@ -21,7 +15,14 @@
   <meta name="twitter:title" content="WCWD — Worldcoin, World Chain, WLD &amp; World ID Tools">
   <meta name="twitter:description" content="Unofficial Worldcoin toolkit for World Chain monitoring, WLD market context, Sell Impact checks, ecosystem browsing, and World ID builder workflows.">
   <meta name="twitter:image" content="https://wcwd.badjoke-lab.com/og.png">
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="wcwd-history-base" content="https://wcwd-history.badjoke-lab.workers.dev" />
+  <link rel="icon" href="/favicon.ico" sizes="any" />
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/assets/common.css" />
+  <link rel="stylesheet" href="./style.css" />
 <!-- WCWD:HEAD:GA4:BEGIN -->
+<!-- Google tag (gtag.js) -->
 <script async src="https://www.googletagmanager.com/gtag/js?id=G-0D84H0D66W"></script>
 <script>
   window.dataLayer = window.dataLayer || [];
@@ -33,19 +34,20 @@
 </head>
 
 <body>
+<!-- WCWD:HEADER:BEGIN -->
 <header class="header">
   <div class="container header-inner">
     <a class="brand" href="/">WCWD</a>
     <nav class="nav" data-site-nav>
-      <a href="/" aria-current="page">Home</a>
+      <a href="/">Home</a>
       <a href="/world-chain/">World Chain</a>
       <a href="/world-id/">World ID</a>
       <a href="/about/">About</a>
-      <a href="/donate/">Donate</a>
+      <a class="nav-donate" href="/donate/">Support</a>
     </nav>
   </div>
 </header>
-
+<!-- WCWD:HEADER:END -->
 <main class="wrap">
   <section class="card home-hero" aria-labelledby="home-intro-title">
     <h1 id="home-intro-title">WCWD</h1>
@@ -120,17 +122,39 @@
     </div>
   </section>
 </main>
-
+<!-- WCWD:FOOTER:BEGIN -->
 <footer class="footer">
   <div class="container">
     <div class="grid">
-      <section class="col-3"><p class="card-title">Site</p><p><a href="/">Home</a></p><p><a href="/world-chain/">World Chain</a></p><p><a href="/world-id/">World ID</a></p></section>
-      <section class="col-3"><p class="card-title">Legal</p><p><a href="/about/">About</a></p><p><a href="/about/#disclaimer">Disclaimer</a></p><p><a href="/about/#privacy">Privacy</a></p></section>
-      <section class="col-3"><p class="card-title">External</p><p><a href="https://github.com/badjoke-lab/wcwd" target="_blank" rel="noopener noreferrer">GitHub</a></p><p><a href="https://x.com/badjoke_lab" target="_blank" rel="noopener noreferrer">X</a></p></section>
-      <section class="col-3"><p class="card-title">Signature</p><p>Built by BadJoke-Lab</p><p>© 2026 WCWD</p></section>
+      <section class="col-3">
+        <p class="card-title">Site</p>
+        <p><a href="/">Home</a></p>
+        <p><a href="/world-chain/">World Chain</a></p>
+        <p><a href="/world-id/">World ID</a></p>
+        <p><a href="/about/">About</a></p>
+        <p><a class="footer-support-link" href="/donate/">Support this free toolkit</a></p>
+      </section>
+      <section class="col-3">
+        <p class="card-title">Legal</p>
+        <p><a href="/about/#disclaimer">Disclaimer</a></p>
+        <p><a href="/about/#privacy">Privacy</a></p>
+        <p><a href="https://docs.google.com/forms/d/e/1FAIpQLScdv3WFVHmQO_mz-p4_HJv1RyJItghrG6A0SGQ5ec4R2NBNOw/viewform?usp=pp_url&amp;entry.148248220=WCWD" target="_blank" rel="noopener noreferrer">Contact</a></p>
+      </section>
+      <section class="col-3">
+        <p class="card-title">External</p>
+        <p><a href="https://github.com/badjoke-lab/wcwd" target="_blank" rel="noopener noreferrer">GitHub</a></p>
+        <p><a href="https://x.com/badjoke_lab" target="_blank" rel="noopener noreferrer">X</a></p>
+      </section>
+      <section class="col-3">
+        <p class="card-title">Signature</p>
+        <p>Built by BadJoke-Lab</p>
+        <p>Donation-supported</p>
+        <p>© 2026 WCWD</p>
+      </section>
     </div>
   </div>
 </footer>
+<!-- WCWD:FOOTER:END -->
 <script src="/assets/common.js"></script>
 <script src="./home-summary.js" defer></script>
 <script src="./home-watchlist.js" defer></script>
