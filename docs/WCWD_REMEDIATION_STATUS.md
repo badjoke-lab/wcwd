@@ -1,10 +1,10 @@
 # WCWD Remediation Status
 
 **Status:** Active  
-**Last updated:** 2026-06-30 after PR 11 merge  
-**Current position:** PR 12 — World ID proof privacy  
-**Latest merged remediation PR:** #175  
-**Latest merge commit:** `a116f8cabfd447d432ce24f0d810a116889327ac`
+**Last updated:** 2026-06-30 after PR 12 merge  
+**Current position:** PR 13 — Static SEO/support and About rewrite  
+**Latest merged remediation PR:** #176  
+**Latest merge commit:** `a8fec67f42270d36e95dcc0f04526f92c3cc15b6`
 
 Repository completion and production rollout are recorded separately.
 
@@ -24,8 +24,8 @@ Repository completion and production rollout are recorded separately.
 | PR 9 | Ecosystem data validation | Merged — #173; production pending |
 | PR 10 | Token Heatmap safety and truthfulness | Merged — #174; production pending |
 | PR 11 | Experimental route removal | Merged — #175; production pending |
-| PR 12 | World ID proof persistence removal | In progress |
-| PR 13 | Static SEO/support and About rewrite | Not started |
+| PR 12 | World ID proof persistence removal | Merged — #176; production pending |
+| PR 13 | Static SEO/support and About rewrite | In progress |
 | PR 14 | Design alignment and specification archive | Not started |
 | PR 15 | Final repository and production audit | Not started |
 
@@ -95,18 +95,25 @@ Repository completion and production rollout are recorded separately.
 - Strengthened source and artifact checks so production HTML cannot reference `/test/`, and the canonical artifact rejects `test/` and `dev/` trees.
 - Hosted PR checks passed on 2026-06-30: PR8 Check, PR9 Check, PR10 Check, SEO Check, and Cloudflare Pages preview.
 
+### PR 12 — #176
+- Merge commit: `a8fec67f42270d36e95dcc0f04526f92c3cc15b6`.
+- Made World ID proof handling ephemeral by disabling proof save/load behavior and clearing legacy proof storage keys.
+- Added visible privacy warning, clear controls, 200KB proof size enforcement, and allowlisted analytics event names.
+- Recovered the verified temp repair `ac1ba8164f8fbd8372ce75520e3ecc7f67dff7ff`, restoring controls and clearing stale status text when oversize input becomes valid again.
+- Hosted PR checks passed on 2026-06-30: PR8 Check, PR9 Check, PR10 Check, PR12 Check, SEO Check, and Cloudflare Pages preview.
+
 ## Open production gates
 
 1. Identify the existing Pages project and custom-domain attachment.
 2. Confirm production branch and output configuration.
 3. Manually deploy Pages and Worker from a successful hosted-CI commit when the repository phase is ready.
-4. Verify public build markers, removed routes, hardened APIs, semantic labels, cache headers, ecosystem review labels, Token Heatmap noindex/unavailable states, and absence of `/test/` production navigation.
+4. Verify public build markers, removed routes, hardened APIs, semantic labels, cache headers, ecosystem review labels, Token Heatmap noindex/unavailable states, absence of `/test/` production navigation, and World ID proof privacy behavior.
 5. Confirm Cloudflare Cron Trigger remains zero.
 
-## Current PR: PR 12
+## Current PR: PR 13
 
-- remove World ID proof persistence from browser storage;
-- remove legacy proof keys and keep proof data ephemeral to the active page session;
-- prevent proof payloads, endpoint URLs, and raw response/error bodies from analytics;
-- keep Debugger and Playground behavior working with clear controls, max input size, and visible privacy warning;
+- keep `config/routes.json` as the canonical route and metadata source;
+- make essential metadata, JSON-LD, breadcrumbs, support content, and About disclosures static HTML;
+- remove runtime injection of essential SEO/support/architecture content;
+- verify core content with JavaScript disabled;
 - preserve production deployment as a separate manual gate.
