@@ -18,8 +18,6 @@
       "explorer": "https://worldscan.org/address/0x2cfc85d8e48f8eab294be644d9e25c3030863003"
     },
     "status": "active",
-    "hot": true,
-    "hot_rank": 1,
     "added_at": "2024-05-01",
     "updated_at": "2024-05-01"
   },
@@ -42,8 +40,6 @@
       "explorer": "https://worldscan.org/address/0x7a5028BDa40e7B173C278C5342087826455ea25a"
     },
     "status": "active",
-    "hot": true,
-    "hot_rank": 2,
     "added_at": "2024-05-01",
     "updated_at": "2024-05-01"
   },
@@ -204,8 +200,6 @@
     },
     "offchain_verified": true,
     "status": "active",
-    "hot": true,
-    "hot_rank": 3,
     "added_at": "2024-05-01",
     "updated_at": "2024-05-01"
   },
