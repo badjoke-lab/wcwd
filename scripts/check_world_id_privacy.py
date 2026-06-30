@@ -10,6 +10,8 @@ assert "localStorage.removeItem" in tools
 assert "MAX_PROOF_BYTES = 200 * 1024" in tools
 assert "data-world-id-privacy-warning" in tools
 assert "btnClearProof" in tools
+assert "button.disabled = tooLarge" in tools
+assert "status.textContent = tooLarge ?" in tools
 assert "EVENT_ALLOWLIST" in tools
 assert "gtag('event', eventName)" in tools
 print("World ID privacy check passed")

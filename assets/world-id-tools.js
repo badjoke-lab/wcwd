@@ -103,10 +103,10 @@
       input.setCustomValidity(tooLarge ? 'Proof JSON exceeds the 200KB maximum.' : '');
       ['btnAnalyze', 'btnGenerate', 'btnRun'].forEach(function (id) {
         var button = document.getElementById(id);
-        if (button && tooLarge) button.disabled = true;
+        if (button) button.disabled = tooLarge;
       });
       var status = document.getElementById('proofStatus') || document.getElementById('copyStatus');
-      if (tooLarge && status) status.textContent = 'Input rejected: proof JSON exceeds 200KB.';
+      if (status) status.textContent = tooLarge ? 'Input rejected: proof JSON exceeds 200KB.' : '';
     }
     input.addEventListener('input', enforceLimit);
     enforceLimit();
