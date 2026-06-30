@@ -1,10 +1,10 @@
 # WCWD Remediation Status
 
 **Status:** Active  
-**Last updated:** 2026-06-30 after PR 10 merge  
-**Current position:** PR 11 — Experimental route removal  
-**Latest merged remediation PR:** #174  
-**Latest merge commit:** `15ffb31fb3389767ed2d1d514baa0bbede2af74a`
+**Last updated:** 2026-06-30 after PR 11 merge  
+**Current position:** PR 12 — World ID proof privacy  
+**Latest merged remediation PR:** #175  
+**Latest merge commit:** `a116f8cabfd447d432ce24f0d810a116889327ac`
 
 Repository completion and production rollout are recorded separately.
 
@@ -23,8 +23,8 @@ Repository completion and production rollout are recorded separately.
 | PR 8 | Alert thresholds and event lifecycle | Merged — #172; production pending |
 | PR 9 | Ecosystem data validation | Merged — #173; production pending |
 | PR 10 | Token Heatmap safety and truthfulness | Merged — #174; production pending |
-| PR 11 | Experimental route removal | In progress |
-| PR 12 | World ID proof persistence removal | Not started |
+| PR 11 | Experimental route removal | Merged — #175; production pending |
+| PR 12 | World ID proof persistence removal | In progress |
 | PR 13 | Static SEO/support and About rewrite | Not started |
 | PR 14 | Design alignment and specification archive | Not started |
 | PR 15 | Final repository and production audit | Not started |
@@ -87,18 +87,26 @@ Repository completion and production rollout are recorded separately.
 - Added PR10 checks and tests for missing, malformed, valid, stale, and invalid snapshots.
 - Hosted PR checks passed on 2026-06-30: PR8 Check, PR9 Check, PR10 Check, SEO Check, and Cloudflare Pages preview.
 
+### PR 11 — #175
+- Merge commit: `a116f8cabfd447d432ce24f0d810a116889327ac`.
+- Removed production `/test/` navigation from source pages by regenerating stale pages from the shared production partials.
+- Removed the runtime-only `/test/` navigation stripping fallback.
+- Converted retained visualizer redirect paths into explicit `noindex,nofollow` unavailable pages that do not link to `/test/`.
+- Strengthened source and artifact checks so production HTML cannot reference `/test/`, and the canonical artifact rejects `test/` and `dev/` trees.
+- Hosted PR checks passed on 2026-06-30: PR8 Check, PR9 Check, PR10 Check, SEO Check, and Cloudflare Pages preview.
+
 ## Open production gates
 
 1. Identify the existing Pages project and custom-domain attachment.
 2. Confirm production branch and output configuration.
 3. Manually deploy Pages and Worker from a successful hosted-CI commit when the repository phase is ready.
-4. Verify public build markers, removed routes, hardened APIs, semantic labels, cache headers, ecosystem review labels, and Token Heatmap noindex/unavailable states.
+4. Verify public build markers, removed routes, hardened APIs, semantic labels, cache headers, ecosystem review labels, Token Heatmap noindex/unavailable states, and absence of `/test/` production navigation.
 5. Confirm Cloudflare Cron Trigger remains zero.
 
-## Current PR: PR 11
+## Current PR: PR 12
 
-- remove `/test/` from public navigation and World ID hub links;
-- exclude public test/dev trees from the canonical production artifact;
-- add response-level noindex or 404 behavior for retained private paths;
-- add CI coverage that rejects public `/test/` references in source and generated output;
+- remove World ID proof persistence from browser storage;
+- remove legacy proof keys and keep proof data ephemeral to the active page session;
+- prevent proof payloads, endpoint URLs, and raw response/error bodies from analytics;
+- keep Debugger and Playground behavior working with clear controls, max input size, and visible privacy warning;
 - preserve production deployment as a separate manual gate.
