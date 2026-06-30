@@ -12,12 +12,13 @@
     const address = String(value?.address || "").trim().toLowerCase();
     const symbol = String(value?.symbol || "").trim();
     const name = String(value?.name || "").trim();
+    const sourceUrl = String(value?.sourceUrl || "").trim();
     const capUsd = num(value?.capUsd);
     const volume24h = num(value?.volume24h);
     const liquidityUsd = num(value?.liquidityUsd);
-    if (!ADDRESS.test(address) || !symbol || !name) return null;
+    if (!ADDRESS.test(address) || Number(value?.chainId) !== 480 || !symbol || !name || !sourceUrl.startsWith("https://") || !value?.updatedAt) return null;
     if (![capUsd, volume24h, liquidityUsd].some((metric) => metric > 0)) return null;
-    return { ...value, id: address, address, symbol, name, capUsd, volume24h, liquidityUsd, change24h: num(value?.change24h) };
+    return { ...value, id: address, chainId: 480, address, sourceUrl, symbol, name, capUsd, volume24h, liquidityUsd, change24h: num(value?.change24h) };
   }
 
   function metric(value) {
@@ -90,7 +91,7 @@
 
   function details() {
     const value = state.tokens[0];
-    $("selectedDetail").innerHTML = value ? `<div class="selected-symbol">${safe(value.symbol)}</div><div class="selected-name">${safe(value.name)}</div><div class="detail-row"><span>Contract</span><strong>${safe(value.address)}</strong></div><div class="detail-row"><span>Reported cap</span><strong>${money(value.capUsd)}</strong></div><div class="detail-row"><span>24h volume</span><strong>${money(value.volume24h)}</strong></div><div class="detail-row"><span>Liquidity</span><strong>${money(value.liquidityUsd)}</strong></div>` : "No reviewed token is available to inspect.";
+    $("selectedDetail").innerHTML = value ? `<div class="selected-symbol">${safe(value.symbol)}</div><div class="selected-name">${safe(value.name)}</div><div class="detail-row"><span>Contract</span><strong>${safe(value.address)}</strong></div><div class="detail-row"><span>Chain</span><strong>World Chain (480)</strong></div><div class="detail-row"><span>Source</span><strong><a href="${safe(value.sourceUrl)}" target="_blank" rel="noopener noreferrer">reviewed snapshot</a></strong></div><div class="detail-row"><span>Observed</span><strong>${safe(new Date(value.updatedAt).toLocaleString())}</strong></div><div class="detail-row"><span>Reported cap</span><strong>${money(value.capUsd)}</strong></div><div class="detail-row"><span>24h volume</span><strong>${money(value.volume24h)}</strong></div><div class="detail-row"><span>Liquidity</span><strong>${money(value.liquidityUsd)}</strong></div>` : "No reviewed token is available to inspect.";
     const ranked = state.tokens.slice().sort((a, b) => metric(b) - metric(a)).slice(0, 12);
     $("miniRanking").innerHTML = ranked.length ? ranked.map((item, index) => `<div class="ranking-row"><div class="ranking-rank">#${index + 1}</div><div><div class="ranking-symbol">${safe(item.symbol)}</div><div class="ranking-sub">${safe(item.name)}</div></div><div class="ranking-value">${money(metric(item))}</div></div>`).join("") : '<p class="muted small">No reviewed tokens available.</p>';
   }
