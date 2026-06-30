@@ -1,10 +1,10 @@
 # WCWD Remediation Status
 
 **Status:** Active  
-**Last updated:** 2026-06-30 after PR 9 merge  
-**Current position:** PR 10 — Token Heatmap safety and truthfulness  
-**Latest merged remediation PR:** #173  
-**Latest merge commit:** `00311ae303e78a797be1b1fc0a4aa9d794938b2b`
+**Last updated:** 2026-06-30 after PR 10 merge  
+**Current position:** PR 11 — Experimental route removal  
+**Latest merged remediation PR:** #174  
+**Latest merge commit:** `15ffb31fb3389767ed2d1d514baa0bbede2af74a`
 
 Repository completion and production rollout are recorded separately.
 
@@ -22,8 +22,8 @@ Repository completion and production rollout are recorded separately.
 | PR 7 | Build, route, sitemap, and CI drift unification | Merged — #171; production pending |
 | PR 8 | Alert thresholds and event lifecycle | Merged — #172; production pending |
 | PR 9 | Ecosystem data validation | Merged — #173; production pending |
-| PR 10 | Token Heatmap safety and truthfulness | Not started |
-| PR 11 | Experimental route removal | Partly completed in PR 3 |
+| PR 10 | Token Heatmap safety and truthfulness | Merged — #174; production pending |
+| PR 11 | Experimental route removal | In progress |
 | PR 12 | World ID proof persistence removal | Not started |
 | PR 13 | Static SEO/support and About rewrite | Not started |
 | PR 14 | Design alignment and specification archive | Not started |
@@ -79,18 +79,26 @@ Repository completion and production rollout are recorded separately.
 - Strengthened ecosystem CI checks for duplicate IDs/contracts, World Chain contract identity, dates, source URLs, status, confidence, and permanent hot/new flag regressions.
 - Hosted PR checks passed on 2026-06-30: PR8 Check, PR9 Check, SEO Check, and Cloudflare Pages preview.
 
+### PR 10 — #174
+- Merge commit: `15ffb31fb3389767ed2d1d514baa0bbede2af74a`.
+- Replaced Token Heatmap synthetic/demo presentation with an unavailable-first read-only reviewed snapshot flow.
+- Kept the route non-indexable and removed it from the sitemap while the real-data gate remains unsatisfied.
+- Required source metadata, observation timestamp, freshness, token identity, World Chain `chainId: 480`, contract address, token source URL, and token timestamp before rendering token values.
+- Added PR10 checks and tests for missing, malformed, valid, stale, and invalid snapshots.
+- Hosted PR checks passed on 2026-06-30: PR8 Check, PR9 Check, PR10 Check, SEO Check, and Cloudflare Pages preview.
+
 ## Open production gates
 
 1. Identify the existing Pages project and custom-domain attachment.
 2. Confirm production branch and output configuration.
 3. Manually deploy Pages and Worker from a successful hosted-CI commit when the repository phase is ready.
-4. Verify public build markers, removed routes, hardened APIs, semantic labels, cache headers, and ecosystem review labels.
+4. Verify public build markers, removed routes, hardened APIs, semantic labels, cache headers, ecosystem review labels, and Token Heatmap noindex/unavailable states.
 5. Confirm Cloudflare Cron Trigger remains zero.
 
-## Current PR: PR 10
+## Current PR: PR 11
 
-- remove synthetic Token Heatmap fallback data from public presentation;
-- keep the route unavailable or static-reviewed when current data is absent;
-- require token identity, World Chain contract, source, timestamp, and freshness before rendering observed values;
-- keep the route non-indexable and out of the sitemap while it is not a truthful live-data surface;
+- remove `/test/` from public navigation and World ID hub links;
+- exclude public test/dev trees from the canonical production artifact;
+- add response-level noindex or 404 behavior for retained private paths;
+- add CI coverage that rejects public `/test/` references in source and generated output;
 - preserve production deployment as a separate manual gate.
