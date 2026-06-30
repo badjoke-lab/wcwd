@@ -1,10 +1,10 @@
 # WCWD Remediation Status
 
 **Status:** Active  
-**Last updated:** 2026-06-18 after PR 6 merge  
-**Current position:** PR 7 — Build, route, sitemap, and CI drift unification  
-**Latest merged remediation PR:** #170  
-**Latest merge commit:** `f83466e112eb666f7dba690bbdda06cd89616c42`
+**Last updated:** 2026-06-30 after PR 10 merge  
+**Current position:** PR 11 — Experimental route removal  
+**Latest merged remediation PR:** #174  
+**Latest merge commit:** `15ffb31fb3389767ed2d1d514baa0bbede2af74a`
 
 Repository completion and production rollout are recorded separately.
 
@@ -19,11 +19,11 @@ Repository completion and production rollout are recorded separately.
 | PR 4 | Fixed external fetch and exact Pages proxy boundary | Merged — #168; production pending |
 | PR 5 | Monitor metric and timestamp semantics | Merged — #169; production pending |
 | PR 6 | Cache, timeout, cancellation, request consolidation | Merged — #170; production pending |
-| PR 7 | Build, route, sitemap, and CI drift unification | In progress |
-| PR 8 | Alert thresholds and event lifecycle | Not started |
-| PR 9 | Ecosystem data validation | Not started |
-| PR 10 | Token Heatmap safety and truthfulness | Not started |
-| PR 11 | Experimental route removal | Partly completed in PR 3 |
+| PR 7 | Build, route, sitemap, and CI drift unification | Merged — #171; production pending |
+| PR 8 | Alert thresholds and event lifecycle | Merged — #172; production pending |
+| PR 9 | Ecosystem data validation | Merged — #173; production pending |
+| PR 10 | Token Heatmap safety and truthfulness | Merged — #174; production pending |
+| PR 11 | Experimental route removal | In progress |
 | PR 12 | World ID proof persistence removal | Not started |
 | PR 13 | Static SEO/support and About rewrite | Not started |
 | PR 14 | Design alignment and specification archive | Not started |
@@ -61,18 +61,44 @@ Repository completion and production rollout are recorded separately.
 - Hosted SEO Check run #71 passed all existing guards plus cache and request-policy tests.
 - No Cache API writes, KV writes, scheduled refresh, or background retry was introduced.
 
+### PR 7 — #171
+- Merge commit: `5f9edb3cba4d636be7015e32f74056d86960179b`.
+- Established `config/routes.json` as the canonical route and metadata registry.
+- Drove registered page builds, sitemap generation, SEO checks, and artifact validation from that registry.
+- Added CI guards for route drift, public `/test/` links, generated-file drift, and direct Worker host references.
+
+### PR 8 — #172
+- Merge commit: `f23c69ba794e5fe8578d76bdb5e338b38d4e9157`.
+- Unified alert thresholds and event lifecycle handling across API, frontend, and tests.
+- Added policy/event tests that prevent duplicate visible events for continuing conditions.
+
+### PR 9 — #173
+- Merge commit: `00311ae303e78a797be1b1fc0a4aa9d794938b2b`.
+- Added static ecosystem verification metadata with current review dates, review intervals, sources, confidence, and dated editorial feature metadata.
+- Updated the ecosystem UI to distinguish reviewed World Chain records, stale review state, unverified records, and official offchain records.
+- Strengthened ecosystem CI checks for duplicate IDs/contracts, World Chain contract identity, dates, source URLs, status, confidence, and permanent hot/new flag regressions.
+- Hosted PR checks passed on 2026-06-30: PR8 Check, PR9 Check, SEO Check, and Cloudflare Pages preview.
+
+### PR 10 — #174
+- Merge commit: `15ffb31fb3389767ed2d1d514baa0bbede2af74a`.
+- Replaced Token Heatmap synthetic/demo presentation with an unavailable-first read-only reviewed snapshot flow.
+- Kept the route non-indexable and removed it from the sitemap while the real-data gate remains unsatisfied.
+- Required source metadata, observation timestamp, freshness, token identity, World Chain `chainId: 480`, contract address, token source URL, and token timestamp before rendering token values.
+- Added PR10 checks and tests for missing, malformed, valid, stale, and invalid snapshots.
+- Hosted PR checks passed on 2026-06-30: PR8 Check, PR9 Check, PR10 Check, SEO Check, and Cloudflare Pages preview.
+
 ## Open production gates
 
 1. Identify the existing Pages project and custom-domain attachment.
 2. Confirm production branch and output configuration.
-3. Manually deploy Pages and Worker from a successful hosted-CI commit.
-4. Verify public build markers, removed routes, hardened APIs, semantic labels, and cache headers.
+3. Manually deploy Pages and Worker from a successful hosted-CI commit when the repository phase is ready.
+4. Verify public build markers, removed routes, hardened APIs, semantic labels, cache headers, ecosystem review labels, and Token Heatmap noindex/unavailable states.
 5. Confirm Cloudflare Cron Trigger remains zero.
 
-## Current PR: PR 7
+## Current PR: PR 11
 
-- establish `config/routes.json` as the canonical route and metadata registry;
-- drive build targets, sitemap, SEO checks, and deploy gates from that registry;
-- use explicit per-route content dates instead of generation-day `lastmod` values;
-- reject route drift, broken internal routes, public `/test/` links, and new direct Worker-host references;
+- remove `/test/` from public navigation and World ID hub links;
+- exclude public test/dev trees from the canonical production artifact;
+- add response-level noindex or 404 behavior for retained private paths;
+- add CI coverage that rejects public `/test/` references in source and generated output;
 - preserve production deployment as a separate manual gate.
