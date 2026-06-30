@@ -9,7 +9,7 @@ from pathlib import Path
 import re
 import sys
 
-FORBIDDEN_DIRS = {".git", ".github", "docs", "scripts", "src", "partials", "functions", "node_modules", "test"}
+FORBIDDEN_DIRS = {".git", ".github", "dev", "docs", "scripts", "src", "partials", "functions", "node_modules", "test"}
 REQUIRED_ROOT_FILES = {"index.html", "404.html", "robots.txt", "sitemap.xml", "version.json"}
 RUNTIME_POLICY_PAGES = {
     Path("world-chain/monitor/index.html"),
@@ -80,6 +80,8 @@ def main() -> None:
             errors.append(f"{relative}: build marker does not match version.json")
         if relative in RUNTIME_POLICY_PAGES and text.count(RUNTIME_POLICY_TAG) != 1:
             errors.append(f"{relative}: expected exactly one runtime request policy tag")
+        if "/test/" in text:
+            errors.append(f"{relative}: production artifact references /test/")
 
     index = root / "index.html"
     if index.is_file():

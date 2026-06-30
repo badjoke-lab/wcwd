@@ -17,7 +17,9 @@ function normalizeToken(token) {
   const address = String(token?.address || "").trim().toLowerCase();
   const symbol = String(token?.symbol || "").trim();
   const name = String(token?.name || "").trim();
-  if (!ADDRESS.test(address) || !symbol || !name) return null;
+  const sourceUrl = String(token?.sourceUrl || token?.source?.url || "").trim();
+  const updatedAt = validTimestamp(token?.updatedAt);
+  if (!ADDRESS.test(address) || Number(token?.chainId) !== 480 || !symbol || !name || !sourceUrl.startsWith("https://") || !updatedAt) return null;
   const metrics = {
     priceUsd: finite(token.priceUsd),
     change24h: finite(token.change24h),
@@ -31,13 +33,15 @@ function normalizeToken(token) {
   return {
     symbol,
     name,
+    chainId: 480,
     address,
+    sourceUrl,
     pool: ADDRESS.test(String(token?.pool || "")) ? String(token.pool).toLowerCase() : null,
     ...metrics,
     capSource: ["market_cap_usd", "fdv_usd"].includes(token?.capSource) ? token.capSource : "missing",
     riskState: String(token?.riskState || "unknown"),
     dataStatus: String(token?.dataStatus || token?.status || "unknown"),
-    updatedAt: validTimestamp(token?.updatedAt),
+    updatedAt,
   };
 }
 
@@ -70,6 +74,10 @@ export async function getTokenHeatmapLatest(env) {
   if (!stored || !Array.isArray(stored.tokens)) return unavailable("no_reviewed_snapshot");
   const observedAt = validTimestamp(stored.updatedAt);
   if (!observedAt) return unavailable("snapshot_timestamp_invalid");
+  const source = stored.source || {};
+  if (!String(source.provider || "").trim() || !String(source.url || "").startsWith("https://")) {
+    return unavailable("snapshot_source_invalid");
+  }
   const tokens = stored.tokens.map(normalizeToken).filter(Boolean).slice(0, MAX_TOKENS);
   if (!tokens.length) return unavailable("snapshot_has_no_verified_tokens");
   const stale = Date.now() - Date.parse(observedAt) > STALE_AFTER_MS;
@@ -77,8 +85,8 @@ export async function getTokenHeatmapLatest(env) {
     ok: true,
     available: true,
     source: {
-      provider: "GeckoTerminal public API",
-      url: "https://www.geckoterminal.com/world-chain/pools",
+      provider: String(source.provider),
+      url: String(source.url),
       mode: "stored reviewed snapshot",
     },
     status: stale ? "stale" : "fresh",

@@ -258,10 +258,6 @@
     el.setAttribute("href", href);
   }
 
-  function removeSitemapExternalNav() {
-    try { document.querySelectorAll('nav a[href="/test/"]').forEach(function (a) { a.remove(); }); } catch (_e) {}
-  }
-
   function applyMeta() {
     try {
       var path = normalizePath(location.pathname);
@@ -285,7 +281,6 @@
   }
 
   function run() {
-    removeSitemapExternalNav();
     applyMeta();
   }
 

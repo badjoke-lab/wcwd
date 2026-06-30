@@ -24,6 +24,11 @@ assert "HIST.put" not in server
 assert "api.geckoterminal.com" not in server
 assert "read_only_snapshot" in server
 assert "synthetic_fallback: false" in server
+assert "Number(token?.chainId) !== 480" in server
+assert "sourceUrl.startsWith(\"https://\")" in server
+assert "snapshot_source_invalid" in server
 assert "ADDRESS" in server and "updatedAt" in server and "source" in server
+assert "chainId: 480" in frontend
+assert "World Chain (480)" in frontend
 assert 'from "./token-heatmap-safe.js"' in shim
 print("token heatmap safety check passed")
