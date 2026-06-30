@@ -4,8 +4,8 @@
 **Repository:** `badjoke-lab/wcwd`  
 **Production:** `https://wcwd.badjoke-lab.com/`  
 **Plan established:** 2026-06-17  
-**Current phase:** Plan baseline  
-**Current position:** PR 0 — save and adopt this remediation plan
+**Current phase:** Existing PR stack  
+**Current position:** PR 10 — Token Heatmap safety and truthfulness
 
 ---
 
@@ -101,17 +101,17 @@ The remediation program is complete only when all of the following are true:
 
 | PR | Theme | Audit items covered | Status |
 |---:|---|---|---|
-| 0 | Save remediation plan and tracking rules | Program governance | **In progress** |
-| 1 | Remove Cloudflare Cron and prevent reintroduction | Emergency Cron correction; part of item 27 | Not started |
-| 2 | Repair production source of truth | Item 1 | Not started |
-| 3 | Remove unauthenticated write/admin endpoints | Item 2; part of item 5 | Not started |
-| 4 | Restrict external fetches and API proxy | Items 3, 4, 5, 21 | Not started |
-| 5 | Correct Monitor metric meaning and timestamps | Items 6, 7, 8, 15 | Not started |
-| 6 | Add cache, timeout, cancellation, and request consolidation | Items 9, 22, 28 | Not started |
-| 7 | Unify builds, routes, sitemap, and CI | Items 10, 11, 12, 23 | Not started |
-| 8 | Unify alert thresholds and event lifecycle | Items 13, 14 | Not started |
-| 9 | Refresh and validate Ecosystem data | Item 16 | Not started |
-| 10 | Make Token Heatmap safe and truthful | Items 17, 18 | Not started |
+| 0 | Save remediation plan and tracking rules | Program governance | Completed |
+| 1 | Remove Cloudflare Cron and prevent reintroduction | Emergency Cron correction; part of item 27 | Merged — #165 |
+| 2 | Repair production source of truth | Item 1 | Merged — #166; production pending |
+| 3 | Remove unauthenticated write/admin endpoints | Item 2; part of item 5 | Merged — #167; production pending |
+| 4 | Restrict external fetches and API proxy | Items 3, 4, 5, 21 | Merged — #168; production pending |
+| 5 | Correct Monitor metric meaning and timestamps | Items 6, 7, 8, 15 | Merged — #169; production pending |
+| 6 | Add cache, timeout, cancellation, and request consolidation | Items 9, 22, 28 | Merged — #170; production pending |
+| 7 | Unify builds, routes, sitemap, and CI | Items 10, 11, 12, 23 | Merged — #171; production pending |
+| 8 | Unify alert thresholds and event lifecycle | Items 13, 14 | Merged — #172; production pending |
+| 9 | Refresh and validate Ecosystem data | Item 16 | Merged — #173; production pending |
+| 10 | Make Token Heatmap safe and truthful | Items 17, 18 | In progress |
 | 11 | Remove public experimental/test routes | Item 19 | Not started |
 | 12 | Remove World ID proof persistence | Item 20 | Not started |
 | 13 | Make SEO/support static and rewrite About | Items 24, 25 | Not started |
@@ -554,7 +554,7 @@ A merge is not enough by itself. The explanation must distinguish repository com
 
 ## 8. Current position
 
-**Current PR:** PR 0 — Save remediation plan and tracking rules  
-**Latest completed implementation PR:** None  
-**Next implementation PR:** PR 1 — Remove Cloudflare Cron and prevent reintroduction  
-**Program state:** Remediation implementation has not started; only the governing plan is being established.
+**Current PR:** PR 10 — Make Token Heatmap safe and truthful  
+**Latest completed implementation PR:** PR 9 — Refresh and validate Ecosystem data, merged as #173 at `00311ae303e78a797be1b1fc0a4aa9d794938b2b`  
+**Next implementation PR:** PR 10 — repair, retarget, validate, and merge Token Heatmap safety  
+**Program state:** Repository remediation PRs 0 through 9 are merged. Production deployment remains a separate manual gate after the repository stack is complete and hosted CI is green.
