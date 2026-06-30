@@ -1,10 +1,10 @@
 # WCWD Remediation Status
 
 **Status:** Active  
-**Last updated:** 2026-06-30 after PR 12 merge  
-**Current position:** PR 13 — Static SEO/support and About rewrite  
-**Latest merged remediation PR:** #176  
-**Latest merge commit:** `a8fec67f42270d36e95dcc0f04526f92c3cc15b6`
+**Last updated:** 2026-06-30 after PR 13 merge  
+**Current position:** PR 14 — Design alignment and specification archive  
+**Latest merged remediation PR:** #181  
+**Latest merge commit:** `39e6be2bf1f9d0cc92c77880f729ab9945c42173`
 
 Repository completion and production rollout are recorded separately.
 
@@ -25,8 +25,8 @@ Repository completion and production rollout are recorded separately.
 | PR 10 | Token Heatmap safety and truthfulness | Merged — #174; production pending |
 | PR 11 | Experimental route removal | Merged — #175; production pending |
 | PR 12 | World ID proof persistence removal | Merged — #176; production pending |
-| PR 13 | Static SEO/support and About rewrite | In progress |
-| PR 14 | Design alignment and specification archive | Not started |
+| PR 13 | Static SEO/support and About rewrite | Merged — #181; production pending |
+| PR 14 | Design alignment and specification archive | In progress |
 | PR 15 | Final repository and production audit | Not started |
 
 ## Completed merge records
@@ -102,18 +102,26 @@ Repository completion and production rollout are recorded separately.
 - Recovered the verified temp repair `ac1ba8164f8fbd8372ce75520e3ecc7f67dff7ff`, restoring controls and clearing stale status text when oversize input becomes valid again.
 - Hosted PR checks passed on 2026-06-30: PR8 Check, PR9 Check, PR10 Check, PR12 Check, SEO Check, and Cloudflare Pages preview.
 
+### PR 13 — #181
+- Merge commit: `39e6be2bf1f9d0cc92c77880f729ab9945c42173`.
+- Moved essential SEO metadata, JSON-LD, breadcrumbs, support copy, Donate copy, and architecture disclosures into static HTML.
+- Updated `scripts/build_pages.py` to source route metadata from `config/routes.json`.
+- Rewrote About around the Pages-first, zero-Cron, no-background-collection, read-only API, freshness, World ID privacy, donation, independence, and no-advice model.
+- Removed runtime SEO/support/JSON-LD backfills from `assets/common.js`.
+- Hosted PR checks passed on 2026-06-30: PR8 Check, PR9 Check, PR10 Check, PR12 Check, PR13 Check, SEO Check, and Cloudflare Pages preview.
+
 ## Open production gates
 
 1. Identify the existing Pages project and custom-domain attachment.
 2. Confirm production branch and output configuration.
 3. Manually deploy Pages and Worker from a successful hosted-CI commit when the repository phase is ready.
-4. Verify public build markers, removed routes, hardened APIs, semantic labels, cache headers, ecosystem review labels, Token Heatmap noindex/unavailable states, absence of `/test/` production navigation, and World ID proof privacy behavior.
+4. Verify public build markers, removed routes, hardened APIs, semantic labels, cache headers, ecosystem review labels, Token Heatmap noindex/unavailable states, absence of `/test/` production navigation, World ID proof privacy behavior, and static SEO/support/About content with JavaScript disabled.
 5. Confirm Cloudflare Cron Trigger remains zero.
 
-## Current PR: PR 13
+## Current PR: PR 14
 
-- keep `config/routes.json` as the canonical route and metadata source;
-- make essential metadata, JSON-LD, breadcrumbs, support content, and About disclosures static HTML;
-- remove runtime injection of essential SEO/support/architecture content;
-- verify core content with JavaScript disabled;
+- align CSS and current pages to the approved monochrome, 960px, responsive design specification;
+- complete `docs/CURRENT_ARCHITECTURE.md`;
+- mark superseded Cron/paid-plan documents as cancelled;
+- point contributor and docs indexes to current architecture, remediation, and design sources;
 - preserve production deployment as a separate manual gate.

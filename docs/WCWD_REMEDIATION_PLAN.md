@@ -5,7 +5,7 @@
 **Production:** `https://wcwd.badjoke-lab.com/`  
 **Plan established:** 2026-06-17  
 **Current phase:** Existing PR stack  
-**Current position:** PR 13 — Static SEO/support and About rewrite
+**Current position:** PR 14 — Design alignment and specification archive
 
 ---
 
@@ -114,8 +114,8 @@ The remediation program is complete only when all of the following are true:
 | 10 | Make Token Heatmap safe and truthful | Items 17, 18 | Merged — #174; production pending |
 | 11 | Remove public experimental/test routes | Item 19 | Merged — #175; production pending |
 | 12 | Remove World ID proof persistence | Item 20 | Merged — #176; production pending |
-| 13 | Make SEO/support static and rewrite About | Items 24, 25 | In progress |
-| 14 | Align design and archive superseded specifications | Items 26, 27 | Not started |
+| 13 | Make SEO/support static and rewrite About | Items 24, 25 | Merged — #181; production pending |
+| 14 | Align design and archive superseded specifications | Items 26, 27 | In progress |
 | 15 | Final repository and production audit | All items and completion definition | Not started |
 
 The sequence is deliberate. Security, cost containment, deployment correctness, and data truthfulness precede presentation work.
@@ -554,7 +554,7 @@ A merge is not enough by itself. The explanation must distinguish repository com
 
 ## 8. Current position
 
-**Current PR:** PR 13 — Static SEO/support and About rewrite  
-**Latest completed implementation PR:** PR 12 — Remove World ID proof persistence, merged as #176 at `a8fec67f42270d36e95dcc0f04526f92c3cc15b6`  
-**Next implementation PR:** PR 13 — implement, validate, and merge static SEO/support/About content  
-**Program state:** Repository remediation PRs 0 through 12 are merged. Production deployment remains a separate manual gate after the repository stack is complete and hosted CI is green.
+**Current PR:** PR 14 — Design alignment and specification archive  
+**Latest completed implementation PR:** PR 13 — Static SEO/support and About rewrite, merged as #181 at `39e6be2bf1f9d0cc92c77880f729ab9945c42173`  
+**Next implementation PR:** PR 14 — implement, validate, and merge design/specification archive work  
+**Program state:** Repository remediation PRs 0 through 13 are merged. Production deployment remains a separate manual gate after the repository stack is complete and hosted CI is green.
