@@ -5,7 +5,7 @@
 **Production:** `https://wcwd.badjoke-lab.com/`  
 **Plan established:** 2026-06-17  
 **Current phase:** Existing PR stack  
-**Current position:** PR 11 — Experimental route removal
+**Current position:** PR 12 — World ID proof privacy
 
 ---
 
@@ -112,8 +112,8 @@ The remediation program is complete only when all of the following are true:
 | 8 | Unify alert thresholds and event lifecycle | Items 13, 14 | Merged — #172; production pending |
 | 9 | Refresh and validate Ecosystem data | Item 16 | Merged — #173; production pending |
 | 10 | Make Token Heatmap safe and truthful | Items 17, 18 | Merged — #174; production pending |
-| 11 | Remove public experimental/test routes | Item 19 | In progress |
-| 12 | Remove World ID proof persistence | Item 20 | Not started |
+| 11 | Remove public experimental/test routes | Item 19 | Merged — #175; production pending |
+| 12 | Remove World ID proof persistence | Item 20 | In progress |
 | 13 | Make SEO/support static and rewrite About | Items 24, 25 | Not started |
 | 14 | Align design and archive superseded specifications | Items 26, 27 | Not started |
 | 15 | Final repository and production audit | All items and completion definition | Not started |
@@ -554,7 +554,7 @@ A merge is not enough by itself. The explanation must distinguish repository com
 
 ## 8. Current position
 
-**Current PR:** PR 11 — Remove public experimental/test routes  
-**Latest completed implementation PR:** PR 10 — Make Token Heatmap safe and truthful, merged as #174 at `15ffb31fb3389767ed2d1d514baa0bbede2af74a`  
-**Next implementation PR:** PR 11 — repair, retarget, validate, and merge public test route cleanup  
-**Program state:** Repository remediation PRs 0 through 10 are merged. Production deployment remains a separate manual gate after the repository stack is complete and hosted CI is green.
+**Current PR:** PR 12 — Remove World ID proof persistence  
+**Latest completed implementation PR:** PR 11 — Remove public experimental/test routes, merged as #175 at `a116f8cabfd447d432ce24f0d810a116889327ac`  
+**Next implementation PR:** PR 12 — repair, retarget, validate, and merge World ID privacy  
+**Program state:** Repository remediation PRs 0 through 11 are merged. Production deployment remains a separate manual gate after the repository stack is complete and hosted CI is green.
