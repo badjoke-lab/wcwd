@@ -1,0 +1,16 @@
+{
+  "schema_version": 2,
+  "review_interval_days": 180,
+  "records": [
+    {"id":"wld","verified_at":"2026-06-20","review_after":"2026-12-17","confidence":"high","sources":["https://docs.world.org/world-chain/reference/useful-contracts","https://whitepaper.world.org/designing-for-scale/2026-03-24"],"added_at":"2026-06-20","editorial":{"featured_until":"2026-07-20","rank":1}},
+    {"id":"uniswap-v3-core-factory","verified_at":"2026-06-20","review_after":"2026-12-17","confidence":"high","sources":["https://docs.world.org/world-chain/reference/useful-contracts"],"added_at":"2026-06-20","editorial":{"featured_until":"2026-07-20","rank":2}},
+    {"id":"oracle-wld-usd","verified_at":"2026-06-20","review_after":"2026-12-17","confidence":"high","sources":["https://docs.world.org/world-chain/reference/useful-contracts"],"added_at":"2026-06-20"},
+    {"id":"oracle-eth-usd","verified_at":"2026-06-20","review_after":"2026-12-17","confidence":"high","sources":["https://docs.world.org/world-chain/reference/useful-contracts"],"added_at":"2026-06-20"},
+    {"id":"oracle-btc-usd","verified_at":"2026-06-20","review_after":"2026-12-17","confidence":"high","sources":["https://docs.world.org/world-chain/reference/useful-contracts"],"added_at":"2026-06-20"},
+    {"id":"oracle-usdc-usd","verified_at":"2026-06-20","review_after":"2026-12-17","confidence":"high","sources":["https://docs.world.org/world-chain/reference/useful-contracts"],"added_at":"2026-06-20"},
+    {"id":"gnosis-safe-1-4-1","verified_at":"2026-06-20","review_after":"2026-12-17","confidence":"high","sources":["https://docs.world.org/world-chain/reference/useful-contracts"],"added_at":"2026-06-20"},
+    {"id":"gnosis-safe-1-3-0","verified_at":"2026-06-20","review_after":"2026-12-17","confidence":"high","sources":["https://docs.world.org/world-chain/reference/useful-contracts"],"added_at":"2026-06-20"},
+    {"id":"worldscan","verified_at":"2026-06-20","review_after":"2026-12-17","confidence":"high","sources":["https://docs.world.org/world-chain/providers/explorers","https://docs.world.org/world-chain/quick-start/info"],"added_at":"2026-06-20","editorial":{"featured_until":"2026-07-20","rank":3}},
+    {"id":"world-chain-dev-docs","verified_at":"2026-06-20","review_after":"2026-12-17","confidence":"high","sources":["https://docs.world.org/world-chain","https://docs.world.org/world-chain/reference/useful-contracts"],"added_at":"2026-06-20"}
+  ]
+}

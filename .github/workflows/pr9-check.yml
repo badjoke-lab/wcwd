@@ -1,0 +1,17 @@
+name: PR9 Check
+on:
+  pull_request:
+  push:
+    branches: [main]
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python3 scripts/check_ecosystem.py
+      - run: python3 scripts/check_ecosystem_fields.py
+      - run: node --check world-chain/ecosystem/verification-loader.js
+      - run: node --check world-chain/ecosystem/verification-ui.js

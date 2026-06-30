@@ -47,8 +47,8 @@
 <section class="hero">
   <div class="container">
     <h1>World Chain Ecosystem</h1>
-    <p class="lead">Tokens, dApps, infra, and oracle-related entries curated in ecosystem.json.</p>
-    <p class="muted">Best-effort directory. Verified status means the entry has a World Chain contract, Worldscan address, or World-official offchain marker.</p>
+    <p class="lead">Tokens, infrastructure, oracle feeds, and official resources curated from reviewed records.</p>
+    <p class="muted">Best-effort directory. Every listed record has a review date, one or more sources, a confidence level, and a next-review date.</p>
   </div>
 </section>
 
@@ -56,27 +56,27 @@
   <section class="card" id="ecosystem">
     <h2>Ecosystem</h2>
     <div class="eco-legend">
-      <span class="eco-legend-item eco-verified">✅ Verified on World Chain</span>
-      <span class="eco-legend-item eco-offchain">⚪ Offchain (World official)</span>
-      <span class="eco-legend-item eco-unverified">⚠ Unverified / Cross-chain</span>
+      <span class="eco-legend-item eco-verified">✅ Reviewed</span>
+      <span class="eco-legend-item eco-offchain">⚪ Official offchain resource</span>
+      <span class="eco-legend-item eco-unverified">⚠ Review expired or unverified</span>
     </div>
 
     <div class="eco-hot">
       <div class="eco-hot-head">
-        <h3>Hot</h3>
-        <div class="note">Top 5 items with hot=true, sorted by hot_rank.</div>
+        <h3>Featured</h3>
+        <div class="note">Time-limited editorial selection. Expired entries disappear automatically.</div>
       </div>
       <div id="ecoHotList" class="eco-hot-list"></div>
-      <div class="note" id="ecoHotEmpty">No hot items yet</div>
+      <div class="note" id="ecoHotEmpty">No current featured items</div>
     </div>
 
     <div class="eco-new">
       <div class="eco-hot-head">
-        <h3>New</h3>
-        <div class="note">Newest additions by added_at.</div>
+        <h3>Recently reviewed</h3>
+        <div class="note">Latest records by verification date.</div>
       </div>
       <div id="ecoNewList" class="eco-hot-list"></div>
-      <div class="note" id="ecoNewEmpty">No new items yet</div>
+      <div class="note" id="ecoNewEmpty">No reviewed items yet</div>
     </div>
 
     <div class="eco-filters">
@@ -92,7 +92,7 @@
         <select id="ecoCategory"></select>
         <label class="eco-toggle">
           <input id="ecoShowUnverified" type="checkbox" />
-          Show unverified/cross-chain
+          Show expired or unverified
         </label>
       </div>
       <div class="note" id="ecoTagState">Tag filter: none</div>
@@ -105,12 +105,9 @@
 
   <section class="card">
     <h2>Add via PR</h2>
-    <p class="muted">
-      1. Edit ecosystem.json and add your project entry. 2. Open a PR with a short description.
-      3. Once merged, it appears here automatically.
-    </p>
-    <p class="note">World Chain (chainId=480) entries are shown by default. Cross-chain items require the toggle.</p>
-    <p><a class="btn secondary" href="https://github.com/badjoke-lab/wcwd/blob/main/ecosystem.json" target="_blank" rel="noopener noreferrer">Edit ecosystem.json on GitHub</a></p>
+    <p class="muted">Edit the directory record and its matching verification record. Include at least one primary source and a review date.</p>
+    <p class="note">World Chain chainId 480 records are shown by default. Expired or unverified records require the toggle.</p>
+    <p><a class="btn secondary" href="https://github.com/badjoke-lab/wcwd/blob/main/ecosystem.json" target="_blank" rel="noopener noreferrer">Edit ecosystem data on GitHub</a></p>
   </section>
 </main>
 
@@ -125,6 +122,7 @@
   </div>
 </footer>
 <script src="/assets/common.js"></script>
+<script src="./verification-loader.js" defer></script>
 <script src="./ecosystem.js" defer></script>
 </body>
 </html>
