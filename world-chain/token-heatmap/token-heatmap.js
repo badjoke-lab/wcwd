@@ -1,194 +1,124 @@
-(function(){
-'use strict';
+(() => {
+  "use strict";
+  const API = "/api/world-chain/token-heatmap/latest";
+  const ADDRESS = /^0x[0-9a-fA-F]{40}$/;
+  const state = { tokens: [], mode: "market", snapshot: null };
+  const $ = (id) => document.getElementById(id);
+  const num = (value) => Number.isFinite(Number(value)) ? Number(value) : 0;
+  const money = (value) => value >= 1e9 ? `$${(value / 1e9).toFixed(2)}B` : value >= 1e6 ? `$${(value / 1e6).toFixed(2)}M` : value >= 1e3 ? `$${(value / 1e3).toFixed(1)}K` : `$${num(value).toFixed(2)}`;
+  const safe = (value) => String(value || "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[char]));
 
-var HEATMAP_API_BASE=(function(){
-  var meta=document.querySelector('meta[name="wcwd-history-base"]');
-  return meta&&meta.getAttribute('content')?meta.getAttribute('content').trim():'https://wcwd-history.badjoke-lab.workers.dev';
-})();
-
-var names='WLD ORO WDD ORB WNB XAU MINI HUMN ORBID GASW WUSD BETA EYE PAY APP CHAIN SCAN WBRG FEE DAPP SPOT POOL FLOW VAULT HUB TILE NODE NOVA CRED LENS RING MAP RISK SAFE IDX DATA CORE WAVE SEED DUST'.split(' ');
-var risk=['healthy','healthy','thin-liquidity','healthy','thin-liquidity','healthy','new-or-volatile','healthy','thin-liquidity','new-or-volatile','healthy','thin-liquidity','healthy','thin-liquidity','new-or-volatile','healthy','thin-liquidity','healthy','unknown','new-or-volatile','healthy','thin-liquidity','new-or-volatile','healthy','thin-liquidity','healthy','thin-liquidity','new-or-volatile','unknown','healthy','new-or-volatile','healthy','thin-liquidity','healthy','unknown','stale','thin-liquidity','new-or-volatile','thin-liquidity','stale'];
-var tokens=names.map(function(s,i){
-  var size=40-i;
-  var volume=Math.round(12000000*Math.pow(size/40,2.15)+70000);
-  var liquidity=Math.round(8000000*Math.pow(size/40,2.55)+18000);
-  var cap=Math.round(volume*3.4);
-  var change=((i*37)%70)-24+(i%5===0?8:0);
-  return { id:'demo-'+i, symbol:s, name:s+' demo', address:'', pool:'', volume24h:volume, liquidityUsd:liquidity, change24h:change, marketCapUsd:0, fdvUsd:cap, capUsd:cap, capSource:'fdv_usd', fdv:cap, riskState:risk[i], status:risk[i]==='stale'?'stale':'demo' };
-});
-var snapshot={source:'demo',status:'demo',updatedAt:'Static preview',count:tokens.length,reason:'layout preview',note:'Static demo data is visible until the compact latest API returns usable token data.'};
-
-var modes={
-  market:{label:'Market Cap',desc:'Area = reported market cap, falling back to FDV. Color = 24h price change.',area:function(t){return t.capUsd||0},rank:'reported cap'},
-  volume:{label:'Volume',desc:'Area = 24h trading volume. Color = 24h price change.',area:function(t){return t.volume24h||0},rank:'24h volume'},
-  liquidity:{label:'Liquidity',desc:'Area = liquidity. Color = liquidity condition.',area:function(t){return t.liquidityUsd||0},rank:'liquidity'},
-  risk:{label:'Risk',desc:'Area = liquidity. Color = risk state. Risk is not a safety score.',area:function(t){return t.liquidityUsd||0},rank:'liquidity'}
-};
-var state={mode:'market',nodes:[],selected:'demo-0',hover:null,scale:1,tx:0,ty:0,moveMode:false,pointers:{},drag:null,pinch:null,raf:0};
-var el={};
-var PAN_THRESHOLD=6;
-
-function apiUrl(path){return HEATMAP_API_BASE.replace(/\/$/,'')+path;}
-
-function boot(){
-  el.v=$('heatmapViewport'); el.c=$('heatmapTiles'); el.o=$('heatmapOverlay');
-  el.cx=el.c.getContext('2d'); el.ox=el.o.getContext('2d');
-  el.sel=$('selectedDetail'); el.rank=$('miniRanking'); el.desc=$('modeDescription'); el.status=$('statusMode'); el.legend=$('modeLegend');
-  document.querySelectorAll('.mode-btn').forEach(function(btn){btn.addEventListener('click',function(){setMode(btn.dataset.mode);});});
-  $('resetZoom').addEventListener('click',function(){fit();draw();});
-  $('mobileMapToggle').addEventListener('click',toggleMoveMode);
-  el.v.addEventListener('wheel',onWheel,{passive:false});
-  el.v.addEventListener('dblclick',onDoubleClick);
-  el.v.addEventListener('pointerdown',onPointerDown);
-  window.addEventListener('pointermove',onPointerMove,{passive:false});
-  window.addEventListener('pointerup',onPointerUp);
-  window.addEventListener('pointercancel',onPointerUp);
-  new ResizeObserver(function(){requestAnimationFrame(layout);}).observe(el.v);
-  layout();
-  loadEndpointMeta();
-  loadLatestSnapshot();
-}
-
-function $(id){return document.getElementById(id);}
-function setMode(mode){ if(!modes[mode]) return; state.mode=mode; document.querySelectorAll('.mode-btn').forEach(function(b){b.classList.toggle('is-active',b.dataset.mode===mode);}); layout(); }
-function toggleMoveMode(){ state.moveMode=!state.moveMode; el.v.classList.toggle('is-move-mode',state.moveMode); $('mobileMapToggle').textContent=state.moveMode?'Back to scroll':'Control map'; $('interactionHint').textContent=state.moveMode?'Pan & pinch':'Page scroll · Tap tiles'; }
-
-function normalizeApiToken(t,i){
-  var symbol=String(t.symbol||'TOKEN').trim()||'TOKEN';
-  var addr=String(t.address||'').toLowerCase();
-  var marketCap=num(t.marketCapUsd);
-  var fdvUsd=num(t.fdvUsd||t.fdv);
-  var cap=num(t.capUsd)||marketCap||fdvUsd;
-  var capSource=String(t.capSource||'');
-  if(!capSource) capSource=marketCap>0?'market_cap_usd':(fdvUsd>0?'fdv_usd':'missing');
-  return { id:addr||('api-'+i+'-'+symbol), symbol:symbol, name:String(t.name||symbol), address:addr, pool:String(t.pool||''), volume24h:num(t.volume24h), liquidityUsd:num(t.liquidityUsd), change24h:num(t.change24h), marketCapUsd:marketCap, fdvUsd:fdvUsd, capUsd:cap, capSource:capSource, fdv:cap, priceUsd:num(t.priceUsd), riskState:String(t.riskState||'unknown'), status:String(t.dataStatus||t.status||'fresh'), updatedAt:t.updatedAt||null };
-}
-async function loadEndpointMeta(){
-  try{
-    var res=await fetch(apiUrl('/api/world-chain/token-heatmap/meta'),{headers:{accept:'application/json'}});
-    if(!res.ok) throw new Error('meta_http_'+res.status);
-    var body=await res.json();
-    var debug=$('apiDebug');
-    if(debug) debug.textContent=JSON.stringify(body,null,2);
-  }catch(e){
-    var fallback=$('apiDebug');
-    if(fallback) fallback.textContent='Endpoint: '+apiUrl('/api/world-chain/token-heatmap/latest')+'\nPolicy: meta unavailable\nReason: '+(e&&e.message?e.message:'meta_unavailable');
+  function token(value) {
+    const address = String(value?.address || "").trim().toLowerCase();
+    const symbol = String(value?.symbol || "").trim();
+    const name = String(value?.name || "").trim();
+    const sourceUrl = String(value?.sourceUrl || "").trim();
+    const capUsd = num(value?.capUsd);
+    const volume24h = num(value?.volume24h);
+    const liquidityUsd = num(value?.liquidityUsd);
+    if (!ADDRESS.test(address) || Number(value?.chainId) !== 480 || !symbol || !name || !sourceUrl.startsWith("https://") || !value?.updatedAt) return null;
+    if (![capUsd, volume24h, liquidityUsd].some((metric) => metric > 0)) return null;
+    return { ...value, id: address, chainId: 480, address, sourceUrl, symbol, name, capUsd, volume24h, liquidityUsd, change24h: num(value?.change24h) };
   }
-}
-async function loadLatestSnapshot(){
-  setApiNote('loading','Loading compact latest snapshot. Demo data remains visible until usable API data is returned.');
-  try{
-    var res=await fetch(apiUrl('/api/world-chain/token-heatmap/latest'),{headers:{accept:'application/json'}});
-    if(!res.ok) throw new Error('api_http_'+res.status);
-    var body=await res.json();
-    if(!body||!Array.isArray(body.tokens)||!body.tokens.length) throw new Error((body&&body.reason)||'empty_snapshot');
-    tokens=body.tokens.map(normalizeApiToken).filter(function(t){return t.capUsd>0||t.volume24h>0||t.liquidityUsd>0;}).slice(0,40);
-    if(!tokens.length) throw new Error('no_drawable_tokens');
-    snapshot={source:body.source||'cached_snapshot',status:body.status||'fresh',updatedAt:body.updatedAt||'—',count:tokens.length,reason:body.reason||'ok',note:statusNote(body.status||'fresh',body.source||'cached_snapshot')};
-    state.selected=tokens[0]&&tokens[0].id;
-    layout();
-  }catch(e){
-    snapshot.status='demo';
-    snapshot.source='demo_fallback';
-    snapshot.reason=e&&e.message?e.message:'api_unavailable';
-    snapshot.note='The compact latest API is unavailable or returned no drawable tokens. Static demo data is still shown.';
-    renderMeta();
+
+  function metric(value) {
+    return state.mode === "liquidity" || state.mode === "risk" ? value.liquidityUsd : value.capUsd || value.volume24h;
   }
-}
-function statusNote(status,source){
-  if(status==='fresh') return 'Fresh compact latest snapshot loaded. Storage remains KV latest only.';
-  if(status==='stale') return 'Showing last-good snapshot because refresh failed. Treat values as stale.';
-  if(status==='degraded') return 'Snapshot loaded with degraded data. Some metrics may be missing.';
-  if(status==='demo') return 'Demo fallback is visible. Do not treat the token values as live market data.';
-  return 'Snapshot loaded from '+source+'.';
-}
-function setApiNote(status,text){ var note=$('apiNote'); if(note){ note.textContent=text; note.setAttribute('data-status',status||''); } }
-function num(v){ var n=Number.parseFloat(String(v==null?'':v)); return Number.isFinite(n)?n:0; }
 
-function layout(){
-  var box=el.v.getBoundingClientRect();
-  var w=Math.max(320,Math.floor(box.width));
-  var h=Math.max(320,Math.floor(box.height));
-  setupCanvas(el.c,w,h); setupCanvas(el.o,w,h);
-  var mode=modes[state.mode];
-  var items=tokens.map(function(t){ return {id:t.id,label:t.symbol,areaValue:mode.area(t),meta:t}; }).filter(function(x){ return Number.isFinite(x.areaValue)&&x.areaValue>0; });
-  state.nodes=treemap(items,0,0,w,h).map(function(n,i){n.rank=i+1;return n;});
-  if(!state.nodes.some(function(n){return n.id===state.selected;})) state.selected=state.nodes[0]&&state.nodes[0].id;
-  fit(); renderMeta(); renderSelected(); renderRanking(); draw();
-}
-function setupCanvas(canvas,w,h){ var dpr=Math.max(1,window.devicePixelRatio||1); canvas.width=Math.floor(w*dpr); canvas.height=Math.floor(h*dpr); canvas.style.width=w+'px'; canvas.style.height=h+'px'; canvas.getContext('2d').setTransform(dpr,0,0,dpr,0,0); }
-function fit(){ state.scale=1; state.tx=0; state.ty=0; }
+  function tileColor(value) {
+    if (state.mode === "risk") return value.riskState === "healthy" ? "#2f7d46" : value.riskState === "stale" ? "#777" : "#b47a23";
+    if (state.mode === "liquidity") return value.liquidityUsd >= 1e6 ? "#2f7d46" : value.liquidityUsd >= 1.5e5 ? "#b47a23" : "#a94442";
+    return Math.abs(value.change24h) < 0.5 ? "#b6b6b6" : value.change24h > 0 ? "#2f7d46" : "#a94442";
+  }
 
-function treemap(items,x,y,w,h){ items=items.slice().sort(function(a,b){return b.areaValue-a.areaValue;}); var total=items.reduce(function(s,i){return s+i.areaValue;},0); return split(items,x,y,w,h,total); }
-function split(items,x,y,w,h,total){
-  if(items.length<2) return items[0]?[Object.assign({},items[0],{x:x,y:y,w:w,h:h})]:[];
-  var a=[],b=[],sum=0;
-  for(var i=0;i<items.length;i++){ if(sum<total/2||!a.length){a.push(items[i]);sum+=items[i].areaValue;} else {b.push(items[i]);} }
-  var rest=Math.max(0,total-sum);
-  if(w>=h){ var aw=w*sum/total; return split(a,x,y,aw,h,sum).concat(split(b,x+aw,y,w-aw,h,rest)); }
-  var ah=h*sum/total; return split(a,x,y,w,ah,sum).concat(split(b,x,y+ah,w,h-ah,rest));
-}
+  function status() {
+    const snapshot = state.snapshot || {};
+    $("statusCount").textContent = state.tokens.length ? `${state.tokens.length} verified tokens` : "No verified snapshot";
+    $("statusMode").textContent = state.mode[0].toUpperCase() + state.mode.slice(1);
+    $("statusSource").textContent = snapshot?.source?.provider || "Unavailable";
+    $("statusUpdated").textContent = snapshot.updatedAt ? new Date(snapshot.updatedAt).toLocaleString() : "—";
+    $("statusReason").textContent = snapshot.reason || "no_reviewed_snapshot";
+    $("statusPill").textContent = snapshot.status || "unavailable";
+    $("statusPill").className = `heatmap-pill ${snapshot.status || "unavailable"}`;
+    $("apiNote").textContent = state.tokens.length
+      ? `${snapshot.stale ? "Stale" : "Reviewed"} stored snapshot. No public refresh or synthetic fallback is used.`
+      : "No reviewed snapshot is available. WCWD does not substitute demo or generated token values.";
+    $("apiDebug").textContent = `Endpoint: ${API}\nMode: read-only snapshot\nIndexing: disabled\nSynthetic fallback: disabled`;
+  }
 
-function draw(){ cancelAnimationFrame(state.raf); state.raf=requestAnimationFrame(function(){drawTiles();drawOverlay();}); }
-function drawTiles(){
-  var c=el.cx,w=el.c.clientWidth,h=el.c.clientHeight;
-  c.clearRect(0,0,w,h); c.fillStyle='#f7f7f7'; c.fillRect(0,0,w,h);
-  if(!state.nodes.length){ c.fillStyle='#555'; c.font='700 13px system-ui'; c.fillText('No drawable tokens for this mode.',16,28); return; }
-  state.nodes.forEach(function(n){ var r=screenRect(n); if(r.w<=1||r.h<=1) return; var pad=Math.min(4,Math.max(1,Math.min(r.w,r.h)*0.04)); c.fillStyle=color(n.meta); c.fillRect(r.x+pad,r.y+pad,Math.max(0,r.w-pad*2),Math.max(0,r.h-pad*2)); c.strokeStyle='rgba(255,255,255,.85)'; c.strokeRect(r.x+pad,r.y+pad,Math.max(0,r.w-pad*2),Math.max(0,r.h-pad*2)); drawLabel(c,n,r,pad); });
-}
-function drawLabel(c,n,r,pad){
-  var area=r.w*r.h, side=Math.min(r.w,r.h), x=r.x+pad+8, y=r.y+pad+18;
-  if(side<24||area<1000) return;
-  c.save(); c.beginPath(); c.rect(r.x+pad,r.y+pad,Math.max(0,r.w-pad*2),Math.max(0,r.h-pad*2)); c.clip(); c.fillStyle=textColor(color(n.meta));
-  c.font='800 13px system-ui,-apple-system,Segoe UI,sans-serif'; c.fillText(n.meta.symbol,x,y,Math.max(20,r.w-18));
-  if(side>=48&&area>=3600){ c.font='700 11px system-ui,-apple-system,Segoe UI,sans-serif'; c.fillText(state.mode==='market'?usd(n.areaValue):valueLabel(n.areaValue),x,y+16,Math.max(20,r.w-18)); }
-  if(side>=78&&area>=7600){ c.font='500 10px system-ui,-apple-system,Segoe UI,sans-serif'; c.fillText(modes[state.mode].rank,x,y+31,Math.max(20,r.w-18)); }
-  c.restore();
-}
-function drawOverlay(){
-  var c=el.ox,w=el.o.clientWidth,h=el.o.clientHeight; c.clearRect(0,0,w,h);
-  var hover=state.nodes.find(function(n){return n.id===state.hover && n.id!==state.selected;}); if(hover) outline(c,hover,'rgba(0,0,0,.45)',2);
-  var selected=state.nodes.find(function(n){return n.id===state.selected;}); if(selected) outline(c,selected,'#111',3);
-}
-function outline(c,n,color,line){ var r=screenRect(n); c.strokeStyle=color; c.lineWidth=line; c.strokeRect(r.x+3,r.y+3,Math.max(0,r.w-6),Math.max(0,r.h-6)); }
-function screenRect(n){ return {x:n.x*state.scale+state.tx,y:n.y*state.scale+state.ty,w:n.w*state.scale,h:n.h*state.scale}; }
-function viewportPoint(e){ var b=el.v.getBoundingClientRect(); return {sx:e.clientX-b.left,sy:e.clientY-b.top,x:(e.clientX-b.left-state.tx)/state.scale,y:(e.clientY-b.top-state.ty)/state.scale}; }
-function hit(e){ var p=viewportPoint(e); for(var i=state.nodes.length-1;i>=0;i--){ var n=state.nodes[i]; if(p.x>=n.x&&p.x<=n.x+n.w&&p.y>=n.y&&p.y<=n.y+n.h) return n; } return null; }
-function onWheel(e){ if(!(e.ctrlKey||e.altKey||e.metaKey)) return; e.preventDefault(); var p=viewportPoint(e); zoomAt(p.sx,p.sy,e.deltaY<0?1.12:0.89); }
-function onDoubleClick(e){ e.preventDefault(); var p=viewportPoint(e); zoomAt(p.sx,p.sy,e.shiftKey?0.72:1.45); }
-function zoomAt(sx,sy,factor){ var old=state.scale; var next=Math.min(5,Math.max(0.75,old*factor)); var wx=(sx-state.tx)/old, wy=(sy-state.ty)/old; state.scale=next; state.tx=sx-wx*next; state.ty=sy-wy*next; draw(); }
-function onPointerDown(e){ var isTouch=e.pointerType==='touch'; if(isTouch && !state.moveMode){ state.drag={id:e.pointerId,x:e.clientX,y:e.clientY,tx:state.tx,ty:state.ty,tapOnly:true,moved:false}; return; } state.pointers[e.pointerId]={x:e.clientX,y:e.clientY}; state.drag={id:e.pointerId,x:e.clientX,y:e.clientY,tx:state.tx,ty:state.ty,tapOnly:false,moved:false}; if(isTouch && state.moveMode && el.v.setPointerCapture) el.v.setPointerCapture(e.pointerId); if(Object.keys(state.pointers).length===2) state.pinch=pinchState(); }
-function onPointerMove(e){ if(e.pointerType!=='touch' && !state.drag){ var h=hit(e); var hid=h&&h.id; if(hid!==state.hover){state.hover=hid;drawOverlay();} return; } if(state.drag && state.drag.tapOnly){ if(Math.hypot(e.clientX-state.drag.x,e.clientY-state.drag.y)>PAN_THRESHOLD) state.drag.moved=true; return; } if(!state.pointers[e.pointerId] || !state.drag) return; if(e.pointerType==='touch' && state.moveMode) e.preventDefault(); state.pointers[e.pointerId]={x:e.clientX,y:e.clientY}; var keys=Object.keys(state.pointers); if(keys.length===2 && state.pinch){ var p=pinchState(); var next=Math.min(5,Math.max(0.75,state.pinch.scale*(p.distance/Math.max(1,state.pinch.distance)))); state.scale=next; state.tx=p.cx-state.pinch.worldX*next; state.ty=p.cy-state.pinch.worldY*next; draw(); return; } var dx=e.clientX-state.drag.x, dy=e.clientY-state.drag.y; if(Math.hypot(dx,dy)>PAN_THRESHOLD) state.drag.moved=true; if(state.drag.moved){ state.tx=state.drag.tx+dx; state.ty=state.drag.ty+dy; draw(); } }
-function onPointerUp(e){ delete state.pointers[e.pointerId]; if(Object.keys(state.pointers).length<2) state.pinch=null; if(!state.drag) return; if(!state.drag.moved){ var n=hit(e); if(n){ state.selected=n.id; renderSelected(); drawOverlay(); } } if(Object.keys(state.pointers).length===0) state.drag=null; }
-function pinchState(){ var pts=Object.keys(state.pointers).map(function(k){return state.pointers[k];}); var a=pts[0],b=pts[1],box=el.v.getBoundingClientRect(),cx=(a.x+b.x)/2-box.left,cy=(a.y+b.y)/2-box.top; return {distance:Math.hypot(a.x-b.x,a.y-b.y),cx:cx,cy:cy,scale:state.scale,worldX:(cx-state.tx)/state.scale,worldY:(cy-state.ty)/state.scale}; }
+  function canvas() {
+    const viewport = $("heatmapViewport");
+    const target = $("heatmapTiles");
+    const overlay = $("heatmapOverlay");
+    const width = Math.max(320, viewport.clientWidth | 0);
+    const height = Math.max(320, viewport.clientHeight | 0);
+    const ratio = Math.max(1, window.devicePixelRatio || 1);
+    for (const item of [target, overlay]) {
+      item.width = width * ratio;
+      item.height = height * ratio;
+      item.style.width = `${width}px`;
+      item.style.height = `${height}px`;
+      item.getContext("2d").setTransform(ratio, 0, 0, ratio, 0, 0);
+    }
+    const context = target.getContext("2d");
+    context.clearRect(0, 0, width, height);
+    context.fillStyle = "#f7f7f7";
+    context.fillRect(0, 0, width, height);
+    if (!state.tokens.length) {
+      context.fillStyle = "#555";
+      context.font = "600 14px system-ui";
+      context.fillText("No reviewed token snapshot available.", 16, 30);
+      return;
+    }
+    const sorted = state.tokens.slice().sort((a, b) => metric(b) - metric(a));
+    const columns = Math.max(1, Math.ceil(Math.sqrt(sorted.length * width / height)));
+    const rows = Math.ceil(sorted.length / columns);
+    const cellWidth = width / columns;
+    const cellHeight = height / rows;
+    sorted.forEach((value, index) => {
+      const x = index % columns * cellWidth;
+      const y = Math.floor(index / columns) * cellHeight;
+      const color = tileColor(value);
+      context.fillStyle = color;
+      context.fillRect(x + 2, y + 2, cellWidth - 4, cellHeight - 4);
+      context.fillStyle = ["#b6b6b6"].includes(color) ? "#111" : "#fff";
+      context.font = "700 13px system-ui";
+      context.fillText(value.symbol, x + 10, y + 22, cellWidth - 18);
+      context.font = "500 10px system-ui";
+      context.fillText(money(metric(value)), x + 10, y + 39, cellWidth - 18);
+    });
+  }
 
-function renderMeta(){
-  el.desc.textContent=modes[state.mode].desc;
-  el.status.textContent=modes[state.mode].label;
-  el.legend.innerHTML=legend();
-  var countEl=$('statusCount'), updatedEl=$('statusUpdated'), sourceEl=$('statusSource'), reasonEl=$('statusReason'), pill=$('statusPill'), rankingDescription=$('rankingDescription');
-  if(countEl) countEl.textContent='Top '+Math.min(40,tokens.length)+' World Chain tokens';
-  if(updatedEl) updatedEl.textContent=snapshot.updatedAt||'—';
-  if(sourceEl) sourceEl.textContent=snapshot.source||'demo';
-  if(reasonEl) reasonEl.textContent=snapshot.reason||'ok';
-  if(pill){ pill.className='heatmap-pill '+safeClass(snapshot.status||'demo'); pill.textContent=snapshot.status||'demo'; }
-  if(rankingDescription) rankingDescription.textContent='Top tokens by '+modes[state.mode].rank+'.';
-  setApiNote(snapshot.status,snapshot.note||statusNote(snapshot.status||'demo',snapshot.source||'demo'));
-}
-function renderSelected(){ var n=state.nodes.find(function(x){return x.id===state.selected;})||state.nodes[0]; if(!n) return; var t=n.meta; el.sel.innerHTML='<div><div class="selected-symbol">'+esc(t.symbol)+'</div><div class="selected-name">'+esc(t.name)+'</div></div>'+row('Reported cap',capDisplay(t))+row('Cap source',capSourceLabel(t.capSource))+row('Market cap',moneyOrDash(t.marketCapUsd))+row('FDV',moneyOrDash(t.fdvUsd))+row('24h change',pct(t.change24h))+row('24h volume',moneyOrDash(t.volume24h))+row('Liquidity',moneyOrDash(t.liquidityUsd))+row('Risk state','<span class="risk-label risk-'+safeClass(t.riskState)+'">'+esc(t.riskState)+'</span>')+row('Data status',esc(t.status))+'<div class="detail-actions"><a class="btn" href="/world-chain/sell-impact/'+(t.address?'?token='+encodeURIComponent(t.address):'')+'">Open in Sell Impact</a><a class="btn secondary" href="/world-chain/ecosystem/?q='+encodeURIComponent(t.symbol)+'">Open in Ecosystem</a></div>'; }
-function renderRanking(){ var mode=modes[state.mode]; el.rank.innerHTML=tokens.slice().map(function(t){return{t:t,v:mode.area(t)};}).filter(function(e){return e.v>0;}).sort(function(a,b){return b.v-a.v;}).slice(0,12).map(function(e,i){return '<div class="ranking-row"><div class="ranking-rank">#'+(i+1)+'</div><div><div class="ranking-symbol">'+esc(e.t.symbol)+'</div><div class="ranking-sub">'+esc(e.t.name)+' · '+esc(e.t.riskState)+(state.mode==='market'?' · '+esc(capSourceLabel(e.t.capSource)):'')+'</div></div><div class="ranking-value">'+valueLabel(e.v)+'</div></div>';}).join('')||'<p class="muted small">No drawable tokens for this mode.</p>'; }
-function row(a,b){return '<div class="detail-row"><span>'+a+'</span><strong>'+b+'</strong></div>';}
-function color(t){ if(state.mode==='risk') return riskColor(t.riskState); if(state.mode==='liquidity') return t.liquidityUsd>1000000?'#2f7d46':t.liquidityUsd>120000?'#b47a23':'#a94442'; return Math.abs(t.change24h)<0.5?'#b6b6b6':t.change24h>0?'#2f7d46':'#a94442'; }
-function riskColor(r){ return r==='healthy'?'#2f7d46':r==='thin-liquidity'?'#b47a23':r==='new-or-volatile'?'#9a6b1f':r==='stale'?'#777':'#999'; }
-function legend(){ var list=state.mode==='liquidity'?[['Strong','#2f7d46'],['Thin','#b47a23'],['Weak','#a94442']]:state.mode==='risk'?[['Observed','#2f7d46'],['Caution','#b47a23'],['Unknown/stale','#777']]:[['Positive','#2f7d46'],['Flat','#b6b6b6'],['Negative','#a94442']]; return list.map(function(x){return '<span class="legend-item"><span class="legend-dot" style="background:'+x[1]+'"></span>'+x[0]+'</span>';}).join(''); }
-function textColor(c){ return c==='#2f7d46'||c==='#a94442'||c==='#9a6b1f'||c==='#777'?'#fff':'#111'; }
-function moneyOrDash(v){ return (Number(v)||0)>0?usd(v):'—'; }
-function capDisplay(t){ return (Number(t.capUsd)||0)>0?usd(t.capUsd):'—'; }
-function capSourceLabel(v){ if(v==='market_cap_usd') return 'market cap'; if(v==='fdv_usd') return 'FDV fallback'; return 'missing'; }
-function valueLabel(v){ return moneyOrDash(v); }
-function usd(v){ return v>=1e9?'$'+(v/1e9).toFixed(2)+'B':v>=1e6?'$'+(v/1e6).toFixed(2)+'M':v>=1e3?'$'+(v/1e3).toFixed(1)+'K':'$'+(Number(v)||0).toFixed(2); }
-function pct(v){ return (v>0?'+':'')+(Number(v)||0).toFixed(1)+'%'; }
-function esc(v){ return String(v).replace(/[&<>'"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c];}); }
-function safeClass(v){ return String(v||'unknown').toLowerCase().replace(/[^a-z0-9_-]+/g,'-'); }
-if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',boot); else boot();
+  function details() {
+    const value = state.tokens[0];
+    $("selectedDetail").innerHTML = value ? `<div class="selected-symbol">${safe(value.symbol)}</div><div class="selected-name">${safe(value.name)}</div><div class="detail-row"><span>Contract</span><strong>${safe(value.address)}</strong></div><div class="detail-row"><span>Chain</span><strong>World Chain (480)</strong></div><div class="detail-row"><span>Source</span><strong><a href="${safe(value.sourceUrl)}" target="_blank" rel="noopener noreferrer">reviewed snapshot</a></strong></div><div class="detail-row"><span>Observed</span><strong>${safe(new Date(value.updatedAt).toLocaleString())}</strong></div><div class="detail-row"><span>Reported cap</span><strong>${money(value.capUsd)}</strong></div><div class="detail-row"><span>24h volume</span><strong>${money(value.volume24h)}</strong></div><div class="detail-row"><span>Liquidity</span><strong>${money(value.liquidityUsd)}</strong></div>` : "No reviewed token is available to inspect.";
+    const ranked = state.tokens.slice().sort((a, b) => metric(b) - metric(a)).slice(0, 12);
+    $("miniRanking").innerHTML = ranked.length ? ranked.map((item, index) => `<div class="ranking-row"><div class="ranking-rank">#${index + 1}</div><div><div class="ranking-symbol">${safe(item.symbol)}</div><div class="ranking-sub">${safe(item.name)}</div></div><div class="ranking-value">${money(metric(item))}</div></div>`).join("") : '<p class="muted small">No reviewed tokens available.</p>';
+  }
+
+  function render() { status(); canvas(); details(); }
+
+  async function load() {
+    try {
+      const response = await fetch(API, { headers: { accept: "application/json" }, signal: AbortSignal.timeout(8000) });
+      if (!response.ok) throw new Error(`http_${response.status}`);
+      state.snapshot = await response.json();
+      state.tokens = state.snapshot?.available && Array.isArray(state.snapshot.tokens) ? state.snapshot.tokens.map(token).filter(Boolean) : [];
+    } catch (error) {
+      state.snapshot = { available: false, status: "unavailable", reason: error?.message || "request_failed" };
+      state.tokens = [];
+    }
+    render();
+  }
+
+  document.addEventListener("DOMContentLoaded", () => {
+    document.querySelectorAll(".mode-btn").forEach((button) => button.addEventListener("click", () => {
+      state.mode = button.dataset.mode || "market";
+      document.querySelectorAll(".mode-btn").forEach((item) => item.classList.toggle("is-active", item === button));
+      render();
+    }));
+    $("resetZoom")?.addEventListener("click", canvas);
+    new ResizeObserver(canvas).observe($("heatmapViewport"));
+    load();
+  });
 })();
