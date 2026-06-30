@@ -1,0 +1,9 @@
+name: PR12 Check
+on: [pull_request]
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 scripts/check_world_id_privacy.py
+      - run: node --check assets/world-id-tools.js
